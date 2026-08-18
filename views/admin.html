@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Showtime Seat Blocks</title>
+<style>
+  :root{
+    --gold:#c9a24b;
+    --gold-dark:#8a712f;
+    --red:#e2333d;
+    --bg:#0b0b0d;
+    --muted:#9a9a9a;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:#fff;
+    font-family:-apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    padding-bottom:40px;
+  }
+  .hidden{display:none !important;}
+
+  /* ---------- LIST VIEW ---------- */
+  .list-header{
+    padding:24px 20px 10px;
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:10px;
+  }
+  .list-header h1{
+    font-size:26px;
+    margin:0 0 4px;
+  }
+  .list-header p{
+    margin:0;
+    color:var(--muted);
+    font-size:14px;
+  }
+  .logout-link{
+    color:var(--muted);
+    font-size:12px;
+    cursor:pointer;
+    text-decoration:underline;
+    white-space:nowrap;
+    margin-top:4px;
+  }
+  .new-btn-wrap{
+    padding:14px 20px 6px;
+  }
+  .new-btn{
+    width:100%;
+    background:var(--gold);
+    color:#241c07;
+    border:none;
+    border-radius:12px;
+    padding:14px;
+    font-size:16px;
+    font-weight:700;
+    cursor:pointer;
+  }
+  .cards{
+    padding:14px 20px 20px;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+  }
+  .card{
+    background:#151517;
+    border:1px solid #2a2a2a;
+    border-radius:14px;
+    padding:14px 16px;
+  }
+  .card h3{
+    margin:0 0 4px;
+    font-size:18px;
+  }
+  .card .meta{
+    color:#ccc;
+    font-size:13px;
+    margin-bottom:8px;
+  }
+  .card .seats-line{
+    color:var(--gold);
+    font-size:13px;
+    margin-bottom:12px;
+    word-break:break-word;
+  }
+  .card-actions{
+    display:flex;
+    gap:10px;
+  }
+  .card-actions button{
+    flex:1;
+  }
+  .empty-state, .loading-state{
+    padding:40px 20px;
+    text-align:center;
+    color:var(--muted);
+    font-size:14px;
+  }
+
+  /* ---------- EDITOR VIEW ---------- */
+  .header{
+    padding:20px 20px 14px;
+  }
+  .top-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:10px;
+  }
+  .back-btn{
+    font-size:22px;
+    color:#fff;
+    cursor:pointer;
+    opacity:.85;
+    padding:4px 8px 4px 0;
+  }
+  .title{
+    font-size:26px;
+    font-weight:800;
+    line-height:1.15;
+    outline:none;
+    flex:1;
+  }
+  .title:hover{background:rgba(255,255,255,0.06);}
+  .subtitle{
+    margin-top:10px;
+    color:#e8e8e8;
+    font-size:15px;
+    line-height:1.5;
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:6px;
+  }
+  .subtitle .theater{outline:none;}
+  .subtitle .theater:hover{background:rgba(255,255,255,0.06);}
+  .sep{color:#777;}
+  .subtitle input, .subtitle select{
+    background:transparent;
+    color:#e8e8e8;
+    border:none;
+    border-bottom:1px solid #555;
+    font-size:15px;
+    font-family:inherit;
+    padding:2px 2px;
+  }
+  .subtitle select{
+    -webkit-appearance:none;
+    appearance:none;
+    padding-right:16px;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0 L5 6 L10 0 Z' fill='%23aaa'/></svg>");
+    background-repeat:no-repeat;
+    background-position:right center;
+  }
+  .subtitle select option{background:#111;color:#fff;}
+  .subtitle input::-webkit-calendar-picker-indicator{filter:invert(1);}
+  .edit-hint{
+    color:var(--muted);
+    font-size:11px;
+    margin-top:6px;
+  }
+  .screen-wrap{padding:10px 10px 0;text-align:center;}
+  .screen-curve{width:100%;max-width:900px;margin:0 auto;height:26px;}
+  .screen-label{color:#ccc;font-size:11px;letter-spacing:3px;margin-top:2px;}
+  .seatmap{
+    display:flex;
+    flex-direction:column;
+    align-items:flex-start;
+    align-items:safe center;
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+    padding:6px 16px 10px;
+  }
+  .row{
+    display:flex;
+    justify-content:flex-start;
+    gap:2px;
+    margin:2px 0;
+    width:max-content;
+  }
+  .seat{
+    width:22px;
+    height:20px;
+    border-radius:4px;
+    background:var(--gold);
+    border:1px solid var(--gold-dark);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:7px;
+    color:#3a2f10;
+    font-weight:700;
+    cursor:pointer;
+    user-select:none;
+    flex:0 0 auto;
+  }
+  .seat.selected{background:var(--red);border-color:#8f1319;color:#fff;}
+  .seat.occupied{background:transparent;border:1px solid #444;color:#555;cursor:not-allowed;}
+  .seat.wc, .seat.comp{border-radius:50%;background:var(--gold);}
+  .seat.wc.selected, .seat.comp.selected{background:var(--red);}
+  .legend{
+    margin-top:20px;
+    padding:14px 20px;
+    border-top:1px solid #2a2a2a;
+    display:flex;
+    flex-wrap:wrap;
+    gap:18px;
+    font-size:13px;
+    color:#ddd;
+  }
+  .legend-item{display:flex;align-items:center;gap:8px;}
+  .legend-swatch{width:18px;height:18px;border-radius:4px;display:inline-block;}
+  .sw-avail{background:var(--gold);border:1px solid var(--gold-dark);}
+  .sw-sel{background:var(--red);}
+  .sw-occ{background:transparent;border:1px solid #666;}
+  .summary{padding:16px 20px 4px;font-size:14px;color:#fff;}
+  .summary b{color:var(--gold);}
+  .controls{
+    padding:6px 20px 8px;
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+  }
+  button{
+    background:#1e1e1e;
+    color:#fff;
+    border:1px solid #3a3a3a;
+    border-radius:20px;
+    padding:8px 16px;
+    font-size:13px;
+    cursor:pointer;
+  }
+  button:hover{background:#2a2a2a;}
+  .toolbar-note{
+    color:var(--muted);
+    font-size:11.5px;
+    padding:0 20px 10px;
+  }
+  .save-bar{
+    position:sticky;
+    bottom:0;
+    background:linear-gradient(to top, var(--bg) 60%, transparent);
+    padding:16px 20px 6px;
+    display:flex;
+    gap:10px;
+  }
+  .save-btn{
+    flex:1;
+    background:var(--gold);
+    color:#241c07;
+    border:none;
+    border-radius:24px;
+    padding:14px;
+    font-size:15px;
+    font-weight:700;
+  }
+  .delete-btn{
+    background:#2a1616;
+    border:1px solid #5a2323;
+    color:#e2857a;
+    border-radius:24px;
+    padding:14px 18px;
+    font-size:14px;
+  }
+  .save-status{
+    text-align:center;
+    font-size:12px;
+    color:var(--muted);
+    padding:0 20px 4px;
+    min-height:16px;
+  }
+</style>
+</head>
+<body>
+
+  <!-- ===================== LIST VIEW ===================== -->
+  <div id="listView">
+    <div class="list-header">
+      <div>
+        <h1>My Showtimes</h1>
+        <p>Seat blocks for your crew</p>
+      </div>
+      <div class="logout-link" onclick="logout()">Log out</div>
+    </div>
+    <div class="new-btn-wrap">
+      <button class="new-btn" onclick="openNew()">+ New Showtime</button>
+    </div>
+    <div class="cards" id="cardsContainer">
+      <div class="loading-state">Loading...</div>
+    </div>
+  </div>
+
+  <!-- ===================== EDITOR VIEW ===================== -->
+  <div id="editorView" class="hidden">
+    <div class="header">
+      <div class="top-row">
+        <div class="back-btn" onclick="backToList()">&#8592;</div>
+        <div class="title" id="titleField" contenteditable="true">Movie Title</div>
+      </div>
+      <div class="subtitle">
+        <span class="theater" id="theaterField" contenteditable="true">Theater Name</span>
+        <span class="sep">|</span>
+        <input type="date" id="showDate">
+        <span class="sep">|</span>
+        <input type="time" id="showTime">
+        <span class="sep">|</span>
+        <select id="format">
+          <option>IMAX with Laser</option>
+          <option>IMAX 70mm</option>
+        </select>
+        <span class="sep">at AMC</span>
+      </div>
+      <div class="edit-hint">Tap title/theater to rename; use pickers for date/time and the dropdown for format.</div>
+    </div>
+
+    <div class="screen-wrap">
+      <svg class="screen-curve" viewBox="0 0 900 26" preserveAspectRatio="none">
+        <path d="M10,20 Q450,-10 890,20" stroke="#eee" stroke-width="2" fill="none"/>
+      </svg>
+      <div class="screen-label">SCREEN</div>
+    </div>
+
+    <div class="seatmap" id="seatmap"></div>
+
+    <div class="summary" id="summary">Selected seats: <b>none</b></div>
+
+    <div class="controls">
+      <button onclick="clearSelection()">Clear selection</button>
+      <button onclick="resetAll()">Reset all seats</button>
+      <button onclick="markRestSoldOut()">Mark rest sold out</button>
+    </div>
+    <div class="toolbar-note">Tap a gold seat to select it (turns red, your tix). Tap a red seat to mark it occupied/blocked. Tap again for available.</div>
+
+    <div class="legend">
+      <div class="legend-item"><span class="legend-swatch sw-avail"></span> Available</div>
+      <div class="legend-item"><span class="legend-swatch sw-sel"></span> Selected (your tix)</div>
+      <div class="legend-item"><span class="legend-swatch sw-occ"></span> Occupied</div>
+    </div>
+
+    <div class="save-status" id="saveStatus"></div>
+    <div class="save-bar">
+      <button class="save-btn" onclick="saveCurrent()">Save Showtime</button>
+      <button class="delete-btn hidden" id="deleteBtn" onclick="deleteCurrent()">Delete</button>
+    </div>
+  </div>
+
+<script>
+const rowDefs = [
+  { letter: 'A', count: 29, special: {3:'wc', 27:'wc'} },
+  { letter: 'B', count: 29, special: {} },
+  { letter: 'C', count: 29, special: {} },
+  { letter: 'D', count: 29, special: {} },
+  { letter: 'E', count: 29, special: {} },
+  { letter: 'F', count: 29, special: {} },
+  { letter: 'G', count: 29, special: {} },
+  { letter: 'H', count: 29, special: {} },
+  { letter: 'J', count: 29, special: {} },
+  { letter: 'K', count: 29, special: {} },
+  { letter: 'L', count: 29, special: {} },
+  { letter: 'M', count: 29, special: {} },
+  { letter: 'N', count: 29, special: {5:'wc', 6:'comp', 24:'comp', 25:'wc'} },
+];
+
+let currentId = null;      // null = unsaved new showtime
+let seatStates = {};       // seatId -> 'selected' | 'occupied'
+
+function todayISO(){
+  const d = new Date();
+  return d.toISOString().slice(0,10);
+}
+
+async function handleAuthFailure(res){
+  if (res.status === 401){
+    window.location.href = '/login.html';
+    return true;
+  }
+  return false;
+}
+
+async function logout(){
+  try{ await fetch('/api/logout', { method: 'POST' }); }catch(e){}
+  window.location.href = '/login.html';
+}
+
+// ---------------- VIEW SWITCHING ----------------
+function showList(){
+  document.getElementById('editorView').classList.add('hidden');
+  document.getElementById('listView').classList.remove('hidden');
+}
+function showEditor(){
+  document.getElementById('listView').classList.add('hidden');
+  document.getElementById('editorView').classList.remove('hidden');
+}
+function backToList(){
+  showList();
+  loadList();
+}
+
+// ---------------- LIST VIEW ----------------
+async function loadList(){
+  const container = document.getElementById('cardsContainer');
+  container.innerHTML = '<div class="loading-state">Loading...</div>';
+  try{
+    const res = await fetch('/api/showtimes');
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok) throw new Error('failed to load');
+    const data = await res.json();
+    const items = data.showtimes || [];
+    if (items.length === 0){
+      container.innerHTML = '<div class="empty-state">No showtimes yet. Tap "+ New Showtime" to create your first seat block.</div>';
+      return;
+    }
+    items.sort((a,b) => (b.createdAt||0) - (a.createdAt||0));
+    container.innerHTML = '';
+    items.forEach(obj => container.appendChild(buildCard(obj)));
+  }catch(e){
+    container.innerHTML = '<div class="empty-state">Could not load showtimes. Try again.</div>';
+  }
+}
+
+function buildCard(obj){
+  const card = document.createElement('div');
+  card.className = 'card';
+
+  const selectedIds = Object.keys(obj.seats||{}).filter(k => obj.seats[k] === 'selected');
+  const dateDisplay = obj.date ? formatDateDisplay(obj.date) : '';
+  const timeDisplay = obj.time ? formatTimeDisplay(obj.time) : '';
+
+  const h3 = document.createElement('h3');
+  h3.textContent = obj.title || 'Untitled';
+  card.appendChild(h3);
+
+  const meta = document.createElement('div');
+  meta.className = 'meta';
+  meta.textContent = [obj.theater, dateDisplay, timeDisplay, obj.format].filter(Boolean).join(' | ');
+  card.appendChild(meta);
+
+  const seatsLine = document.createElement('div');
+  seatsLine.className = 'seats-line';
+  seatsLine.textContent = selectedIds.length
+    ? selectedIds.length + ' seat(s): ' + selectedIds.join(', ')
+    : 'No seats selected yet';
+  card.appendChild(seatsLine);
+
+  const actions = document.createElement('div');
+  actions.className = 'card-actions';
+
+  const editBtn = document.createElement('button');
+  editBtn.textContent = 'Open';
+  editBtn.onclick = () => openExisting(obj.id);
+  actions.appendChild(editBtn);
+
+  const delBtn = document.createElement('button');
+  delBtn.textContent = 'Delete';
+  delBtn.onclick = () => deleteFromList(obj.id);
+  actions.appendChild(delBtn);
+
+  card.appendChild(actions);
+  return card;
+}
+
+function formatDateDisplay(iso){
+  try{
+    const [y,m,d] = iso.split('-').map(Number);
+    const dt = new Date(y, m-1, d);
+    return dt.toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric' });
+  }catch(e){ return iso; }
+}
+function formatTimeDisplay(t){
+  try{
+    const [h,m] = t.split(':').map(Number);
+    const dt = new Date();
+    dt.setHours(h, m, 0, 0);
+    return dt.toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' });
+  }catch(e){ return t; }
+}
+
+async function deleteFromList(id){
+  if (!confirm('Delete this showtime? This cannot be undone.')) return;
+  try{
+    const res = await fetch('/api/showtimes/' + id, { method: 'DELETE' });
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok) throw new Error('failed to delete');
+    loadList();
+  }catch(e){
+    alert('Could not delete. Try again.');
+  }
+}
+
+// ---------------- EDITOR: NEW / OPEN ----------------
+function openNew(){
+  currentId = null;
+  document.getElementById('titleField').textContent = 'Movie Title';
+  document.getElementById('theaterField').textContent = 'AMC Metreon 16';
+  document.getElementById('showDate').value = todayISO();
+  document.getElementById('showTime').value = '19:00';
+  document.getElementById('format').value = 'IMAX with Laser';
+  seatStates = {};
+  document.getElementById('deleteBtn').classList.add('hidden');
+  document.getElementById('saveStatus').textContent = '';
+  buildSeatGrid();
+  showEditor();
+}
+
+async function openExisting(id){
+  try{
+    const res = await fetch('/api/showtimes/' + id);
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok){ alert('Could not find that showtime.'); return; }
+    const data = await res.json();
+    const obj = data.showtime;
+    currentId = id;
+    document.getElementById('titleField').textContent = obj.title || 'Movie Title';
+    document.getElementById('theaterField').textContent = obj.theater || 'AMC Metreon 16';
+    document.getElementById('showDate').value = obj.date || todayISO();
+    document.getElementById('showTime').value = obj.time || '19:00';
+    document.getElementById('format').value = obj.format || 'IMAX with Laser';
+    seatStates = obj.seats || {};
+    document.getElementById('deleteBtn').classList.remove('hidden');
+    document.getElementById('saveStatus').textContent = '';
+    buildSeatGrid();
+    showEditor();
+  }catch(e){
+    alert('Could not open that showtime.');
+  }
+}
+
+// ---------------- SEAT GRID ----------------
+function buildSeatGrid(){
+  const seatmap = document.getElementById('seatmap');
+  seatmap.innerHTML = '';
+  rowDefs.forEach(row => {
+    const rowEl = document.createElement('div');
+    rowEl.className = 'row';
+    for (let i = row.count; i >= 1; i--){
+      const seatId = row.letter + i;
+      const type = row.special[i] || 'seat';
+      const seatEl = document.createElement('div');
+      seatEl.className = 'seat' + (type !== 'seat' ? ' ' + type : '');
+      const state = seatStates[seatId] || 'available';
+      if (state === 'selected') seatEl.classList.add('selected');
+      if (state === 'occupied') seatEl.classList.add('occupied');
+      seatEl.dataset.state = state;
+      seatEl.dataset.id = seatId;
+      seatEl.textContent = type === 'wc' ? '♿' : (type === 'comp' ? '+' : seatId);
+      seatEl.title = seatId;
+      seatEl.addEventListener('click', () => cycleSeat(seatEl));
+      rowEl.appendChild(seatEl);
+    }
+    seatmap.appendChild(rowEl);
+  });
+  updateSummary();
+}
+
+function cycleSeat(el){
+  const state = el.dataset.state;
+  const id = el.dataset.id;
+  let next;
+  if (state === 'available') next = 'selected';
+  else if (state === 'selected') next = 'occupied';
+  else next = 'available';
+
+  el.dataset.state = next;
+  el.classList.remove('selected','occupied');
+  if (next === 'selected') el.classList.add('selected');
+  if (next === 'occupied') el.classList.add('occupied');
+
+  if (next === 'available') delete seatStates[id];
+  else seatStates[id] = next;
+
+  updateSummary();
+}
+
+function updateSummary(){
+  const selected = Object.keys(seatStates).filter(k => seatStates[k] === 'selected');
+  const summary = document.getElementById('summary');
+  summary.innerHTML = selected.length
+    ? 'Selected seats (' + selected.length + '): <b>' + selected.join(', ') + '</b>'
+    : 'Selected seats: <b>none</b>';
+}
+
+function clearSelection(){
+  Object.keys(seatStates).forEach(id => {
+    if (seatStates[id] === 'selected') delete seatStates[id];
+  });
+  document.querySelectorAll('.seat.selected').forEach(s => {
+    s.classList.remove('selected');
+    s.dataset.state = 'available';
+  });
+  updateSummary();
+}
+
+function markRestSoldOut(){
+  document.querySelectorAll('.seat').forEach(s => {
+    if (s.dataset.state === 'available'){
+      s.dataset.state = 'occupied';
+      s.classList.add('occupied');
+      seatStates[s.dataset.id] = 'occupied';
+    }
+  });
+  updateSummary();
+}
+
+function resetAll(){
+  seatStates = {};
+  document.querySelectorAll('.seat').forEach(s => {
+    s.classList.remove('selected','occupied');
+    s.dataset.state = 'available';
+  });
+  updateSummary();
+}
+
+// ---------------- SAVE / DELETE ----------------
+async function saveCurrent(){
+  const statusEl = document.getElementById('saveStatus');
+  statusEl.textContent = 'Saving...';
+  const payload = {
+    title: document.getElementById('titleField').textContent.trim() || 'Untitled',
+    theater: document.getElementById('theaterField').textContent.trim() || '',
+    date: document.getElementById('showDate').value,
+    time: document.getElementById('showTime').value,
+    format: document.getElementById('format').value,
+    seats: seatStates
+  };
+  try{
+    const url = currentId ? ('/api/showtimes/' + currentId) : '/api/showtimes';
+    const method = currentId ? 'PUT' : 'POST';
+    const res = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok){ statusEl.textContent = 'Save failed. Try again.'; return; }
+    const data = await res.json();
+    currentId = data.showtime.id;
+    document.getElementById('deleteBtn').classList.remove('hidden');
+    statusEl.textContent = 'Saved.';
+    setTimeout(() => { if (statusEl.textContent === 'Saved.') statusEl.textContent=''; }, 1500);
+  }catch(e){
+    statusEl.textContent = 'Save failed. Try again.';
+  }
+}
+
+async function deleteCurrent(){
+  if (!currentId) return;
+  if (!confirm('Delete this showtime? This cannot be undone.')) return;
+  try{
+    const res = await fetch('/api/showtimes/' + currentId, { method: 'DELETE' });
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok) throw new Error('failed to delete');
+    backToList();
+  }catch(e){
+    alert('Could not delete. Try again.');
+  }
+}
+
+// ---------------- INIT ----------------
+loadList();
+</script>
+
+</body>
+</html>
