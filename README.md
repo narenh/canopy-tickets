@@ -60,6 +60,36 @@ Coolify" below for making that survive redeploys).
   which seats are sold-out-but-not-mine vs. simply not part of the block.
 - `public/login.html` — the one password screen (no "admin" language --
   it doesn't know or care which password you're about to type).
+- `lib/ogImage.js` — persistence for the link-preview image (see below),
+  same pattern as `lib/store.js`: lives in `DATA_DIR` so it survives
+  redeploys, not under `public/`.
+
+## Link-preview image
+
+The editor has an "Link Preview Image" upload (admin only). Whatever you
+upload there becomes the image shown when the site's link is shared in
+iMessage, Facebook, Instagram, etc. — title and description are fixed as
+"Canopy Tickets" / "Reserve your seats here" and aren't editable from the
+UI (change them in `buildOgTags()` in `server.js` if you ever want
+different copy).
+
+A few things worth knowing about how this actually works:
+
+- The image lives in `DATA_DIR`, same as `showtimes.json` — it needs the
+  same persistent volume (see below) to survive a redeploy.
+- The Open Graph/Twitter meta tags only matter on the page an
+  unauthenticated request sees, because link-preview crawlers never carry
+  your login cookie. In practice that's always the login page, and that's
+  exactly where the tags are (also mirrored on the editor/reservation
+  pages for consistency, but that's cosmetic).
+- **On caching**: you already know Meta/Apple cache scraped previews per
+  URL. There's no way to force that cache to expire from this app's side
+  — but the image URL includes `?v=<upload time>`, which changes every
+  time you upload a new image. A changed URL is what actually gets a
+  platform to fetch fresh instead of reusing what it cached for the old
+  URL. If Facebook specifically still shows something stale, their
+  [Sharing Debugger](https://developers.facebook.com/tools/debug/) lets
+  you force an immediate re-scrape by URL.
 
 ## Running locally
 
@@ -89,11 +119,16 @@ static files. The included `Dockerfile` builds and runs the app directly.
    - `HOST_VENMO` — your Venmo username (no `@`), so the reservation page
      can show a one-tap pay link. Optional; the link is just skipped if
      unset.
-   - `SESSION_SECRET` — a long random string (e.g. `openssl rand -hex 32`),
-     so logins survive restarts/redeploys.
-3. Add a **persistent volume** — this is where `showtimes.json` lives.
-   Without it, every redeploy gives the container a brand-new, empty
-   filesystem and your showtimes are gone. The `Dockerfile`'s `VOLUME`
+   - `SESSION_SECRET` — a long random string (e.g. `openssl rand -hex 32`).
+     Recommended, not strictly required: if unset, one is derived
+     deterministically from `ADMIN_PASSWORD`/`SHARED_PASSWORD` instead of
+     being randomized, so sessions still survive restarts/redeploys/extra
+     replicas either way. Set it explicitly so that changing either
+     password later doesn't also silently log everyone out.
+3. Add a **persistent volume** — this is where `showtimes.json` and the
+   uploaded link-preview image live. Without it, every redeploy gives the
+   container a brand-new, empty filesystem and both are gone. The
+   `Dockerfile`'s `VOLUME`
    line does *not* do this by itself — it just marks the path as
    volume-worthy; Coolify still needs to be told to actually attach a
    persistent volume there. In the Coolify UI, on this resource, open the

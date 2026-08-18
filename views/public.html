@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Reserve a Spot</title>
+<!-- OG_META -->
 <style>
   :root{
     --gold:#c9a24b;
@@ -363,12 +364,25 @@ let claimingSeatId = null;
 let seatEls = {};          // seatId -> DOM element, populated by buildSeatmap
 let venmoHandle = null;    // loaded once from /api/public/config
 
-async function handleAuthFailure(res){
-  if (res.status === 401){
-    window.location.href = '/';
+// Bouncing to '/' on a 401 is normally a one-shot fix (session expired,
+// go log in again). But if the page we land on still thinks we're
+// authed while the API disagrees (e.g. right after a redeploy handed out
+// a new session secret), that bounce repeats forever. Refuse to redirect
+// more than once in a few seconds -- show a manual link instead of
+// hammering the server or the browser's redirect-loop detector.
+function handleAuthFailure(res){
+  if (res.status !== 401) return false;
+  const key = 'canopy_auth_redirect_at';
+  const last = Number(sessionStorage.getItem(key) || 0);
+  if (Date.now() - last < 4000){
+    document.body.innerHTML =
+      '<div style="padding:60px 20px;text-align:center;color:#9a9a9a;font-family:-apple-system,sans-serif;">' +
+      'Session trouble &mdash; <a href="/" style="color:#c9a24b;">click here to sign in again</a>.</div>';
     return true;
   }
-  return false;
+  sessionStorage.setItem(key, String(Date.now()));
+  window.location.href = '/';
+  return true;
 }
 
 async function logout(){

@@ -1,12 +1,22 @@
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 const crypto = require('crypto');
+const multer = require('multer');
 const store = require('./lib/store');
+const ogImage = require('./lib/ogImage');
 const { createPasswordAuth } = require('./lib/auth');
 const { normalizeSeats } = require('./lib/seats');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Coolify (or any reverse proxy) terminates TLS in front of this
+// container, so the request Express sees is plain HTTP. Trusting the
+// proxy makes req.protocol correctly report "https" from
+// X-Forwarded-Proto -- needed so the Open Graph tags below don't
+// accidentally advertise an http:// URL for a site that's actually https.
+app.set('trust proxy', true);
 
 function requireEnvPassword(envVar, label) {
   let value = process.env[envVar];
@@ -30,8 +40,34 @@ if (!HOST_VENMO) {
   );
 }
 
-const adminAuth = createPasswordAuth('canopy_admin');
-const sharedAuth = createPasswordAuth('canopy_shared');
+// This MUST be the same value on every process that ever serves this app
+// -- a random-per-process fallback (what this used to do) is actively
+// dangerous: any redeploy, restart, or additional replica gets its own
+// secret, so a cookie signed by one process fails verification on the
+// next request if it lands on another. That's not just "sessions don't
+// survive a restart" -- it manifests as random login/logout redirect
+// loops mid-session, because the page-serving check and an API call a
+// moment later can literally be answered by two different secrets.
+//
+// If SESSION_SECRET isn't set, derive a stable one from the admin/shared
+// passwords instead of generating randomness -- those are already
+// required to be stable across the deployment for login to work at all,
+// so this can't newly introduce an inconsistency. Still recommend setting
+// SESSION_SECRET explicitly (see README) so rotating a password later
+// doesn't also silently invalidate every existing session.
+const SESSION_SECRET =
+  process.env.SESSION_SECRET ||
+  crypto.createHash('sha256').update(`canopy-tickets:${ADMIN_PASSWORD}:${SHARED_PASSWORD}`).digest('hex');
+if (!process.env.SESSION_SECRET) {
+  console.warn(
+    '[canopy-tickets] SESSION_SECRET not set; derived a stable one from ADMIN_PASSWORD/SHARED_PASSWORD instead. ' +
+      'This works, but changing either password will also silently log everyone out -- set SESSION_SECRET ' +
+      'explicitly (e.g. `openssl rand -hex 32`) to decouple the two.'
+  );
+}
+
+const adminAuth = createPasswordAuth('canopy_admin', SESSION_SECRET);
+const sharedAuth = createPasswordAuth('canopy_shared', SESSION_SECRET);
 
 app.disable('x-powered-by');
 app.use(express.json());
@@ -73,6 +109,49 @@ function parsePrice(raw) {
   const n = Number(raw);
   if (!Number.isFinite(n) || n < 0) return null;
   return Math.round(n * 100) / 100;
+}
+
+// Builds the Open Graph / Twitter Card <meta> tags for the link-preview
+// shown by iMessage, Facebook, Instagram, etc. when tix.canopysf.com gets
+// shared. Same title/description everywhere on purpose -- there's one
+// link, this is its identity regardless of which page an anonymous
+// request happens to resolve to (in practice, always the login page,
+// since crawlers never carry a session cookie).
+//
+// The image URL includes `?v=<uploadedAt>`, which changes every time a
+// new image is uploaded. That's a deliberate cache-bust: platforms like
+// Facebook cache a scraped preview keyed by URL and can hold onto it for
+// a long time (there's a manual "Sharing Debugger" to force a re-scrape,
+// but nothing server-side can compel it), so re-uploading only actually
+// changes what people see if the URL itself changes too.
+function buildOgTags(req) {
+  const pageUrl = `${req.protocol}://${req.get('host')}/`;
+  const tags = [
+    '<meta property="og:title" content="Canopy Tickets">',
+    '<meta property="og:description" content="Reserve your seats here">',
+    '<meta property="og:type" content="website">',
+    `<meta property="og:url" content="${pageUrl}">`
+  ];
+  const meta = ogImage.getMeta();
+  if (meta) {
+    const imageUrl = `${req.protocol}://${req.get('host')}/og-image?v=${meta.uploadedAt}`;
+    tags.push(
+      `<meta property="og:image" content="${imageUrl}">`,
+      '<meta name="twitter:card" content="summary_large_image">',
+      `<meta name="twitter:image" content="${imageUrl}">`
+    );
+  }
+  return tags.join('\n  ');
+}
+
+// Sends a static HTML file with the `<!-- OG_META -->` placeholder in its
+// <head> replaced with real tags. The tags have to be in the initial
+// server response, not injected by client-side JS -- link-preview
+// crawlers don't run JavaScript.
+function sendPageWithOgTags(res, req, filePath) {
+  const html = fs.readFileSync(filePath, 'utf8');
+  res.set('Content-Type', 'text/html; charset=utf-8');
+  res.send(html.replace('<!-- OG_META -->', buildOgTags(req)));
 }
 
 // Trims a showtime down to what a friend on the public/shared side should
@@ -242,19 +321,65 @@ app.post('/api/public/showtimes/:id/claim', async (req, res) => {
 // fetched directly, bypassing the checks below.
 app.get('/', (req, res) => {
   if (adminAuth.isAuthed(req)) {
-    return res.sendFile(path.join(__dirname, 'views', 'admin.html'));
+    return sendPageWithOgTags(res, req, path.join(__dirname, 'views', 'admin.html'));
   }
   if (sharedAuth.isAuthed(req)) {
-    return res.sendFile(path.join(__dirname, 'views', 'public.html'));
+    return sendPageWithOgTags(res, req, path.join(__dirname, 'views', 'public.html'));
   }
-  res.sendFile(path.join(__dirname, 'public', 'login.html'));
+  // The unauthenticated case is the one that actually matters for link
+  // previews: a crawler hitting the shared URL never has a session
+  // cookie, so this is the response it sees.
+  sendPageWithOgTags(res, req, path.join(__dirname, 'public', 'login.html'));
 });
 
 // /reserve was the old dedicated friend-facing URL -- keep it working as
 // a redirect in case it's already been shared anywhere.
 app.get('/reserve', (req, res) => res.redirect('/'));
 
+// ---------------- Link-preview image ----------------
+
+const ogImageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter(req, file, cb) {
+    const allowed = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
+    cb(null, allowed.includes(file.mimetype));
+  }
+});
+
+app.get('/api/og-image', adminAuth.requireAuth('/'), (req, res) => {
+  const meta = ogImage.getMeta();
+  res.json(meta ? { uploadedAt: meta.uploadedAt, url: `/og-image?v=${meta.uploadedAt}` } : { uploadedAt: null, url: null });
+});
+
+app.post('/api/og-image', adminAuth.requireAuth('/'), ogImageUpload.single('image'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'choose a PNG, JPEG, WebP, or GIF image' });
+  }
+  const meta = ogImage.save(req.file.buffer, req.file.mimetype);
+  res.json({ ok: true, uploadedAt: meta.uploadedAt, url: `/og-image?v=${meta.uploadedAt}` });
+});
+
+// No auth -- link-preview crawlers (Facebook, iMessage, etc.) fetch this
+// with no session, so it has to be reachable by anyone.
+app.get('/og-image', (req, res) => {
+  const meta = ogImage.getMeta();
+  if (!meta) return res.status(404).end();
+  res.set('Content-Type', meta.mimeType);
+  res.set('Cache-Control', 'public, max-age=86400');
+  res.sendFile(ogImage.getFilePath());
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Catches multer's upload errors (bad file type, over the size limit) and
+// returns clean JSON instead of Express's default HTML error page.
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    return res.status(400).json({ error: err.code === 'LIMIT_FILE_SIZE' ? 'image is too large (5MB max)' : err.message });
+  }
+  next(err);
+});
 
 app.listen(PORT, () => {
   console.log(`canopy-tickets listening on port ${PORT}`);

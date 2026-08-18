@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Showtime Seat Blocks</title>
+<!-- OG_META -->
 <style>
   :root{
     --gold:#c9a24b;
@@ -61,6 +62,48 @@
     font-size:16px;
     font-weight:700;
     cursor:pointer;
+  }
+  .og-section{
+    margin:14px 20px 6px;
+    padding:14px 16px;
+    background:#151517;
+    border:1px solid #2a2a2a;
+    border-radius:14px;
+  }
+  .og-section h3{
+    margin:0 0 4px;
+    font-size:15px;
+  }
+  .og-section p{
+    margin:0 0 12px;
+    color:var(--muted);
+    font-size:12px;
+  }
+  .og-preview{
+    display:block;
+    max-width:100%;
+    max-height:160px;
+    border-radius:8px;
+    margin-bottom:12px;
+    border:1px solid #2a2a2a;
+  }
+  .og-controls{
+    display:flex;
+    gap:10px;
+    align-items:center;
+    flex-wrap:wrap;
+  }
+  .og-controls input[type="file"]{
+    flex:1;
+    min-width:0;
+    color:#ccc;
+    font-size:12px;
+  }
+  .og-status{
+    font-size:12px;
+    color:var(--muted);
+    margin-top:8px;
+    min-height:16px;
   }
   .cards{
     padding:14px 20px 20px;
@@ -408,6 +451,18 @@
     <div class="new-btn-wrap">
       <button class="new-btn" onclick="openNew()">+ New Showtime</button>
     </div>
+
+    <div class="og-section">
+      <h3>Link Preview Image</h3>
+      <p>Shown when this site's link is shared in iMessage, Facebook, Instagram, etc.</p>
+      <img id="ogPreview" class="og-preview hidden" alt="Current link preview image">
+      <div class="og-controls">
+        <input type="file" id="ogFileInput" accept="image/png,image/jpeg,image/webp,image/gif">
+        <button type="button" onclick="uploadOgImage()">Upload</button>
+      </div>
+      <div class="og-status" id="ogStatus"></div>
+    </div>
+
     <div class="cards" id="cardsContainer">
       <div class="loading-state">Loading...</div>
     </div>
@@ -537,12 +592,25 @@ function normalizeSeats(rawSeats){
   return out;
 }
 
-async function handleAuthFailure(res){
-  if (res.status === 401){
-    window.location.href = '/';
+// Bouncing to '/' on a 401 is normally a one-shot fix (session expired,
+// go log in again). But if the page we land on still thinks we're
+// authed while the API disagrees (e.g. right after a redeploy handed out
+// a new session secret), that bounce repeats forever. Refuse to redirect
+// more than once in a few seconds -- show a manual link instead of
+// hammering the server or the browser's redirect-loop detector.
+function handleAuthFailure(res){
+  if (res.status !== 401) return false;
+  const key = 'canopy_auth_redirect_at';
+  const last = Number(sessionStorage.getItem(key) || 0);
+  if (Date.now() - last < 4000){
+    document.body.innerHTML =
+      '<div style="padding:60px 20px;text-align:center;color:#9a9a9a;font-family:-apple-system,sans-serif;">' +
+      'Session trouble &mdash; <a href="/" style="color:#c9a24b;">click here to sign in again</a>.</div>';
     return true;
   }
-  return false;
+  sessionStorage.setItem(key, String(Date.now()));
+  window.location.href = '/';
+  return true;
 }
 
 async function logout(){
@@ -918,8 +986,55 @@ async function deleteCurrent(){
   }
 }
 
+// ---------------- LINK PREVIEW IMAGE ----------------
+async function loadOgPreview(){
+  const img = document.getElementById('ogPreview');
+  try{
+    const res = await fetch('/api/og-image');
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.url){
+      img.src = data.url;
+      img.classList.remove('hidden');
+    } else {
+      img.classList.add('hidden');
+    }
+  }catch(e){
+    // Non-fatal -- the upload control still works even if this fails.
+  }
+}
+
+async function uploadOgImage(){
+  const input = document.getElementById('ogFileInput');
+  const statusEl = document.getElementById('ogStatus');
+  if (!input.files || !input.files[0]){
+    statusEl.textContent = 'Choose an image first.';
+    return;
+  }
+  statusEl.textContent = 'Uploading...';
+  const formData = new FormData();
+  formData.append('image', input.files[0]);
+  try{
+    const res = await fetch('/api/og-image', { method: 'POST', body: formData });
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok){
+      const data = await res.json().catch(() => ({}));
+      statusEl.textContent = data.error || 'Upload failed. Try again.';
+      return;
+    }
+    input.value = '';
+    statusEl.textContent = 'Uploaded.';
+    loadOgPreview();
+    setTimeout(() => { if (statusEl.textContent === 'Uploaded.') statusEl.textContent = ''; }, 1500);
+  }catch(e){
+    statusEl.textContent = 'Upload failed. Try again.';
+  }
+}
+
 // ---------------- INIT ----------------
 loadList();
+loadOgPreview();
 </script>
 
 </body>

@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Canopy Tickets</title>
+<!-- OG_META -->
 <style>
   :root{
     --gold:#c9a24b;
@@ -82,7 +83,15 @@
   try{
     const res = await fetch('/api/session');
     const data = await res.json();
-    if (data && data.authed) window.location.href = '/';
+    if (!data || !data.authed) return;
+    // Guard against bouncing back and forth with '/' forever if two
+    // requests in the same flow ever land on processes that disagree
+    // about session validity (e.g. mid-redeploy).
+    const key = 'canopy_auth_redirect_at';
+    const last = Number(sessionStorage.getItem(key) || 0);
+    if (Date.now() - last < 4000) return;
+    sessionStorage.setItem(key, String(Date.now()));
+    window.location.href = '/';
   }catch(e){}
 })();
 
