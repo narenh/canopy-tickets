@@ -190,15 +190,41 @@ function buildLogoImgTag() {
   return `<img src="/logo-image?v=${meta.uploadedAt}" alt="Canopy Tickets" class="site-logo">`;
 }
 
+// A `Cache-Control: no-cache` header on the static file itself only helps
+// if the browser actually revalidates it -- and Safari (iOS and desktop
+// alike) has repeatedly been caught serving straight from its cache
+// without so much as a conditional GET, no-cache header or not. The only
+// fix that doesn't depend on trusting Safari's cache behavior is a
+// version-busted URL, same as the logo/OG images already do: change the
+// URL and there's nothing left *to* revalidate, it's just a cache miss.
+// Computed once at startup from the file's mtime, which changes on every
+// deploy (a fresh container gets a freshly-written file), so this never
+// needs a manual bump.
+const SEAT_LAYOUT_JS_VERSION = fs.statSync(path.join(__dirname, 'public', 'seat-layout.js')).mtimeMs;
+
 // Sends a static HTML file with its `<!-- OG_META -->` (in <head>) and
 // `<!-- LOGO_IMG -->` (in <body>, wherever the page wants the logo to
-// appear) placeholders replaced with the real thing. The OG tags in
-// particular have to be in the initial server response, not injected by
-// client-side JS -- link-preview crawlers don't run JavaScript.
+// appear) placeholders replaced with the real thing, and its
+// `seat-layout.js` reference cache-busted (see SEAT_LAYOUT_JS_VERSION
+// above). The OG tags in particular have to be in the initial server
+// response, not injected by client-side JS -- link-preview crawlers don't
+// run JavaScript.
+//
+// The page itself is sent `no-store`: it's rendered fresh server-side on
+// every request anyway (session-gated, never the same for two visitors),
+// so there's no reason to let a browser cache it -- and caching it is
+// exactly what let an old page keep pointing at a stale seat-layout.js
+// URL in the first place.
 function renderHtmlPage(res, req, filePath) {
   const html = fs.readFileSync(filePath, 'utf8');
   res.set('Content-Type', 'text/html; charset=utf-8');
-  res.send(html.replace('<!-- OG_META -->', buildOgTags(req)).replace('<!-- LOGO_IMG -->', buildLogoImgTag()));
+  res.set('Cache-Control', 'no-store');
+  res.send(
+    html
+      .replace('<!-- OG_META -->', buildOgTags(req))
+      .replace('<!-- LOGO_IMG -->', buildLogoImgTag())
+      .replace('src="/seat-layout.js"', `src="/seat-layout.js?v=${SEAT_LAYOUT_JS_VERSION}"`)
+  );
 }
 
 // Trims a showtime down to what a friend on the public/shared side should
