@@ -46,6 +46,15 @@ app.get('/api/session', (req, res) => {
 
 app.use('/api/showtimes', auth.requireAuth);
 
+// Accepts a number or numeric string (e.g. "16.49"); returns null for
+// anything blank/invalid, otherwise a value rounded to the nearest cent.
+function parsePrice(raw) {
+  if (raw === '' || raw === undefined || raw === null) return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return Math.round(n * 100) / 100;
+}
+
 app.get('/api/showtimes', (req, res) => {
   const items = store.listShowtimes().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   res.json({ showtimes: items });
@@ -71,6 +80,7 @@ app.post('/api/showtimes', async (req, res) => {
     date: String(body.date || '').slice(0, 20),
     time: String(body.time || '').slice(0, 20),
     format: String(body.format || '').slice(0, 100),
+    price: parsePrice(body.price),
     seats: body.seats,
     createdAt: now,
     updatedAt: now
@@ -92,6 +102,7 @@ app.put('/api/showtimes/:id', async (req, res) => {
     date: String(body.date ?? existing.date).slice(0, 20),
     time: String(body.time ?? existing.time).slice(0, 20),
     format: String(body.format ?? existing.format).slice(0, 100),
+    price: body.price !== undefined ? parsePrice(body.price) : existing.price,
     seats,
     updatedAt: Date.now()
   };
