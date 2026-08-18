@@ -453,7 +453,22 @@ function mountImageRoutes(urlName, imageStore) {
 mountImageRoutes('og-image', ogImageStore);
 mountImageRoutes('logo-image', logoImageStore);
 
-app.use(express.static(path.join(__dirname, 'public')));
+// no-cache (not no-store) forces a conditional GET on every load instead
+// of letting the browser silently reuse whatever it fetched last time --
+// cheap at this app's scale, and it closes off a real bug class:
+// public/seat-layout.js's shape changed across two closely-spaced
+// deploys (a flat array -> a lookup keyed by number -> a lookup keyed by
+// theater+auditorium), and a browser holding an old cached copy against
+// the new HTML made the seat map silently render nothing, with no error
+// visible anywhere -- confirmed by the same page working fine in a
+// private/incognito window (no cache) when this first happened.
+app.use(
+  express.static(path.join(__dirname, 'public'), {
+    setHeaders(res) {
+      res.set('Cache-Control', 'no-cache');
+    }
+  })
+);
 
 // Catches multer's upload errors (bad file type, over the size limit) and
 // returns clean JSON instead of Express's default HTML error page.
