@@ -11,6 +11,10 @@
     --gold-dark:#8a712f;
     --red:#e2333d;
     --green:#2ecc71;
+    --green-dark:#1f9d57;
+    --outside-bg:#5c5228;
+    --outside-dark:#453d1e;
+    --outside-text:#cfc48f;
     --bg:#0b0b0d;
     --muted:#9a9a9a;
   }
@@ -261,23 +265,22 @@
     width:22px;
     height:20px;
     border-radius:4px;
-    background:var(--gold);
-    border:1px solid var(--gold-dark);
+    background:var(--outside-bg);
+    border:1px solid var(--outside-dark);
     display:flex;
     align-items:center;
     justify-content:center;
     font-size:7px;
-    color:#3a2f10;
+    color:var(--outside-text);
     font-weight:700;
     cursor:pointer;
     user-select:none;
     flex:0 0 auto;
   }
-  .seat.assigned{background:var(--red);border-color:#8f1319;color:#fff;}
-  .seat.occupied{background:transparent;border:1px solid #444;color:#555;cursor:pointer;}
-  .seat.wc, .seat.comp{border-radius:50%;background:var(--gold);}
-  .seat.wc.assigned, .seat.comp.assigned{background:var(--red);}
-  .seat.assigned.paid::after{
+  .seat.in-block{background:var(--green);border-color:var(--green-dark);color:#06331a;}
+  .seat.claimed{background:var(--red);border-color:#8f1319;color:#fff;}
+  .seat.wc, .seat.comp{border-radius:50%;}
+  .seat.claimed.paid::after{
     content:'';
     position:absolute;
     top:-2px;
@@ -287,6 +290,25 @@
     border-radius:50%;
     background:var(--green);
     border:1px solid #0b0b0d;
+  }
+  /* Custom hover tooltip (seat number + assignment), bigger and more
+     legible than the browser's native title-attribute tooltip. */
+  .seat:hover::before{
+    content:attr(data-tooltip);
+    position:absolute;
+    bottom:130%;
+    left:50%;
+    transform:translateX(-50%);
+    background:#000;
+    color:#fff;
+    padding:4px 8px;
+    border-radius:6px;
+    font-size:12px;
+    font-weight:400;
+    white-space:nowrap;
+    z-index:20;
+    pointer-events:none;
+    border:1px solid #444;
   }
   .legend{
     margin-top:20px;
@@ -300,21 +322,16 @@
   }
   .legend-item{display:flex;align-items:center;gap:8px;}
   .legend-swatch{width:18px;height:18px;border-radius:4px;display:inline-block;position:relative;}
-  .sw-avail{background:var(--gold);border:1px solid var(--gold-dark);}
-  .sw-sel{background:var(--red);}
-  .sw-occ{background:transparent;border:1px solid #666;}
+  .sw-avail{background:var(--outside-bg);border:1px solid var(--outside-dark);}
+  .sw-inblock{background:var(--green);border:1px solid var(--green-dark);}
+  .sw-claimed{background:var(--red);}
   .sw-paid-dot{
     position:absolute;top:-2px;right:-2px;width:6px;height:6px;border-radius:50%;
     background:var(--green);border:1px solid #0b0b0d;
   }
   .summary{padding:16px 20px 4px;font-size:14px;color:#fff;}
   .summary b{color:var(--gold);}
-  .controls{
-    padding:6px 20px 8px;
-    display:flex;
-    gap:10px;
-    flex-wrap:wrap;
-  }
+  .summary-line{margin-top:4px;}
   button{
     background:#1e1e1e;
     color:#fff;
@@ -509,18 +526,13 @@
 
     <div class="summary" id="summary">Your seats: <b>none</b></div>
 
-    <div class="controls">
-      <button onclick="clearSelection()">Clear selection</button>
-      <button onclick="resetAll()">Reset all seats</button>
-      <button onclick="markRestSoldOut()">Mark rest sold out</button>
-    </div>
-    <div class="toolbar-note">Tap a gold seat to grab it for your block (unassigned, unpaid). Tap a red seat to assign a name, mark it paid, mark it sold, or clear it. Tap a gray seat to release it back to available.</div>
+    <div class="toolbar-note">Tap a yellow seat to add it to your block. Tap a green seat to assign it to a friend. Tap a red seat to edit, clear, or release it.</div>
 
     <div class="legend">
-      <div class="legend-item"><span class="legend-swatch sw-avail"></span> Available</div>
-      <div class="legend-item"><span class="legend-swatch sw-sel"></span> Your block (unassigned = "AVAILABLE" to friends)</div>
-      <div class="legend-item"><span class="legend-swatch sw-sel"><span class="sw-paid-dot"></span></span> Assigned &amp; paid</div>
-      <div class="legend-item"><span class="legend-swatch sw-occ"></span> Sold out (not yours)</div>
+      <div class="legend-item"><span class="legend-swatch sw-avail"></span> Not in your block</div>
+      <div class="legend-item"><span class="legend-swatch sw-inblock"></span> Your block, available</div>
+      <div class="legend-item"><span class="legend-swatch sw-claimed"></span> Reserved by a friend</div>
+      <div class="legend-item"><span class="legend-swatch sw-claimed"><span class="sw-paid-dot"></span></span> Reserved &amp; paid</div>
     </div>
 
     <div class="save-status" id="saveStatus"></div>
@@ -544,8 +556,8 @@
       </label>
       <div class="seat-editor-actions">
         <button type="button" class="se-save-btn" onclick="applySeatEdit()">Save</button>
-        <button type="button" onclick="markSeatOccupiedFromEditor()">Mark sold out (not mine)</button>
-        <button type="button" class="se-danger-btn" onclick="clearSeatFromEditor()">Clear seat (available)</button>
+        <button type="button" id="seatEditorClearBtn" onclick="clearNameFromEditor()">Clear</button>
+        <button type="button" class="se-danger-btn" onclick="releaseSeatFromEditor()">Release</button>
         <button type="button" onclick="closeSeatEditor()">Cancel</button>
       </div>
     </div>
@@ -805,14 +817,16 @@ function buildSeatGrid(){
       seatEl.dataset.id = seatId;
       seatEl.dataset.baseText = type === 'wc' ? '♿' : (type === 'comp' ? '+' : seatId);
       seatEl.textContent = seatEl.dataset.baseText;
-      seatEl.title = seatId;
+      seatEl.setAttribute('aria-label', seatId);
       seatEl.addEventListener('click', () => seatTap(seatId));
       rowEl.appendChild(seatEl);
       seatEls[seatId] = seatEl;
     }
     seatmap.appendChild(rowEl);
   });
-  Object.keys(seatStates).forEach(id => renderSeat(id));
+  // Render every seat (not just ones with a stored state) so the hover
+  // tooltip and default styling are set for the "not in your block" ones too.
+  Object.keys(seatEls).forEach(id => renderSeat(id));
   updateSummary();
 }
 
@@ -820,51 +834,46 @@ function renderSeat(id){
   const el = seatEls[id];
   if (!el) return;
   const s = seatStates[id];
-  el.classList.remove('assigned', 'occupied', 'paid');
-  if (!s){
-    el.textContent = el.dataset.baseText;
+  el.classList.remove('in-block', 'claimed', 'paid');
+  el.textContent = el.dataset.baseText;
+  // Anything that isn't 'assigned' -- including no entry at all, or a
+  // legacy 'occupied' entry from before that state was retired -- just
+  // renders as "not in your block."
+  if (!s || s.status !== 'assigned'){
+    el.dataset.tooltip = id + ' — not in your block';
     return;
   }
-  if (s.status === 'occupied'){
-    el.classList.add('occupied');
-    el.textContent = el.dataset.baseText;
-    return;
-  }
-  if (s.status === 'assigned'){
-    el.classList.add('assigned');
+  if (s.name){
+    el.classList.add('claimed');
     if (s.paid) el.classList.add('paid');
-    el.textContent = el.dataset.baseText;
+    el.dataset.tooltip = id + ' — ' + s.name + (s.paid ? ' (paid)' : ' (unpaid)');
+  } else {
+    el.classList.add('in-block');
+    el.dataset.tooltip = id + ' — available';
   }
 }
 
-// Single tap: available -> grabbed for your block (unassigned, unpaid).
-// Tapping a block seat opens the editor (name/paid/sold/clear).
-// Tapping an occupied (sold out) seat releases it back to available.
+// Single tap: not in your block -> grabbed for your block (available,
+// unpaid). Tapping a block seat (available or claimed) opens the editor.
 function seatTap(id){
   const cur = seatStates[id];
-  if (!cur){
+  if (!cur || cur.status !== 'assigned'){
     seatStates[id] = { status: 'assigned', name: '', paid: false };
     renderSeat(id);
     updateSummary();
     return;
   }
-  if (cur.status === 'assigned'){
-    openSeatEditor(id);
-    return;
-  }
-  if (cur.status === 'occupied'){
-    delete seatStates[id];
-    renderSeat(id);
-    updateSummary();
-  }
+  openSeatEditor(id);
 }
 
 function openSeatEditor(id){
   editingSeatId = id;
   const cur = seatStates[id];
+  const hasName = !!(cur && cur.name);
   document.getElementById('seatEditorTitle').textContent = 'Seat ' + id;
-  document.getElementById('seatEditorName').value = (cur && cur.status === 'assigned') ? (cur.name || '') : '';
-  document.getElementById('seatEditorPaid').checked = !!(cur && cur.status === 'assigned' && cur.paid);
+  document.getElementById('seatEditorName').value = hasName ? cur.name : '';
+  document.getElementById('seatEditorPaid').checked = !!(cur && cur.paid);
+  document.getElementById('seatEditorClearBtn').classList.toggle('hidden', !hasName);
   document.getElementById('seatEditorOverlay').classList.remove('hidden');
   setTimeout(() => document.getElementById('seatEditorName').focus(), 0);
 }
@@ -884,15 +893,19 @@ function applySeatEdit(){
   closeSeatEditor();
 }
 
-function markSeatOccupiedFromEditor(){
+// Un-assigns just the friend's name, keeping the seat in your block
+// (green, available) so someone else can grab it.
+function clearNameFromEditor(){
   if (!editingSeatId) return;
-  seatStates[editingSeatId] = { status: 'occupied' };
+  seatStates[editingSeatId] = { status: 'assigned', name: '', paid: false };
   renderSeat(editingSeatId);
   updateSummary();
   closeSeatEditor();
 }
 
-function clearSeatFromEditor(){
+// Drops the seat out of your block entirely (e.g. you refunded the
+// ticket via AMC) -- back to "not in your block."
+function releaseSeatFromEditor(){
   if (!editingSeatId) return;
   delete seatStates[editingSeatId];
   renderSeat(editingSeatId);
@@ -907,37 +920,13 @@ function updateSummary(){
     summary.innerHTML = 'Your seats: <b>none</b>';
     return;
   }
-  const parts = blockIds.map(id => {
+  const lines = blockIds.map(id => {
     const s = seatStates[id];
-    const label = s.name ? s.name : 'AVAILABLE';
+    const label = s.name ? escapeHtml(s.name) : 'AVAILABLE';
     const paidTag = s.name ? (s.paid ? ' ✓paid' : ' unpaid') : '';
-    return id + ': ' + label + paidTag;
+    return '<div class="summary-line">' + escapeHtml(id) + ': <b>' + label + '</b>' + paidTag + '</div>';
   });
-  summary.innerHTML = 'Your seats (' + blockIds.length + '): <b>' + parts.join(', ') + '</b>';
-}
-
-function clearSelection(){
-  Object.keys(seatStates).forEach(id => {
-    if (seatStates[id].status === 'assigned') delete seatStates[id];
-  });
-  Object.keys(seatEls).forEach(id => renderSeat(id));
-  updateSummary();
-}
-
-function markRestSoldOut(){
-  Object.keys(seatEls).forEach(id => {
-    if (!seatStates[id]){
-      seatStates[id] = { status: 'occupied' };
-      renderSeat(id);
-    }
-  });
-  updateSummary();
-}
-
-function resetAll(){
-  seatStates = {};
-  Object.keys(seatEls).forEach(id => renderSeat(id));
-  updateSummary();
+  summary.innerHTML = 'Your seats (' + blockIds.length + '):' + lines.join('');
 }
 
 // ---------------- SAVE / DELETE ----------------

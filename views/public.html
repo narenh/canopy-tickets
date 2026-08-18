@@ -418,6 +418,13 @@ function formatDateDisplay(iso){
     return dt.toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric' });
   }catch(e){ return iso; }
 }
+// Short numeric form for the Venmo note, e.g. "2026-02-12" -> "2/12/26".
+function formatDateShort(iso){
+  try{
+    const [y,m,d] = iso.split('-').map(Number);
+    return m + '/' + d + '/' + String(y).slice(-2);
+  }catch(e){ return iso; }
+}
 function formatTimeDisplay(t){
   try{
     const [h,m] = t.split(':').map(Number);
@@ -583,7 +590,8 @@ function openSuccessOverlay(showtime, seatId){
     'Seat ' + seatId + ' for ' + (showtime.title || 'this showtime') + (typeof showtime.price === 'number' ? ' -- ' + formatPrice(showtime.price) : '') + '.';
 
   const venmoLink = document.getElementById('venmoLink');
-  const link = buildVenmoLink(showtime.price, (showtime.title || 'Movie') + ' (' + seatId + ')');
+  const venmoNote = (showtime.title || 'Movie') + ' (' + formatDateShort(showtime.date) + ', ' + seatId + ')';
+  const link = buildVenmoLink(showtime.price, venmoNote);
   if (link){
     venmoLink.href = link;
     venmoLink.textContent = typeof showtime.price === 'number' ? ('Pay ' + formatPrice(showtime.price) + ' via Venmo') : 'Pay via Venmo';
