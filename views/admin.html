@@ -259,8 +259,14 @@
     font-size:11px;
     margin-top:6px;
   }
-  .screen-wrap{padding:10px 10px 0;text-align:center;}
-  .screen-curve{width:100%;max-width:900px;margin:0 auto;height:26px;}
+  /* screen-wrap is now a flex item inside .seatmap itself (built in JS,
+     one per render) so it scrolls horizontally in lock-step with the
+     seat rows instead of staying fixed while they scroll underneath it.
+     Its width gets set explicitly in JS to match the widest row, so the
+     arc's peak and the word "SCREEN" line up with the actual center of
+     the seat block rather than a fixed 900px guess. */
+  .screen-wrap{padding:0 0 10px;text-align:center;flex:0 0 auto;}
+  .screen-curve{display:block;width:100%;height:26px;}
   .screen-label{color:#ccc;font-size:11px;letter-spacing:3px;margin-top:2px;}
   .seatmap{
     display:flex;
@@ -555,13 +561,6 @@
       <div class="edit-hint">Tap title/theater to rename; use pickers for date/time and the dropdown for format.</div>
     </div>
 
-    <div class="screen-wrap">
-      <svg class="screen-curve" viewBox="0 0 900 26" preserveAspectRatio="none">
-        <path d="M10,20 Q450,-10 890,20" stroke="#eee" stroke-width="2" fill="none"/>
-      </svg>
-      <div class="screen-label">SCREEN</div>
-    </div>
-
     <div class="seatmap" id="seatmap"></div>
 
     <div class="summary" id="summary">Your seats: <b>none</b></div>
@@ -809,8 +808,11 @@ function openNew(){
   seatStates = {};
   document.getElementById('deleteBtn').classList.add('hidden');
   document.getElementById('saveStatus').textContent = '';
-  buildSeatGrid();
+  // Show the editor before building the grid -- buildSeatGrid measures
+  // row widths via offsetWidth, which reads 0 on anything still inside a
+  // display:none ancestor.
   showEditor();
+  buildSeatGrid();
 }
 
 async function openExisting(id){
@@ -830,8 +832,9 @@ async function openExisting(id){
     seatStates = normalizeSeats(obj.seats);
     document.getElementById('deleteBtn').classList.remove('hidden');
     document.getElementById('saveStatus').textContent = '';
-    buildSeatGrid();
+    // Same ordering reason as openNew() -- show before measuring.
     showEditor();
+    buildSeatGrid();
   }catch(e){
     alert('Could not open that showtime.');
   }
@@ -842,10 +845,28 @@ function setPrice(v){
 }
 
 // ---------------- SEAT GRID ----------------
+// Screen arc + "SCREEN" label, built fresh into #seatmap alongside the
+// rows (not as a separate element above it) so it's part of the same
+// horizontally-scrolling flex column -- it scrolls in lock-step with the
+// seats instead of sitting fixed while they scroll underneath it.
+function buildScreenWrap(){
+  const screenWrap = document.createElement('div');
+  screenWrap.className = 'screen-wrap';
+  screenWrap.innerHTML =
+    '<svg class="screen-curve" viewBox="0 0 900 26" preserveAspectRatio="none">' +
+    '<path d="M10,20 Q450,-10 890,20" stroke="#eee" stroke-width="2" fill="none"/></svg>' +
+    '<div class="screen-label">SCREEN</div>';
+  return screenWrap;
+}
+
 function buildSeatGrid(){
   const seatmap = document.getElementById('seatmap');
   seatmap.innerHTML = '';
   seatEls = {};
+
+  const screenWrap = buildScreenWrap();
+  seatmap.appendChild(screenWrap);
+
   rowDefs.forEach(row => {
     const rowEl = document.createElement('div');
     rowEl.className = 'row';
@@ -864,6 +885,12 @@ function buildSeatGrid(){
     }
     seatmap.appendChild(rowEl);
   });
+
+  // Match the screen's width to the widest row so its peak/label center
+  // on the actual seat block instead of a fixed guess.
+  const rowWidths = Array.from(seatmap.querySelectorAll('.row')).map(r => r.offsetWidth);
+  if (rowWidths.length) screenWrap.style.width = Math.max(...rowWidths) + 'px';
+
   // Render every seat (not just ones with a stored state) so the hover
   // tooltip and default styling are set for the "not in your block" ones too.
   Object.keys(seatEls).forEach(id => renderSeat(id));

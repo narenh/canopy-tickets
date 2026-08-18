@@ -39,6 +39,11 @@
     height:auto;
     margin:0 auto 14px;
   }
+  /* When a logo was uploaded, the site name in it is enough -- drop the
+     redundant "Canopy Tickets" heading rather than show both. */
+  .site-logo ~ h1{
+    display:none;
+  }
   h1{
     font-size:20px;
     margin:0 0 6px;
@@ -47,6 +52,7 @@
     margin:0 0 20px;
     color:var(--muted);
     font-size:13px;
+    text-align:center;
   }
   input{
     width:100%;
@@ -81,7 +87,7 @@
   <form id="loginForm">
     <!-- LOGO_IMG -->
     <h1>Canopy Tickets</h1>
-    <p>Enter your password to continue.</p>
+    <p>Enter the password to access seat reservations.</p>
     <div class="error" id="errorMsg"></div>
     <input type="password" id="password" placeholder="Password" autofocus autocomplete="current-password">
     <button type="submit">Enter</button>
