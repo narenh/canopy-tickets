@@ -10,6 +10,7 @@
     --gold-dark:#8a712f;
     --red:#e2333d;
     --green:#2ecc71;
+    --venmo:#008CFF;
     --bg:#0b0b0d;
     --muted:#9a9a9a;
   }
@@ -40,6 +41,11 @@
     color:var(--muted);
     font-size:14px;
   }
+  .list-header p#venmoNote{
+    margin-top:4px;
+    font-size:12px;
+  }
+  .list-header p#venmoNote a{color:var(--venmo);}
   .logout-link{
     color:var(--muted);
     font-size:12px;
@@ -238,7 +244,7 @@
     flex-direction:column;
     gap:8px;
   }
-  .claim-actions button{
+  .claim-actions button, .claim-actions a{
     width:100%;
     padding:10px;
     border-radius:20px;
@@ -247,12 +253,27 @@
     border:1px solid #3a3a3a;
     background:#1e1e1e;
     color:#fff;
+    text-align:center;
+    text-decoration:none;
+    display:block;
+    box-sizing:border-box;
   }
   .claim-submit-btn{
     background:var(--gold);
     color:#241c07;
     border:none;
     font-weight:700;
+  }
+  .venmo-btn{
+    background:var(--venmo);
+    color:#fff;
+    border:none;
+    font-weight:700;
+  }
+  .success-sub{
+    color:#e8e8e8;
+    font-size:14px;
+    margin-bottom:16px;
   }
   .claim-error{
     color:#e2857a;
@@ -270,6 +291,7 @@
       <div>
         <h1>Reserve a Spot</h1>
         <p>Grab an open seat, then Venmo to lock it in</p>
+        <p id="venmoNote" class="hidden"></p>
       </div>
       <div class="logout-link" onclick="logout()">Log out</div>
     </div>
@@ -319,6 +341,18 @@
     </div>
   </div>
 
+  <!-- ===================== SUCCESS / PAY OVERLAY ===================== -->
+  <div class="claim-overlay hidden" id="successOverlay">
+    <div class="claim-card">
+      <div class="claim-title">You're in! 🎬</div>
+      <div class="success-sub" id="successSub"></div>
+      <div class="claim-actions">
+        <a class="venmo-btn hidden" id="venmoLink" href="#" target="_blank" rel="noopener">Pay via Venmo</a>
+        <button type="button" onclick="closeSuccessOverlay()">Done</button>
+      </div>
+    </div>
+  </div>
+
 <script src="/seat-layout.js"></script>
 <script>
 const rowDefs = SEAT_LAYOUT;
@@ -327,18 +361,41 @@ let allShowtimes = [];     // last-loaded list from /api/public/showtimes
 let currentShowtimeId = null;
 let claimingSeatId = null;
 let seatEls = {};          // seatId -> DOM element, populated by buildSeatmap
+let venmoHandle = null;    // loaded once from /api/public/config
 
 async function handleAuthFailure(res){
   if (res.status === 401){
-    window.location.href = '/shared-login.html';
+    window.location.href = '/';
     return true;
   }
   return false;
 }
 
 async function logout(){
-  try{ await fetch('/api/shared-logout', { method: 'POST' }); }catch(e){}
-  window.location.href = '/shared-login.html';
+  try{ await fetch('/api/logout', { method: 'POST' }); }catch(e){}
+  window.location.href = '/';
+}
+
+async function loadConfig(){
+  try{
+    const res = await fetch('/api/public/config');
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok) return;
+    const data = await res.json();
+    venmoHandle = data.venmoHandle || null;
+  }catch(e){
+    // Non-fatal -- the claim flow just skips the Venmo link.
+  }
+}
+
+// Builds a Venmo pay link pre-filled with amount + a note identifying
+// what it's for, so paying is a single tap instead of hunting the host
+// down in Venmo's search.
+function buildVenmoLink(amount, note){
+  if (!venmoHandle) return null;
+  const params = new URLSearchParams({ txn: 'pay', note });
+  if (typeof amount === 'number') params.set('amount', amount.toFixed(2));
+  return 'https://venmo.com/' + encodeURIComponent(venmoHandle) + '?' + params.toString();
 }
 
 function escapeHtml(str){
@@ -517,6 +574,28 @@ function closeClaimOverlay(){
   document.getElementById('claimOverlay').classList.add('hidden');
 }
 
+// ---------------- SUCCESS / PAY OVERLAY ----------------
+function openSuccessOverlay(showtime, seatId){
+  document.getElementById('successSub').textContent =
+    'Seat ' + seatId + ' for ' + (showtime.title || 'this showtime') + (typeof showtime.price === 'number' ? ' -- ' + formatPrice(showtime.price) : '') + '.';
+
+  const venmoLink = document.getElementById('venmoLink');
+  const link = buildVenmoLink(showtime.price, (showtime.title || 'Movie') + ' (' + seatId + ')');
+  if (link){
+    venmoLink.href = link;
+    venmoLink.textContent = typeof showtime.price === 'number' ? ('Pay ' + formatPrice(showtime.price) + ' via Venmo') : 'Pay via Venmo';
+    venmoLink.classList.remove('hidden');
+  } else {
+    venmoLink.classList.add('hidden');
+  }
+
+  document.getElementById('successOverlay').classList.remove('hidden');
+}
+
+function closeSuccessOverlay(){
+  document.getElementById('successOverlay').classList.add('hidden');
+}
+
 async function submitClaim(){
   if (!claimingSeatId || !currentShowtimeId) return;
   const errorEl = document.getElementById('claimError');
@@ -541,12 +620,14 @@ async function submitClaim(){
       return;
     }
     const data = await res.json();
+    const claimedSeatId = claimingSeatId;
     closeClaimOverlay();
     // Refresh the in-memory copy for this showtime and redraw the map so
     // the newly-claimed seat shows red immediately.
     const idx = allShowtimes.findIndex(s => s.id === currentShowtimeId);
     if (idx !== -1) allShowtimes[idx] = data.showtime;
     buildSeatmap(data.showtime);
+    openSuccessOverlay(data.showtime, claimedSeatId);
   }catch(e){
     errorEl.textContent = 'Could not reach the server. Try again.';
   }
@@ -554,6 +635,13 @@ async function submitClaim(){
 
 // ---------------- INIT ----------------
 loadList();
+loadConfig().then(() => {
+  if (venmoHandle){
+    const note = document.getElementById('venmoNote');
+    note.innerHTML = 'Or Venmo <a href="https://venmo.com/' + encodeURIComponent(venmoHandle) + '" target="_blank" rel="noopener">@' + escapeHtml(venmoHandle) + '</a> directly.';
+    note.classList.remove('hidden');
+  }
+});
 </script>
 
 </body>

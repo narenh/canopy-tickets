@@ -539,7 +539,7 @@ function normalizeSeats(rawSeats){
 
 async function handleAuthFailure(res){
   if (res.status === 401){
-    window.location.href = '/login.html';
+    window.location.href = '/';
     return true;
   }
   return false;
@@ -547,7 +547,7 @@ async function handleAuthFailure(res){
 
 async function logout(){
   try{ await fetch('/api/logout', { method: 'POST' }); }catch(e){}
-  window.location.href = '/login.html';
+  window.location.href = '/';
 }
 
 // ---------------- VIEW SWITCHING ----------------
@@ -578,7 +578,7 @@ async function loadList(){
       container.innerHTML = '<div class="empty-state">No showtimes yet. Tap "+ New Showtime" to create your first seat block.</div>';
       return;
     }
-    items.sort((a,b) => (b.createdAt||0) - (a.createdAt||0));
+    items.sort((a,b) => (a.date+'T'+a.time).localeCompare(b.date+'T'+b.time));
     container.innerHTML = '';
     items.forEach(obj => container.appendChild(buildCard(obj)));
   }catch(e){

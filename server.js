@@ -22,6 +22,14 @@ function requireEnvPassword(envVar, label) {
 const ADMIN_PASSWORD = requireEnvPassword('ADMIN_PASSWORD', 'admin');
 const SHARED_PASSWORD = requireEnvPassword('SHARED_PASSWORD', 'shared/friend');
 
+const HOST_VENMO = process.env.HOST_VENMO || '';
+if (!HOST_VENMO) {
+  console.warn(
+    '[canopy-tickets] HOST_VENMO not set -- the reservation page will skip showing a Venmo link. ' +
+      'Set it to your Venmo username (no @) to enable one.'
+  );
+}
+
 const adminAuth = createPasswordAuth('canopy_admin');
 const sharedAuth = createPasswordAuth('canopy_shared');
 
@@ -50,6 +58,12 @@ function checkPassword(candidate, expected) {
   const a = Buffer.from(candidate);
   const b = Buffer.from(expected);
   return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+// Earliest showing first -- used for both the admin list and the public
+// list, so the order matches everywhere showtimes are shown.
+function byShowtime(a, b) {
+  return `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`);
 }
 
 // Accepts a number or numeric string (e.g. "16.49"); returns null for
@@ -84,54 +98,49 @@ function publicShowtimeView(s) {
   };
 }
 
-// ---------------- Admin auth ----------------
+// ---------------- Auth (single password field, two possible outcomes) ----------------
+//
+// There's one login page and one password field. Which of the two
+// passwords you type decides where you land -- ADMIN_PASSWORD opens the
+// editor, SHARED_PASSWORD opens the reservation page -- so the page never
+// has to say "admin" anywhere. The two sessions are still fully separate
+// cookies underneath; typing the admin password does not also grant
+// shared access or vice versa.
 
 app.post('/api/login', (req, res) => {
   const { password } = req.body || {};
   if (typeof password !== 'string' || password.length === 0) {
     return res.status(400).json({ error: 'password required' });
   }
-  if (!checkPassword(password, ADMIN_PASSWORD)) return res.status(401).json({ error: 'invalid password' });
-  adminAuth.issueSessionCookie(res);
-  res.json({ ok: true });
+  if (checkPassword(password, ADMIN_PASSWORD)) {
+    adminAuth.issueSessionCookie(res);
+    return res.json({ ok: true, role: 'admin' });
+  }
+  if (checkPassword(password, SHARED_PASSWORD)) {
+    sharedAuth.issueSessionCookie(res);
+    return res.json({ ok: true, role: 'shared' });
+  }
+  res.status(401).json({ error: 'invalid password' });
 });
 
 app.post('/api/logout', (req, res) => {
   adminAuth.clearSessionCookie(res);
-  res.json({ ok: true });
-});
-
-app.get('/api/session', (req, res) => {
-  res.json({ authed: adminAuth.isAuthed(req) });
-});
-
-// ---------------- Shared (friend-facing) auth ----------------
-
-app.post('/api/shared-login', (req, res) => {
-  const { password } = req.body || {};
-  if (typeof password !== 'string' || password.length === 0) {
-    return res.status(400).json({ error: 'password required' });
-  }
-  if (!checkPassword(password, SHARED_PASSWORD)) return res.status(401).json({ error: 'invalid password' });
-  sharedAuth.issueSessionCookie(res);
-  res.json({ ok: true });
-});
-
-app.post('/api/shared-logout', (req, res) => {
   sharedAuth.clearSessionCookie(res);
   res.json({ ok: true });
 });
 
-app.get('/api/shared-session', (req, res) => {
-  res.json({ authed: sharedAuth.isAuthed(req) });
+app.get('/api/session', (req, res) => {
+  if (adminAuth.isAuthed(req)) return res.json({ authed: true, role: 'admin' });
+  if (sharedAuth.isAuthed(req)) return res.json({ authed: true, role: 'shared' });
+  res.json({ authed: false, role: null });
 });
 
 // ---------------- Showtimes API (admin auth required) ----------------
 
-app.use('/api/showtimes', adminAuth.requireAuth('/login.html'));
+app.use('/api/showtimes', adminAuth.requireAuth('/'));
 
 app.get('/api/showtimes', (req, res) => {
-  const items = store.listShowtimes().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  const items = store.listShowtimes().sort(byShowtime);
   res.json({ showtimes: items });
 });
 
@@ -193,13 +202,14 @@ app.delete('/api/showtimes/:id', async (req, res) => {
 
 // ---------------- Public/shared API (shared auth required) ----------------
 
-app.use('/api/public', sharedAuth.requireAuth('/shared-login.html'));
+app.use('/api/public', sharedAuth.requireAuth('/'));
+
+app.get('/api/public/config', (req, res) => {
+  res.json({ venmoHandle: HOST_VENMO || null });
+});
 
 app.get('/api/public/showtimes', (req, res) => {
-  const items = store
-    .listShowtimes()
-    .map(publicShowtimeView)
-    .sort((a, b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`));
+  const items = store.listShowtimes().sort(byShowtime).map(publicShowtimeView);
   res.json({ showtimes: items });
 });
 
@@ -220,16 +230,29 @@ app.post('/api/public/showtimes/:id/claim', async (req, res) => {
 });
 
 // ---------------- Pages ----------------
-
+//
+// One front door. Whoever hits the root URL gets routed by which
+// password they last typed in, not by which link they clicked: the admin
+// editor if their session is admin-authed, the reservation page if
+// shared-authed, otherwise the single login form. This is deliberate --
+// the domain you hand out to friends and the one you use yourself are the
+// same URL, so there's nothing "admin-flavored" to notice at a glance.
+//
 // admin.html and public.html live outside /public so they can never be
-// fetched directly, bypassing the auth checks below.
-app.get('/', adminAuth.requireAuth('/login.html'), (req, res) => {
-  res.sendFile(path.join(__dirname, 'views', 'admin.html'));
+// fetched directly, bypassing the checks below.
+app.get('/', (req, res) => {
+  if (adminAuth.isAuthed(req)) {
+    return res.sendFile(path.join(__dirname, 'views', 'admin.html'));
+  }
+  if (sharedAuth.isAuthed(req)) {
+    return res.sendFile(path.join(__dirname, 'views', 'public.html'));
+  }
+  res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
-app.get('/reserve', sharedAuth.requireAuth('/shared-login.html'), (req, res) => {
-  res.sendFile(path.join(__dirname, 'views', 'public.html'));
-});
+// /reserve was the old dedicated friend-facing URL -- keep it working as
+// a redirect in case it's already been shared anywhere.
+app.get('/reserve', (req, res) => res.redirect('/'));
 
 app.use(express.static(path.join(__dirname, 'public')));
 
