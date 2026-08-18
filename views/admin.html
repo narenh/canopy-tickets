@@ -496,22 +496,9 @@
     </div>
   </div>
 
+<script src="/seat-layout.js"></script>
 <script>
-const rowDefs = [
-  { letter: 'A', count: 29, special: {3:'wc', 27:'wc'} },
-  { letter: 'B', count: 29, special: {} },
-  { letter: 'C', count: 29, special: {} },
-  { letter: 'D', count: 29, special: {} },
-  { letter: 'E', count: 29, special: {} },
-  { letter: 'F', count: 29, special: {} },
-  { letter: 'G', count: 29, special: {} },
-  { letter: 'H', count: 29, special: {} },
-  { letter: 'J', count: 29, special: {} },
-  { letter: 'K', count: 29, special: {} },
-  { letter: 'L', count: 29, special: {} },
-  { letter: 'M', count: 29, special: {} },
-  { letter: 'N', count: 29, special: {5:'wc', 6:'comp', 24:'comp', 25:'wc'} },
-];
+const rowDefs = SEAT_LAYOUT;
 
 let currentId = null;      // null = unsaved new showtime
 let seatStates = {};       // seatId -> { status: 'occupied' } | { status: 'assigned', name, paid }

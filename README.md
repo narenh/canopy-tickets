@@ -8,8 +8,8 @@ claim seats. Two sides, two separate passwords:
   specific friends, and mark them paid.
 - **Reserve** (`/reserve`, gated by `SHARED_PASSWORD`) — the page you hand
   out to friends. They see upcoming showtimes and how many spots are still
-  open, and can claim one for themselves by name. You still confirm
-  payment (Venmo, etc.) manually on the admin side.
+  open, pick a specific open seat off a seat map, and claim it by name. You
+  still confirm payment (Venmo, etc.) manually on the admin side.
 
 Everything is persisted server-side as a JSON file (see "Deploying on
 Coolify" below for making that survive redeploys).
@@ -20,22 +20,31 @@ Coolify" below for making that survive redeploys).
   (admin + shared) and a JSON REST API for showtimes.
 - `lib/store.js` — persistence: showtimes are stored as one JSON file on
   disk (`data/showtimes.json`), written atomically. No database needed at
-  this scale. `claimAnySeat` does the friend-facing claim atomically (read,
-  check, write inside one lock) so two people claiming at the same instant
-  can't collide on the same seat.
+  this scale. `claimSeat` does the friend-facing claim atomically (read,
+  check, write inside one lock) so two people tapping the same seat at the
+  same instant can't both win it -- verified with 10 concurrent claims
+  against a single open seat (1 winner, 9 correctly rejected).
 - `lib/auth.js` — one small password-session helper, instantiated twice
   (`canopy_admin` and `canopy_shared` cookies) so admin and friend logins
   never overlap.
 - `lib/seats.js` — normalizes a stored seat entry (handles the legacy
   plain-string format from before per-seat names/paid existed) into
   `{status: 'occupied'}` or `{status: 'assigned', name, paid}`.
+- `public/seat-layout.js` — the auditorium's row/seat geometry (which rows
+  exist, how many seats, where the wheelchair/companion icons go). The one
+  place both `admin.html` and `public.html` get it from, so they always
+  agree on which seat IDs exist. Currently approximate, not pulled from
+  AMC's real layout -- safe to correct later since a seat's identity is
+  just its ID string (e.g. `"F14"`); just don't rename/renumber a seat
+  that's already assigned to someone. See the TODO at the top of that file
+  for adding a second screen (e.g. Dolby) later.
 - `views/admin.html` — the showtime list + seat-map editor. Only served to
   authenticated admin requests.
 - `views/public.html` — the friend-facing reservation page. Only served to
   authenticated shared requests. Shows each showtime's remaining spot count
-  (green if any are open, red if sold out) and who's already claimed a
-  seat; doesn't expose the full seat map or which physical seat is sold
-  out vs. never purchased.
+  (green if any are open, red if sold out), who's already claimed a seat,
+  and a seat map to pick a specific open one from; doesn't expose which
+  seats are sold-out-but-not-mine vs. simply not part of the block.
 - `public/login.html`, `public/shared-login.html` — the two password
   screens.
 

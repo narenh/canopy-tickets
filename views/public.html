@@ -7,6 +7,7 @@
 <style>
   :root{
     --gold:#c9a24b;
+    --gold-dark:#8a712f;
     --red:#e2333d;
     --green:#2ecc71;
     --bg:#0b0b0d;
@@ -22,6 +23,7 @@
   }
   .hidden{display:none !important;}
 
+  /* ---------- LIST VIEW ---------- */
   .list-header{
     padding:24px 20px 10px;
     display:flex;
@@ -106,6 +108,93 @@
     font-size:14px;
   }
 
+  /* ---------- SEAT PICKER VIEW ---------- */
+  .header{
+    padding:20px 20px 14px;
+  }
+  .top-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:10px;
+  }
+  .back-btn{
+    font-size:22px;
+    color:#fff;
+    cursor:pointer;
+    opacity:.85;
+    padding:4px 8px 4px 0;
+  }
+  .picker-title{
+    font-size:22px;
+    font-weight:800;
+    line-height:1.15;
+    flex:1;
+  }
+  .picker-subtitle{
+    margin-top:8px;
+    color:#e8e8e8;
+    font-size:14px;
+  }
+  .screen-wrap{padding:10px 10px 0;text-align:center;}
+  .screen-curve{width:100%;max-width:900px;margin:0 auto;height:26px;}
+  .screen-label{color:#ccc;font-size:11px;letter-spacing:3px;margin-top:2px;}
+  .seatmap{
+    display:flex;
+    flex-direction:column;
+    align-items:flex-start;
+    align-items:safe center;
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+    padding:6px 16px 10px;
+  }
+  .row{
+    display:flex;
+    justify-content:flex-start;
+    gap:2px;
+    margin:2px 0;
+    width:max-content;
+  }
+  .seat{
+    width:22px;
+    height:20px;
+    border-radius:4px;
+    background:#2a2a2a;
+    border:1px solid #3a3a3a;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:7px;
+    color:#666;
+    font-weight:700;
+    user-select:none;
+    flex:0 0 auto;
+  }
+  .seat.pickable{background:var(--gold);border-color:var(--gold-dark);color:#3a2f10;cursor:pointer;}
+  .seat.taken{background:var(--red);border-color:#8f1319;color:#fff;cursor:not-allowed;}
+  .seat.wc, .seat.comp{border-radius:50%;}
+  .toolbar-note{
+    color:var(--muted);
+    font-size:11.5px;
+    padding:0 20px 10px;
+  }
+  .legend{
+    margin-top:12px;
+    padding:14px 20px;
+    border-top:1px solid #2a2a2a;
+    display:flex;
+    flex-wrap:wrap;
+    gap:18px;
+    font-size:13px;
+    color:#ddd;
+  }
+  .legend-item{display:flex;align-items:center;gap:8px;}
+  .legend-swatch{width:18px;height:18px;border-radius:4px;display:inline-block;}
+  .sw-pickable{background:var(--gold);border:1px solid var(--gold-dark);}
+  .sw-taken{background:var(--red);}
+  .sw-unavail{background:#2a2a2a;border:1px solid #3a3a3a;}
+
+  /* ---------- CLAIM OVERLAY ---------- */
   .claim-overlay{
     position:fixed;
     inset:0;
@@ -155,17 +244,15 @@
     border-radius:20px;
     font-size:14px;
     cursor:pointer;
+    border:1px solid #3a3a3a;
+    background:#1e1e1e;
+    color:#fff;
   }
   .claim-submit-btn{
     background:var(--gold);
     color:#241c07;
     border:none;
     font-weight:700;
-  }
-  .claim-cancel-btn{
-    background:#1e1e1e;
-    color:#fff;
-    border:1px solid #3a3a3a;
   }
   .claim-error{
     color:#e2857a;
@@ -177,32 +264,69 @@
 </head>
 <body>
 
-  <div class="list-header">
-    <div>
-      <h1>Reserve a Spot</h1>
-      <p>Grab an open seat, then Venmo to lock it in</p>
+  <!-- ===================== LIST VIEW ===================== -->
+  <div id="listView">
+    <div class="list-header">
+      <div>
+        <h1>Reserve a Spot</h1>
+        <p>Grab an open seat, then Venmo to lock it in</p>
+      </div>
+      <div class="logout-link" onclick="logout()">Log out</div>
     </div>
-    <div class="logout-link" onclick="logout()">Log out</div>
-  </div>
-  <div class="cards" id="cardsContainer">
-    <div class="loading-state">Loading...</div>
+    <div class="cards" id="cardsContainer">
+      <div class="loading-state">Loading...</div>
+    </div>
   </div>
 
+  <!-- ===================== SEAT PICKER VIEW ===================== -->
+  <div id="pickerView" class="hidden">
+    <div class="header">
+      <div class="top-row">
+        <div class="back-btn" onclick="backToList()">&#8592;</div>
+        <div class="picker-title" id="pickerTitle">Movie Title</div>
+      </div>
+      <div class="picker-subtitle" id="pickerSubtitle"></div>
+    </div>
+
+    <div class="screen-wrap">
+      <svg class="screen-curve" viewBox="0 0 900 26" preserveAspectRatio="none">
+        <path d="M10,20 Q450,-10 890,20" stroke="#eee" stroke-width="2" fill="none"/>
+      </svg>
+      <div class="screen-label">SCREEN</div>
+    </div>
+
+    <div class="seatmap" id="seatmap"></div>
+    <div class="toolbar-note">Tap a gold seat to claim it. Red seats are already taken; gray seats aren't part of this block.</div>
+
+    <div class="legend">
+      <div class="legend-item"><span class="legend-swatch sw-pickable"></span> Open -- tap to claim</div>
+      <div class="legend-item"><span class="legend-swatch sw-taken"></span> Taken</div>
+      <div class="legend-item"><span class="legend-swatch sw-unavail"></span> Not part of this block</div>
+    </div>
+  </div>
+
+  <!-- ===================== CLAIM OVERLAY ===================== -->
   <div class="claim-overlay hidden" id="claimOverlay">
     <div class="claim-card">
-      <div class="claim-title" id="claimTitle">Claim a spot</div>
-      <div class="claim-sub">Your name will be shown next to your seat so the host knows it's yours.</div>
+      <div class="claim-title" id="claimTitle">Claim seat</div>
+      <div class="claim-sub">Your name will be shown next to this seat so the host knows it's yours.</div>
       <div class="claim-error" id="claimError"></div>
       <input type="text" id="claimName" placeholder="Your name" autocomplete="name">
       <div class="claim-actions">
         <button type="button" class="claim-submit-btn" onclick="submitClaim()">Claim it</button>
-        <button type="button" class="claim-cancel-btn" onclick="closeClaimOverlay()">Cancel</button>
+        <button type="button" onclick="closeClaimOverlay()">Cancel</button>
       </div>
     </div>
   </div>
 
+<script src="/seat-layout.js"></script>
 <script>
-let claimingShowtimeId = null;
+const rowDefs = SEAT_LAYOUT;
+
+let allShowtimes = [];     // last-loaded list from /api/public/showtimes
+let currentShowtimeId = null;
+let claimingSeatId = null;
+let seatEls = {};          // seatId -> DOM element, populated by buildSeatmap
 
 async function handleAuthFailure(res){
   if (res.status === 401){
@@ -243,6 +367,22 @@ function formatTimeDisplay(t){
   }catch(e){ return t; }
 }
 
+// ---------------- VIEW SWITCHING ----------------
+function showList(){
+  document.getElementById('pickerView').classList.add('hidden');
+  document.getElementById('listView').classList.remove('hidden');
+}
+function showPicker(){
+  document.getElementById('listView').classList.add('hidden');
+  document.getElementById('pickerView').classList.remove('hidden');
+}
+function backToList(){
+  currentShowtimeId = null;
+  showList();
+  loadList();
+}
+
+// ---------------- LIST VIEW ----------------
 async function loadList(){
   const container = document.getElementById('cardsContainer');
   container.innerHTML = '<div class="loading-state">Loading...</div>';
@@ -251,16 +391,21 @@ async function loadList(){
     if (await handleAuthFailure(res)) return;
     if (!res.ok) throw new Error('failed to load');
     const data = await res.json();
-    const items = data.showtimes || [];
-    if (items.length === 0){
+    allShowtimes = data.showtimes || [];
+    if (allShowtimes.length === 0){
       container.innerHTML = '<div class="empty-state">No showtimes posted yet. Check back soon.</div>';
       return;
     }
     container.innerHTML = '';
-    items.forEach(obj => container.appendChild(buildCard(obj)));
+    allShowtimes.forEach(obj => container.appendChild(buildCard(obj)));
   }catch(e){
     container.innerHTML = '<div class="empty-state">Could not load showtimes. Try again.</div>';
   }
+}
+
+function showtimeSubtitle(obj){
+  return [obj.theater, formatDateDisplay(obj.date), formatTimeDisplay(obj.time), obj.format, formatPrice(obj.price)]
+    .filter(Boolean).join(' | ');
 }
 
 function buildCard(obj){
@@ -273,8 +418,7 @@ function buildCard(obj){
 
   const meta = document.createElement('div');
   meta.className = 'meta';
-  meta.textContent = [obj.theater, formatDateDisplay(obj.date), formatTimeDisplay(obj.time), obj.format, formatPrice(obj.price)]
-    .filter(Boolean).join(' | ');
+  meta.textContent = showtimeSubtitle(obj);
   card.appendChild(meta);
 
   const seats = obj.seats || {};
@@ -305,20 +449,63 @@ function buildCard(obj){
     }
 
     if (availCount > 0){
-      const claimBtn = document.createElement('button');
-      claimBtn.className = 'claim-btn';
-      claimBtn.textContent = 'Claim a spot';
-      claimBtn.onclick = () => openClaimOverlay(obj.id, obj.title);
-      card.appendChild(claimBtn);
+      const pickBtn = document.createElement('button');
+      pickBtn.className = 'claim-btn';
+      pickBtn.textContent = 'Pick a seat';
+      pickBtn.onclick = () => openSeatPicker(obj.id);
+      card.appendChild(pickBtn);
     }
   }
 
   return card;
 }
 
-function openClaimOverlay(showtimeId, title){
-  claimingShowtimeId = showtimeId;
-  document.getElementById('claimTitle').textContent = 'Claim a spot: ' + title;
+// ---------------- SEAT PICKER VIEW ----------------
+function openSeatPicker(id){
+  const obj = allShowtimes.find(s => s.id === id);
+  if (!obj) return;
+  currentShowtimeId = id;
+  document.getElementById('pickerTitle').textContent = obj.title || 'Movie Title';
+  document.getElementById('pickerSubtitle').textContent = showtimeSubtitle(obj);
+  buildSeatmap(obj);
+  showPicker();
+}
+
+function buildSeatmap(obj){
+  const seats = obj.seats || {};
+  const seatmap = document.getElementById('seatmap');
+  seatmap.innerHTML = '';
+  seatEls = {};
+  rowDefs.forEach(row => {
+    const rowEl = document.createElement('div');
+    rowEl.className = 'row';
+    for (let i = row.count; i >= 1; i--){
+      const seatId = row.letter + i;
+      const type = row.special[i] || 'seat';
+      const seatEl = document.createElement('div');
+      seatEl.className = 'seat' + (type !== 'seat' ? ' ' + type : '');
+      seatEl.textContent = type === 'wc' ? '♿' : (type === 'comp' ? '+' : seatId);
+      seatEl.title = seatId;
+
+      const entry = seats[seatId];
+      if (entry && entry.name){
+        seatEl.classList.add('taken');
+        seatEl.title = seatId + ': ' + entry.name;
+      } else if (entry){
+        seatEl.classList.add('pickable');
+        seatEl.addEventListener('click', () => openClaimOverlay(seatId));
+      }
+      rowEl.appendChild(seatEl);
+      seatEls[seatId] = seatEl;
+    }
+    seatmap.appendChild(rowEl);
+  });
+}
+
+// ---------------- CLAIM OVERLAY ----------------
+function openClaimOverlay(seatId){
+  claimingSeatId = seatId;
+  document.getElementById('claimTitle').textContent = 'Claim seat ' + seatId;
   document.getElementById('claimError').textContent = '';
   document.getElementById('claimName').value = '';
   document.getElementById('claimOverlay').classList.remove('hidden');
@@ -326,12 +513,12 @@ function openClaimOverlay(showtimeId, title){
 }
 
 function closeClaimOverlay(){
-  claimingShowtimeId = null;
+  claimingSeatId = null;
   document.getElementById('claimOverlay').classList.add('hidden');
 }
 
 async function submitClaim(){
-  if (!claimingShowtimeId) return;
+  if (!claimingSeatId || !currentShowtimeId) return;
   const errorEl = document.getElementById('claimError');
   const name = document.getElementById('claimName').value.trim();
   if (!name){
@@ -339,22 +526,27 @@ async function submitClaim(){
     return;
   }
   try{
-    const res = await fetch('/api/public/showtimes/' + claimingShowtimeId + '/claim', {
+    const res = await fetch('/api/public/showtimes/' + currentShowtimeId + '/claim', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name })
+      body: JSON.stringify({ seatId: claimingSeatId, name })
     });
     if (await handleAuthFailure(res)) return;
     if (res.status === 409){
-      errorEl.textContent = 'Sorry, no seats left -- someone just grabbed the last one.';
+      errorEl.textContent = 'Sorry, someone just claimed that seat. Pick another.';
       return;
     }
     if (!res.ok){
-      errorEl.textContent = 'Could not claim a seat. Try again.';
+      errorEl.textContent = 'Could not claim that seat. Try again.';
       return;
     }
+    const data = await res.json();
     closeClaimOverlay();
-    loadList();
+    // Refresh the in-memory copy for this showtime and redraw the map so
+    // the newly-claimed seat shows red immediately.
+    const idx = allShowtimes.findIndex(s => s.id === currentShowtimeId);
+    if (idx !== -1) allShowtimes[idx] = data.showtime;
+    buildSeatmap(data.showtime);
   }catch(e){
     errorEl.textContent = 'Could not reach the server. Try again.';
   }

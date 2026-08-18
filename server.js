@@ -204,16 +204,19 @@ app.get('/api/public/showtimes', (req, res) => {
 });
 
 app.post('/api/public/showtimes/:id/claim', async (req, res) => {
-  const { name } = req.body || {};
+  const { seatId, name } = req.body || {};
+  if (typeof seatId !== 'string' || !seatId) {
+    return res.status(400).json({ error: 'seatId required' });
+  }
   const trimmedName = typeof name === 'string' ? name.trim().slice(0, 80) : '';
   if (!trimmedName) return res.status(400).json({ error: 'name required' });
 
-  const result = await store.claimAnySeat(req.params.id, trimmedName);
+  const result = await store.claimSeat(req.params.id, seatId, trimmedName);
   if (!result.ok) {
     if (result.reason === 'not_found') return res.status(404).json({ error: 'not found' });
-    return res.status(409).json({ error: 'no seats left' });
+    return res.status(409).json({ error: 'that seat is no longer available' });
   }
-  res.json({ showtime: publicShowtimeView(result.showtime), seatId: result.seatId });
+  res.json({ showtime: publicShowtimeView(result.showtime) });
 });
 
 // ---------------- Pages ----------------
