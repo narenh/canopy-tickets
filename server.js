@@ -18,6 +18,23 @@ if (!ADMIN_PASSWORD) {
 app.disable('x-powered-by');
 app.use(express.json());
 
+// Surface whether persistence looks durable as soon as the process comes
+// up -- the #1 way this app loses data is a container platform (Coolify,
+// etc.) redeploying onto a fresh filesystem because no volume is mounted
+// at DATA_DIR. If that's happening, this count silently resets to 0 on
+// every deploy even though you keep adding showtimes.
+{
+  const resolvedDataDir = process.env.DATA_DIR || path.join(__dirname, 'data');
+  const existingCount = store.listShowtimes().length;
+  console.log(`[canopy-tickets] DATA_DIR=${resolvedDataDir} (${existingCount} showtime(s) found on disk at startup)`);
+  if (existingCount === 0) {
+    console.log(
+      '[canopy-tickets] If you expected existing showtimes here, DATA_DIR is probably NOT on a persistent ' +
+        'volume -- see README.md > Deploying on Coolify > persistent volume.'
+    );
+  }
+}
+
 // ---------------- Auth ----------------
 
 app.post('/api/login', (req, res) => {
