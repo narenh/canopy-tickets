@@ -6,12 +6,12 @@ claim seats. One URL, one login form, two possible passwords:
 - Enter **`ADMIN_PASSWORD`** and you land in the editor — create
   showtimes, pick which seats you actually bought on a real AMC seat map,
   assign seats to specific friends, and mark them paid.
-- Enter **`SHARED_PASSWORD`** and you land on the reservation page — the
-  one you hand out to friends. They see upcoming showtimes (soonest
-  first) and how many spots are still open, pick a specific open seat off
-  a seat map, claim it by name, and get a one-tap Venmo link pre-filled
-  with the price. You still confirm the payment actually landed manually
-  on the admin side.
+- Enter the **friend password** (set from the editor, not an env var — see
+  below) and you land on the reservation page — the one you hand out to
+  friends. They see upcoming showtimes (soonest first) and how many spots
+  are still open, pick a specific open seat off a seat map, claim it by
+  name, and get a one-tap Venmo link pre-filled with the price. You still
+  confirm the payment actually landed manually on the admin side.
 
 There's nothing "admin-flavored" about the URL or login page — the same
 link works for you and for friends, it just goes different places
@@ -25,8 +25,8 @@ Coolify" below for making that survive redeploys).
 ## How it works
 
 - `server.js` — Express app: one login endpoint that checks a password
-  against both `ADMIN_PASSWORD` and `SHARED_PASSWORD` and issues whichever
-  session matches (they're still two fully independent cookies
+  against `ADMIN_PASSWORD` and the current friend password and issues
+  whichever session matches (they're still two fully independent cookies
   underneath), plus a JSON REST API for showtimes. `GET /` looks at which
   session (if either) is active and serves the editor, the reservation
   page, or the login form accordingly -- that's the whole "one URL" trick.
@@ -36,12 +36,17 @@ Coolify" below for making that survive redeploys).
   check, write inside one lock) so two people tapping the same seat at the
   same instant can't both win it -- verified with 10 concurrent claims
   against a single open seat (1 winner, 9 correctly rejected).
+- `lib/sharedPassword.js` — persistence for the friend password (see
+  below). No password saved means friend login is off.
 - `lib/auth.js` — one small password-session helper, instantiated twice
   (`canopy_admin` and `canopy_shared` cookies) so admin and friend logins
   never overlap.
 - `lib/seats.js` — normalizes a stored seat entry (handles the legacy
   plain-string format from before per-seat names/paid existed) into
   `{status: 'occupied'}` or `{status: 'assigned', name, paid}`.
+- `lib/uploadedImage.js` — persistence for admin-uploaded site images (the
+  link-preview image, the logo): `createImageStore(name)` gives each one
+  its own file in `DATA_DIR`, same durability story as `showtimes.json`.
 - `public/seat-layout.js` — the auditorium's row/seat geometry (which rows
   exist, how many seats, where the wheelchair/companion icons go). The one
   place both `admin.html` and `public.html` get it from, so they always
@@ -50,57 +55,84 @@ Coolify" below for making that survive redeploys).
   just its ID string (e.g. `"F14"`); just don't rename/renumber a seat
   that's already assigned to someone. See the TODO at the top of that file
   for adding a second screen (e.g. Dolby) later.
-- `views/admin.html` — the showtime list + seat-map editor. Only served to
-  authenticated admin requests.
+- `views/admin.html` — the showtime list + seat-map editor, plus (below
+  the showtimes list) the friend-password field and the logo/link-preview
+  uploaders. Only served to authenticated admin requests.
 - `views/public.html` — the friend-facing reservation page. Only served to
   authenticated shared requests. Shows each showtime's remaining spot count
   (green if any are open, red if sold out), who's already claimed a seat,
-  a seat map to pick a specific open one from, and (if `HOST_VENMO` is
-  set) a pre-filled Venmo pay link right after claiming; doesn't expose
-  which seats are sold-out-but-not-mine vs. simply not part of the block.
+  a seat map to pick a specific open one from (hover a seat for who it's
+  assigned to), and (if `HOST_VENMO` is set) a pre-filled Venmo pay link
+  right after claiming; doesn't expose which seats are sold-out-but-not-mine
+  vs. simply not part of the block.
 - `public/login.html` — the one password screen (no "admin" language --
   it doesn't know or care which password you're about to type).
-- `lib/ogImage.js` — persistence for the link-preview image (see below),
-  same pattern as `lib/store.js`: lives in `DATA_DIR` so it survives
-  redeploys, not under `public/`.
 
-## Link-preview image
+## The friend password
 
-The editor has an "Link Preview Image" upload (admin only). Whatever you
-upload there becomes the image shown when the site's link is shared in
-iMessage, Facebook, Instagram, etc. — title and description are fixed as
-"Canopy Tickets" / "Reserve your seats here" and aren't editable from the
-UI (change them in `buildOgTags()` in `server.js` if you ever want
-different copy).
+Unlike `ADMIN_PASSWORD`, the friend/shared password is **not** an
+environment variable. It's set (and can be changed any time — e.g. a
+fresh password per movie, so a new round of tickets gets a new invite)
+from the "Friend Password" field in the admin editor, below the showtimes
+list. It's shown back to you in plain text there, on purpose — the whole
+point is handing it to friends (text it, etc.), so there's nothing to
+hide it from you.
 
-A few things worth knowing about how this actually works:
+If no friend password has ever been set, friend login is simply off —
+nobody can reach the reservation page until you set one. Saving an empty
+field clears it (turning friend access back off), which is a quick way to
+close reservations once a movie's roster is final.
 
-- The image lives in `DATA_DIR`, same as `showtimes.json` — it needs the
-  same persistent volume (see below) to survive a redeploy.
-- The Open Graph/Twitter meta tags only matter on the page an
-  unauthenticated request sees, because link-preview crawlers never carry
-  your login cookie. In practice that's always the login page, and that's
-  exactly where the tags are (also mirrored on the editor/reservation
-  pages for consistency, but that's cosmetic).
+One limitation worth knowing: changing or clearing the password doesn't
+force-log-out friends who are already signed in (sessions are independent
+of the password's current value, same as `ADMIN_PASSWORD` changes don't
+log out an existing admin session). Rotating the password controls new
+access, not already-granted access.
+
+## Link-preview image & logo
+
+The editor (below the showtimes list) has two image uploads, admin only:
+
+- **Site Logo** — shown on the login screen and at the top of the editor
+  and reservation pages. Assumes a PNG, ideally with a transparent
+  background.
+- **Link Preview Image** — becomes the image shown when the site's link is
+  shared in iMessage, Facebook, Instagram, etc. Title/description for that
+  preview are fixed as "Canopy Tickets" / "Reserve your seats here" and
+  aren't editable from the UI (change them in `buildOgTags()` in
+  `server.js` if you ever want different copy).
+
+A few things worth knowing about how these actually work:
+
+- Both live in `DATA_DIR`, same as `showtimes.json` — they need the same
+  persistent volume (see below) to survive a redeploy.
+- The Open Graph/Twitter meta tags (for the link-preview image) only
+  matter on the page an unauthenticated request sees, because crawlers
+  never carry your login cookie. In practice that's always the login
+  page, and that's exactly where the tags are (also mirrored on the
+  editor/reservation pages for consistency, but that's cosmetic). The
+  logo works the same way -- injected server-side into whichever page a
+  request resolves to.
 - **On caching**: you already know Meta/Apple cache scraped previews per
   URL. There's no way to force that cache to expire from this app's side
-  — but the image URL includes `?v=<upload time>`, which changes every
+  — but both image URLs include `?v=<upload time>`, which changes every
   time you upload a new image. A changed URL is what actually gets a
-  platform to fetch fresh instead of reusing what it cached for the old
-  URL. If Facebook specifically still shows something stale, their
-  [Sharing Debugger](https://developers.facebook.com/tools/debug/) lets
-  you force an immediate re-scrape by URL.
+  platform (or a browser) to fetch fresh instead of reusing what it
+  cached for the old URL. If Facebook specifically still shows something
+  stale, their [Sharing Debugger](https://developers.facebook.com/tools/debug/)
+  lets you force an immediate re-scrape by URL.
 
 ## Running locally
 
 ```bash
 npm install
-ADMIN_PASSWORD=whatever SHARED_PASSWORD=whatever2 HOST_VENMO=yourvenmo npm start
+ADMIN_PASSWORD=whatever HOST_VENMO=yourvenmo npm start
 ```
 
-Then visit `http://localhost:3000` and enter either password to see that
-side. If you don't set `ADMIN_PASSWORD`/`SHARED_PASSWORD`, the server
-generates random ones and prints them to the console on startup.
+Then visit `http://localhost:3000`, enter `ADMIN_PASSWORD` to reach the
+editor, and set a friend password from there (the reservation page has
+nothing to log into until you do). If you don't set `ADMIN_PASSWORD`, the
+server generates a random one and prints it to the console on startup.
 `HOST_VENMO` is optional locally (the Venmo link just won't appear).
 
 ## Deploying on Coolify
@@ -114,22 +146,22 @@ static files. The included `Dockerfile` builds and runs the app directly.
    to **Dockerfile**.
 2. Set environment variables:
    - `ADMIN_PASSWORD` — your password for the editor. Keep this one to
-     yourself.
-   - `SHARED_PASSWORD` — the password you give friends.
+     yourself. (There's no env var for the friend password — set that from
+     the editor after deploying; see "The friend password" above.)
    - `HOST_VENMO` — your Venmo username (no `@`), so the reservation page
      can show a one-tap pay link. Optional; the link is just skipped if
      unset.
    - `SESSION_SECRET` — a long random string (e.g. `openssl rand -hex 32`).
      Recommended, not strictly required: if unset, one is derived
-     deterministically from `ADMIN_PASSWORD`/`SHARED_PASSWORD` instead of
-     being randomized, so sessions still survive restarts/redeploys/extra
-     replicas either way. Set it explicitly so that changing either
-     password later doesn't also silently log everyone out.
-3. Add a **persistent volume** — this is where `showtimes.json` and the
-   uploaded link-preview image live. Without it, every redeploy gives the
-   container a brand-new, empty filesystem and both are gone. The
-   `Dockerfile`'s `VOLUME`
-   line does *not* do this by itself — it just marks the path as
+     deterministically from `ADMIN_PASSWORD` instead of being randomized,
+     so sessions still survive restarts/redeploys/extra replicas either
+     way. Set it explicitly so that changing `ADMIN_PASSWORD` later
+     doesn't also silently log everyone out.
+3. Add a **persistent volume** — this is where `showtimes.json`, the
+   friend password, and the uploaded logo/link-preview images all live.
+   Without it, every redeploy gives the container a brand-new, empty
+   filesystem and all of that is gone. The `Dockerfile`'s `VOLUME` line
+   does *not* do this by itself — it just marks the path as
    volume-worthy; Coolify still needs to be told to actually attach a
    persistent volume there. In the Coolify UI, on this resource, open the
    **Storages** tab and add an entry with:
@@ -145,7 +177,7 @@ static files. The included `Dockerfile` builds and runs the app directly.
    `/reserve`), that domain is the single link for both you and your
    friends.
 6. Deploy. Visit the app URL, enter your `ADMIN_PASSWORD` to get to the
-   editor, and start adding showtimes.
+   editor, set a friend password from there, and start adding showtimes.
 
 ### Confirming persistence actually works
 
@@ -159,4 +191,6 @@ Check this in Coolify's deployment logs right after a redeploy. If it says
 `0` but you know you'd already added showtimes, the volume above isn't
 actually attached (Storages tab is empty, wrong destination path, or it
 was added but the resource hasn't been redeployed since) — fix that and
-redeploy again; nothing else changes.
+redeploy again; nothing else changes. The same volume is also what makes
+the friend password and uploaded images survive a redeploy, so this check
+covers all three.

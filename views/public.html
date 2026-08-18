@@ -33,6 +33,14 @@
     align-items:flex-start;
     gap:10px;
   }
+  .site-logo{
+    display:block;
+    max-height:40px;
+    max-width:100%;
+    width:auto;
+    height:auto;
+    margin:0 0 10px;
+  }
   .list-header h1{
     font-size:26px;
     margin:0 0 4px;
@@ -104,6 +112,11 @@
     font-weight:700;
     cursor:pointer;
   }
+  .claim-btn:disabled{
+    background:#2a2a2a;
+    color:var(--muted);
+    cursor:not-allowed;
+  }
   .empty-state, .loading-state{
     padding:40px 20px;
     text-align:center;
@@ -159,6 +172,7 @@
     width:max-content;
   }
   .seat{
+    position:relative;
     width:22px;
     height:20px;
     border-radius:4px;
@@ -176,6 +190,25 @@
   .seat.pickable{background:var(--gold);border-color:var(--gold-dark);color:#3a2f10;cursor:pointer;}
   .seat.taken{background:var(--red);border-color:#8f1319;color:#fff;cursor:not-allowed;}
   .seat.wc, .seat.comp{border-radius:50%;}
+  /* Custom hover tooltip (seat number + assignment), bigger and more
+     legible than the browser's native title-attribute tooltip. */
+  .seat:hover::before{
+    content:attr(data-tooltip);
+    position:absolute;
+    bottom:130%;
+    left:50%;
+    transform:translateX(-50%);
+    background:#000;
+    color:#fff;
+    padding:4px 8px;
+    border-radius:6px;
+    font-size:12px;
+    font-weight:400;
+    white-space:nowrap;
+    z-index:20;
+    pointer-events:none;
+    border:1px solid #444;
+  }
   .toolbar-note{
     color:var(--muted);
     font-size:11.5px;
@@ -280,6 +313,7 @@
   <div id="listView">
     <div class="list-header">
       <div>
+        <!-- LOGO_IMG -->
         <h1>Upcoming Showtimes</h1>
         <p>Reserve a spot below. Choose your concessions until 2 hours before showtime (coming soon).</p>
       </div>
@@ -515,13 +549,16 @@ function buildCard(obj){
       card.appendChild(claimedList);
     }
 
+    const pickBtn = document.createElement('button');
+    pickBtn.className = 'claim-btn';
     if (availCount > 0){
-      const pickBtn = document.createElement('button');
-      pickBtn.className = 'claim-btn';
       pickBtn.textContent = 'Reserve';
       pickBtn.onclick = () => openSeatPicker(obj.id);
-      card.appendChild(pickBtn);
+    } else {
+      pickBtn.textContent = 'Sold Out';
+      pickBtn.disabled = true;
     }
+    card.appendChild(pickBtn);
   }
 
   return card;
@@ -552,14 +589,16 @@ function buildSeatmap(obj){
       const seatEl = document.createElement('div');
       seatEl.className = 'seat' + (type !== 'seat' ? ' ' + type : '');
       seatEl.textContent = type === 'wc' ? '♿' : (type === 'comp' ? '+' : seatId);
-      seatEl.title = seatId;
+      seatEl.setAttribute('aria-label', seatId);
+      seatEl.dataset.tooltip = seatId + ' — not part of this block';
 
       const entry = seats[seatId];
       if (entry && entry.name){
         seatEl.classList.add('taken');
-        seatEl.title = seatId + ': ' + entry.name;
+        seatEl.dataset.tooltip = seatId + ' — ' + entry.name;
       } else if (entry){
         seatEl.classList.add('pickable');
+        seatEl.dataset.tooltip = seatId + ' — available';
         seatEl.addEventListener('click', () => openClaimOverlay(seatId));
       }
       rowEl.appendChild(seatEl);

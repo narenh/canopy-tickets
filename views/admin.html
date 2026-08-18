@@ -36,6 +36,14 @@
     align-items:flex-start;
     gap:10px;
   }
+  .site-logo{
+    display:block;
+    max-height:40px;
+    max-width:100%;
+    width:auto;
+    height:auto;
+    margin:0 0 10px;
+  }
   .list-header h1{
     font-size:26px;
     margin:0 0 4px;
@@ -102,6 +110,16 @@
     min-width:0;
     color:#ccc;
     font-size:12px;
+  }
+  .og-controls input[type="text"]{
+    flex:1;
+    min-width:0;
+    background:#0f0f10;
+    color:#fff;
+    border:1px solid #3a3a3a;
+    border-radius:10px;
+    padding:8px 10px;
+    font-size:13px;
   }
   .og-status{
     font-size:12px;
@@ -460,6 +478,7 @@
   <div id="listView">
     <div class="list-header">
       <div>
+        <!-- LOGO_IMG -->
         <h1>My Showtimes</h1>
         <p>Seat blocks for your crew</p>
       </div>
@@ -467,6 +486,31 @@
     </div>
     <div class="new-btn-wrap">
       <button class="new-btn" onclick="openNew()">+ New Showtime</button>
+    </div>
+
+    <div class="cards" id="cardsContainer">
+      <div class="loading-state">Loading...</div>
+    </div>
+
+    <div class="og-section">
+      <h3>Friend Password</h3>
+      <p>What friends enter at login to reach the reservation page. Change it any time -- e.g. a fresh password per movie. Leave it blank and save to turn off friend access entirely.</p>
+      <div class="og-controls">
+        <input type="text" id="sharedPasswordInput" placeholder="No password set -- friend login is off">
+        <button type="button" onclick="saveSharedPassword()">Save</button>
+      </div>
+      <div class="og-status" id="sharedPasswordStatus"></div>
+    </div>
+
+    <div class="og-section">
+      <h3>Site Logo</h3>
+      <p>Shown on the login screen and at the top of this and the reservation page. PNG with a transparent background works best.</p>
+      <img id="logoPreview" class="og-preview hidden" alt="Current site logo">
+      <div class="og-controls">
+        <input type="file" id="logoFileInput" accept="image/png">
+        <button type="button" onclick="uploadLogo()">Upload</button>
+      </div>
+      <div class="og-status" id="logoStatus"></div>
     </div>
 
     <div class="og-section">
@@ -478,10 +522,6 @@
         <button type="button" onclick="uploadOgImage()">Upload</button>
       </div>
       <div class="og-status" id="ogStatus"></div>
-    </div>
-
-    <div class="cards" id="cardsContainer">
-      <div class="loading-state">Loading...</div>
     </div>
   </div>
 
@@ -975,11 +1015,13 @@ async function deleteCurrent(){
   }
 }
 
-// ---------------- LINK PREVIEW IMAGE ----------------
-async function loadOgPreview(){
-  const img = document.getElementById('ogPreview');
+// ---------------- SITE IMAGES (logo + link preview) ----------------
+// Shared by both upload controls -- they're otherwise identical apart
+// from which endpoint/DOM ids they use.
+async function loadImagePreview(apiPath, imgId){
+  const img = document.getElementById(imgId);
   try{
-    const res = await fetch('/api/og-image');
+    const res = await fetch(apiPath);
     if (await handleAuthFailure(res)) return;
     if (!res.ok) return;
     const data = await res.json();
@@ -994,9 +1036,9 @@ async function loadOgPreview(){
   }
 }
 
-async function uploadOgImage(){
-  const input = document.getElementById('ogFileInput');
-  const statusEl = document.getElementById('ogStatus');
+async function uploadImage(apiPath, fileInputId, statusId, onDone){
+  const input = document.getElementById(fileInputId);
+  const statusEl = document.getElementById(statusId);
   if (!input.files || !input.files[0]){
     statusEl.textContent = 'Choose an image first.';
     return;
@@ -1005,7 +1047,7 @@ async function uploadOgImage(){
   const formData = new FormData();
   formData.append('image', input.files[0]);
   try{
-    const res = await fetch('/api/og-image', { method: 'POST', body: formData });
+    const res = await fetch(apiPath, { method: 'POST', body: formData });
     if (await handleAuthFailure(res)) return;
     if (!res.ok){
       const data = await res.json().catch(() => ({}));
@@ -1014,16 +1056,59 @@ async function uploadOgImage(){
     }
     input.value = '';
     statusEl.textContent = 'Uploaded.';
-    loadOgPreview();
+    onDone();
     setTimeout(() => { if (statusEl.textContent === 'Uploaded.') statusEl.textContent = ''; }, 1500);
   }catch(e){
     statusEl.textContent = 'Upload failed. Try again.';
   }
 }
 
+function loadOgPreview(){ return loadImagePreview('/api/og-image', 'ogPreview'); }
+function uploadOgImage(){ return uploadImage('/api/og-image', 'ogFileInput', 'ogStatus', loadOgPreview); }
+function loadLogoPreview(){ return loadImagePreview('/api/logo-image', 'logoPreview'); }
+function uploadLogo(){ return uploadImage('/api/logo-image', 'logoFileInput', 'logoStatus', loadLogoPreview); }
+
+// ---------------- FRIEND PASSWORD ----------------
+async function loadSharedPassword(){
+  try{
+    const res = await fetch('/api/shared-password');
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok) return;
+    const data = await res.json();
+    document.getElementById('sharedPasswordInput').value = data.password || '';
+  }catch(e){
+    // Non-fatal -- the field just starts blank if this fails.
+  }
+}
+
+async function saveSharedPassword(){
+  const input = document.getElementById('sharedPasswordInput');
+  const statusEl = document.getElementById('sharedPasswordStatus');
+  statusEl.textContent = 'Saving...';
+  try{
+    const res = await fetch('/api/shared-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: input.value })
+    });
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok){
+      statusEl.textContent = 'Save failed. Try again.';
+      return;
+    }
+    const data = await res.json();
+    statusEl.textContent = data.password ? 'Saved.' : 'Friend login turned off.';
+    setTimeout(() => { if (statusEl.textContent === 'Saved.') statusEl.textContent = ''; }, 1500);
+  }catch(e){
+    statusEl.textContent = 'Save failed. Try again.';
+  }
+}
+
 // ---------------- INIT ----------------
 loadList();
+loadSharedPassword();
 loadOgPreview();
+loadLogoPreview();
 </script>
 
 </body>

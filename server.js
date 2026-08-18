@@ -4,9 +4,13 @@ const fs = require('fs');
 const crypto = require('crypto');
 const multer = require('multer');
 const store = require('./lib/store');
-const ogImage = require('./lib/ogImage');
+const { createImageStore } = require('./lib/uploadedImage');
+const sharedPasswordStore = require('./lib/sharedPassword');
 const { createPasswordAuth } = require('./lib/auth');
 const { normalizeSeats } = require('./lib/seats');
+
+const ogImageStore = createImageStore('og');
+const logoImageStore = createImageStore('logo');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -30,7 +34,18 @@ function requireEnvPassword(envVar, label) {
 }
 
 const ADMIN_PASSWORD = requireEnvPassword('ADMIN_PASSWORD', 'admin');
-const SHARED_PASSWORD = requireEnvPassword('SHARED_PASSWORD', 'shared/friend');
+
+// Unlike ADMIN_PASSWORD, the friend/shared password is NOT an env var --
+// it's set from the admin editor UI (below the showtimes list) and
+// persisted via sharedPasswordStore, so it can be rotated without a
+// redeploy (e.g. a fresh password per movie). If it's never been set,
+// friend login is simply off: the login check below only matches against
+// it when sharedPasswordStore.get() returns something truthy.
+if (!sharedPasswordStore.get()) {
+  console.warn(
+    '[canopy-tickets] No friend/shared password set yet -- friend login is off until one is set from the admin editor.'
+  );
+}
 
 const HOST_VENMO = process.env.HOST_VENMO || '';
 if (!HOST_VENMO) {
@@ -49,19 +64,21 @@ if (!HOST_VENMO) {
 // loops mid-session, because the page-serving check and an API call a
 // moment later can literally be answered by two different secrets.
 //
-// If SESSION_SECRET isn't set, derive a stable one from the admin/shared
-// passwords instead of generating randomness -- those are already
-// required to be stable across the deployment for login to work at all,
-// so this can't newly introduce an inconsistency. Still recommend setting
-// SESSION_SECRET explicitly (see README) so rotating a password later
-// doesn't also silently invalidate every existing session.
+// If SESSION_SECRET isn't set, derive a stable one from ADMIN_PASSWORD
+// instead of generating randomness -- that's already required to be
+// stable across the deployment for login to work at all, so this can't
+// newly introduce an inconsistency. (The friend/shared password is
+// deliberately NOT part of this derivation -- it's meant to be rotated
+// freely without side effects, and doing so would log everyone out.)
+// Still recommend setting SESSION_SECRET explicitly (see README) so
+// changing ADMIN_PASSWORD later doesn't also silently invalidate every
+// existing session.
 const SESSION_SECRET =
-  process.env.SESSION_SECRET ||
-  crypto.createHash('sha256').update(`canopy-tickets:${ADMIN_PASSWORD}:${SHARED_PASSWORD}`).digest('hex');
+  process.env.SESSION_SECRET || crypto.createHash('sha256').update(`canopy-tickets:${ADMIN_PASSWORD}`).digest('hex');
 if (!process.env.SESSION_SECRET) {
   console.warn(
-    '[canopy-tickets] SESSION_SECRET not set; derived a stable one from ADMIN_PASSWORD/SHARED_PASSWORD instead. ' +
-      'This works, but changing either password will also silently log everyone out -- set SESSION_SECRET ' +
+    '[canopy-tickets] SESSION_SECRET not set; derived a stable one from ADMIN_PASSWORD instead. ' +
+      'This works, but changing ADMIN_PASSWORD will also silently log everyone out -- set SESSION_SECRET ' +
       'explicitly (e.g. `openssl rand -hex 32`) to decouple the two.'
   );
 }
@@ -132,7 +149,7 @@ function buildOgTags(req) {
     '<meta property="og:type" content="website">',
     `<meta property="og:url" content="${pageUrl}">`
   ];
-  const meta = ogImage.getMeta();
+  const meta = ogImageStore.getMeta();
   if (meta) {
     const imageUrl = `${req.protocol}://${req.get('host')}/og-image?v=${meta.uploadedAt}`;
     tags.push(
@@ -144,14 +161,25 @@ function buildOgTags(req) {
   return tags.join('\n  ');
 }
 
-// Sends a static HTML file with the `<!-- OG_META -->` placeholder in its
-// <head> replaced with real tags. The tags have to be in the initial
-// server response, not injected by client-side JS -- link-preview
-// crawlers don't run JavaScript.
-function sendPageWithOgTags(res, req, filePath) {
+// Builds the site logo <img>, or '' if none has been uploaded yet (in
+// which case the page just shows without one -- no broken-image icon).
+// Same cache-busting reasoning as the OG image: the URL changes on every
+// upload so browsers can't keep showing a stale cached logo.
+function buildLogoImgTag() {
+  const meta = logoImageStore.getMeta();
+  if (!meta) return '';
+  return `<img src="/logo-image?v=${meta.uploadedAt}" alt="Canopy Tickets" class="site-logo">`;
+}
+
+// Sends a static HTML file with its `<!-- OG_META -->` (in <head>) and
+// `<!-- LOGO_IMG -->` (in <body>, wherever the page wants the logo to
+// appear) placeholders replaced with the real thing. The OG tags in
+// particular have to be in the initial server response, not injected by
+// client-side JS -- link-preview crawlers don't run JavaScript.
+function renderHtmlPage(res, req, filePath) {
   const html = fs.readFileSync(filePath, 'utf8');
   res.set('Content-Type', 'text/html; charset=utf-8');
-  res.send(html.replace('<!-- OG_META -->', buildOgTags(req)));
+  res.send(html.replace('<!-- OG_META -->', buildOgTags(req)).replace('<!-- LOGO_IMG -->', buildLogoImgTag()));
 }
 
 // Trims a showtime down to what a friend on the public/shared side should
@@ -181,10 +209,10 @@ function publicShowtimeView(s) {
 //
 // There's one login page and one password field. Which of the two
 // passwords you type decides where you land -- ADMIN_PASSWORD opens the
-// editor, SHARED_PASSWORD opens the reservation page -- so the page never
-// has to say "admin" anywhere. The two sessions are still fully separate
-// cookies underneath; typing the admin password does not also grant
-// shared access or vice versa.
+// editor, the current friend/shared password (admin-settable, see below)
+// opens the reservation page -- so the page never has to say "admin"
+// anywhere. The two sessions are still fully separate cookies underneath;
+// typing the admin password does not also grant shared access or vice versa.
 
 app.post('/api/login', (req, res) => {
   const { password } = req.body || {};
@@ -195,7 +223,8 @@ app.post('/api/login', (req, res) => {
     adminAuth.issueSessionCookie(res);
     return res.json({ ok: true, role: 'admin' });
   }
-  if (checkPassword(password, SHARED_PASSWORD)) {
+  const currentSharedPassword = sharedPasswordStore.get();
+  if (currentSharedPassword && checkPassword(password, currentSharedPassword)) {
     sharedAuth.issueSessionCookie(res);
     return res.json({ ok: true, role: 'shared' });
   }
@@ -212,6 +241,23 @@ app.get('/api/session', (req, res) => {
   if (adminAuth.isAuthed(req)) return res.json({ authed: true, role: 'admin' });
   if (sharedAuth.isAuthed(req)) return res.json({ authed: true, role: 'shared' });
   res.json({ authed: false, role: null });
+});
+
+// ---------------- Friend password (admin auth required) ----------------
+//
+// Returns/sets the plaintext password, deliberately -- unlike
+// ADMIN_PASSWORD, this one exists to be read back and handed to friends
+// (texted, etc.), not kept secret from the admin viewing their own editor.
+
+app.get('/api/shared-password', adminAuth.requireAuth('/'), (req, res) => {
+  res.json({ password: sharedPasswordStore.get() });
+});
+
+app.post('/api/shared-password', adminAuth.requireAuth('/'), (req, res) => {
+  const { password } = req.body || {};
+  const trimmed = typeof password === 'string' ? password.trim().slice(0, 200) : '';
+  const saved = sharedPasswordStore.set(trimmed || null);
+  res.json({ ok: true, password: saved });
 });
 
 // ---------------- Showtimes API (admin auth required) ----------------
@@ -321,24 +367,24 @@ app.post('/api/public/showtimes/:id/claim', async (req, res) => {
 // fetched directly, bypassing the checks below.
 app.get('/', (req, res) => {
   if (adminAuth.isAuthed(req)) {
-    return sendPageWithOgTags(res, req, path.join(__dirname, 'views', 'admin.html'));
+    return renderHtmlPage(res, req, path.join(__dirname, 'views', 'admin.html'));
   }
   if (sharedAuth.isAuthed(req)) {
-    return sendPageWithOgTags(res, req, path.join(__dirname, 'views', 'public.html'));
+    return renderHtmlPage(res, req, path.join(__dirname, 'views', 'public.html'));
   }
   // The unauthenticated case is the one that actually matters for link
   // previews: a crawler hitting the shared URL never has a session
   // cookie, so this is the response it sees.
-  sendPageWithOgTags(res, req, path.join(__dirname, 'public', 'login.html'));
+  renderHtmlPage(res, req, path.join(__dirname, 'public', 'login.html'));
 });
 
 // /reserve was the old dedicated friend-facing URL -- keep it working as
 // a redirect in case it's already been shared anywhere.
 app.get('/reserve', (req, res) => res.redirect('/'));
 
-// ---------------- Link-preview image ----------------
+// ---------------- Site images (link-preview + logo) ----------------
 
-const ogImageUpload = multer({
+const siteImageUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
   fileFilter(req, file, cb) {
@@ -347,28 +393,37 @@ const ogImageUpload = multer({
   }
 });
 
-app.get('/api/og-image', adminAuth.requireAuth('/'), (req, res) => {
-  const meta = ogImage.getMeta();
-  res.json(meta ? { uploadedAt: meta.uploadedAt, url: `/og-image?v=${meta.uploadedAt}` } : { uploadedAt: null, url: null });
-});
+// Wires up the GET (admin metadata)/POST (admin upload)/GET (public,
+// no-auth file serve) trio for one named image store. The og-image and
+// logo-image endpoints are identical apart from which store/URLs they use.
+function mountImageRoutes(urlName, imageStore) {
+  app.get(`/api/${urlName}`, adminAuth.requireAuth('/'), (req, res) => {
+    const meta = imageStore.getMeta();
+    res.json(meta ? { uploadedAt: meta.uploadedAt, url: `/${urlName}?v=${meta.uploadedAt}` } : { uploadedAt: null, url: null });
+  });
 
-app.post('/api/og-image', adminAuth.requireAuth('/'), ogImageUpload.single('image'), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: 'choose a PNG, JPEG, WebP, or GIF image' });
-  }
-  const meta = ogImage.save(req.file.buffer, req.file.mimetype);
-  res.json({ ok: true, uploadedAt: meta.uploadedAt, url: `/og-image?v=${meta.uploadedAt}` });
-});
+  app.post(`/api/${urlName}`, adminAuth.requireAuth('/'), siteImageUpload.single('image'), (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({ error: 'choose a PNG, JPEG, WebP, or GIF image' });
+    }
+    const meta = imageStore.save(req.file.buffer, req.file.mimetype);
+    res.json({ ok: true, uploadedAt: meta.uploadedAt, url: `/${urlName}?v=${meta.uploadedAt}` });
+  });
 
-// No auth -- link-preview crawlers (Facebook, iMessage, etc.) fetch this
-// with no session, so it has to be reachable by anyone.
-app.get('/og-image', (req, res) => {
-  const meta = ogImage.getMeta();
-  if (!meta) return res.status(404).end();
-  res.set('Content-Type', meta.mimeType);
-  res.set('Cache-Control', 'public, max-age=86400');
-  res.sendFile(ogImage.getFilePath());
-});
+  // No auth -- the login page shows the logo (and link-preview crawlers
+  // fetch the OG image) with no session, so both have to be reachable by
+  // anyone.
+  app.get(`/${urlName}`, (req, res) => {
+    const meta = imageStore.getMeta();
+    if (!meta) return res.status(404).end();
+    res.set('Content-Type', meta.mimeType);
+    res.set('Cache-Control', 'public, max-age=86400');
+    res.sendFile(imageStore.getFilePath());
+  });
+}
+
+mountImageRoutes('og-image', ogImageStore);
+mountImageRoutes('logo-image', logoImageStore);
 
 app.use(express.static(path.join(__dirname, 'public')));
 
