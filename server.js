@@ -2,18 +2,28 @@ const express = require('express');
 const path = require('path');
 const crypto = require('crypto');
 const store = require('./lib/store');
-const auth = require('./lib/auth');
+const { createPasswordAuth } = require('./lib/auth');
+const { normalizeSeats } = require('./lib/seats');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-let ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
-if (!ADMIN_PASSWORD) {
-  ADMIN_PASSWORD = crypto.randomBytes(9).toString('base64url');
-  console.warn('\n[canopy-tickets] ADMIN_PASSWORD not set. Generated a temporary password for this run:');
-  console.warn(`[canopy-tickets]   ${ADMIN_PASSWORD}`);
-  console.warn('[canopy-tickets] Set ADMIN_PASSWORD in your environment to keep a stable password.\n');
+function requireEnvPassword(envVar, label) {
+  let value = process.env[envVar];
+  if (!value) {
+    value = crypto.randomBytes(9).toString('base64url');
+    console.warn(`\n[canopy-tickets] ${envVar} not set. Generated a temporary ${label} password for this run:`);
+    console.warn(`[canopy-tickets]   ${value}`);
+    console.warn(`[canopy-tickets] Set ${envVar} in your environment to keep a stable password.\n`);
+  }
+  return value;
 }
+
+const ADMIN_PASSWORD = requireEnvPassword('ADMIN_PASSWORD', 'admin');
+const SHARED_PASSWORD = requireEnvPassword('SHARED_PASSWORD', 'shared/friend');
+
+const adminAuth = createPasswordAuth('canopy_admin');
+const sharedAuth = createPasswordAuth('canopy_shared');
 
 app.disable('x-powered-by');
 app.use(express.json());
@@ -35,33 +45,12 @@ app.use(express.json());
   }
 }
 
-// ---------------- Auth ----------------
-
-app.post('/api/login', (req, res) => {
-  const { password } = req.body || {};
-  if (typeof password !== 'string' || password.length === 0) {
-    return res.status(400).json({ error: 'password required' });
-  }
-  const a = Buffer.from(password);
-  const b = Buffer.from(ADMIN_PASSWORD);
-  const match = a.length === b.length && crypto.timingSafeEqual(a, b);
-  if (!match) return res.status(401).json({ error: 'invalid password' });
-  auth.issueSessionCookie(res);
-  res.json({ ok: true });
-});
-
-app.post('/api/logout', (req, res) => {
-  auth.clearSessionCookie(res);
-  res.json({ ok: true });
-});
-
-app.get('/api/session', (req, res) => {
-  res.json({ authed: auth.isAuthed(req) });
-});
-
-// ---------------- Showtimes API (auth required) ----------------
-
-app.use('/api/showtimes', auth.requireAuth);
+function checkPassword(candidate, expected) {
+  if (typeof candidate !== 'string' || candidate.length === 0) return false;
+  const a = Buffer.from(candidate);
+  const b = Buffer.from(expected);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
 
 // Accepts a number or numeric string (e.g. "16.49"); returns null for
 // anything blank/invalid, otherwise a value rounded to the nearest cent.
@@ -71,6 +60,75 @@ function parsePrice(raw) {
   if (!Number.isFinite(n) || n < 0) return null;
   return Math.round(n * 100) / 100;
 }
+
+// Trims a showtime down to what a friend on the public/shared side should
+// see: no full 377-seat auditorium map, just the block of seats the owner
+// actually bought (each either claimed by a name or still open).
+function publicShowtimeView(s) {
+  const seats = normalizeSeats(s.seats);
+  const blockSeats = {};
+  Object.keys(seats).forEach((id) => {
+    if (seats[id].status === 'assigned') {
+      blockSeats[id] = { name: seats[id].name, paid: seats[id].paid };
+    }
+  });
+  return {
+    id: s.id,
+    title: s.title,
+    theater: s.theater,
+    date: s.date,
+    time: s.time,
+    format: s.format,
+    price: s.price,
+    seats: blockSeats
+  };
+}
+
+// ---------------- Admin auth ----------------
+
+app.post('/api/login', (req, res) => {
+  const { password } = req.body || {};
+  if (typeof password !== 'string' || password.length === 0) {
+    return res.status(400).json({ error: 'password required' });
+  }
+  if (!checkPassword(password, ADMIN_PASSWORD)) return res.status(401).json({ error: 'invalid password' });
+  adminAuth.issueSessionCookie(res);
+  res.json({ ok: true });
+});
+
+app.post('/api/logout', (req, res) => {
+  adminAuth.clearSessionCookie(res);
+  res.json({ ok: true });
+});
+
+app.get('/api/session', (req, res) => {
+  res.json({ authed: adminAuth.isAuthed(req) });
+});
+
+// ---------------- Shared (friend-facing) auth ----------------
+
+app.post('/api/shared-login', (req, res) => {
+  const { password } = req.body || {};
+  if (typeof password !== 'string' || password.length === 0) {
+    return res.status(400).json({ error: 'password required' });
+  }
+  if (!checkPassword(password, SHARED_PASSWORD)) return res.status(401).json({ error: 'invalid password' });
+  sharedAuth.issueSessionCookie(res);
+  res.json({ ok: true });
+});
+
+app.post('/api/shared-logout', (req, res) => {
+  sharedAuth.clearSessionCookie(res);
+  res.json({ ok: true });
+});
+
+app.get('/api/shared-session', (req, res) => {
+  res.json({ authed: sharedAuth.isAuthed(req) });
+});
+
+// ---------------- Showtimes API (admin auth required) ----------------
+
+app.use('/api/showtimes', adminAuth.requireAuth('/login.html'));
 
 app.get('/api/showtimes', (req, res) => {
   const items = store.listShowtimes().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
@@ -133,12 +191,41 @@ app.delete('/api/showtimes/:id', async (req, res) => {
   res.json({ ok: true });
 });
 
+// ---------------- Public/shared API (shared auth required) ----------------
+
+app.use('/api/public', sharedAuth.requireAuth('/shared-login.html'));
+
+app.get('/api/public/showtimes', (req, res) => {
+  const items = store
+    .listShowtimes()
+    .map(publicShowtimeView)
+    .sort((a, b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`));
+  res.json({ showtimes: items });
+});
+
+app.post('/api/public/showtimes/:id/claim', async (req, res) => {
+  const { name } = req.body || {};
+  const trimmedName = typeof name === 'string' ? name.trim().slice(0, 80) : '';
+  if (!trimmedName) return res.status(400).json({ error: 'name required' });
+
+  const result = await store.claimAnySeat(req.params.id, trimmedName);
+  if (!result.ok) {
+    if (result.reason === 'not_found') return res.status(404).json({ error: 'not found' });
+    return res.status(409).json({ error: 'no seats left' });
+  }
+  res.json({ showtime: publicShowtimeView(result.showtime), seatId: result.seatId });
+});
+
 // ---------------- Pages ----------------
 
-// admin.html lives outside /public so it can never be fetched directly,
-// bypassing the auth check below.
-app.get('/', auth.requireAuth, (req, res) => {
+// admin.html and public.html live outside /public so they can never be
+// fetched directly, bypassing the auth checks below.
+app.get('/', adminAuth.requireAuth('/login.html'), (req, res) => {
   res.sendFile(path.join(__dirname, 'views', 'admin.html'));
+});
+
+app.get('/reserve', sharedAuth.requireAuth('/shared-login.html'), (req, res) => {
+  res.sendFile(path.join(__dirname, 'views', 'public.html'));
 });
 
 app.use(express.static(path.join(__dirname, 'public')));

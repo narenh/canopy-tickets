@@ -85,19 +85,25 @@
   }
   .card .seats-line{
     color:#ddd;
-    font-size:13px;
-    line-height:1.6;
     margin-bottom:12px;
-    word-break:break-word;
   }
-  .card .seats-line .seat-entry{
-    display:inline-block;
-    margin:0 8px 4px 0;
+  .card .seats-avail-line{
+    font-size:14px;
+    font-weight:700;
+    margin-bottom:6px;
   }
-  .card .seats-line .seat-entry b{color:var(--gold);}
-  .card .seats-line .seat-entry.is-available b{color:var(--muted);font-weight:400;}
-  .card .seats-line .paid-tag{color:var(--green);font-size:11px;}
-  .card .seats-line .unpaid-tag{color:#e2857a;font-size:11px;}
+  .card .seats-avail-green{color:var(--green);}
+  .card .seats-avail-red{color:var(--red);}
+  .card .seats-empty{color:var(--muted);font-size:13px;}
+  .card .seat-line{
+    font-size:13px;
+    color:#ddd;
+    margin-bottom:3px;
+  }
+  .card .seat-line b{color:var(--gold);}
+  .card .seat-line .seat-id{color:var(--muted);font-size:11px;}
+  .card .seat-line .paid-tag{color:var(--green);font-size:11px;margin-left:6px;}
+  .card .seat-line .unpaid-tag{color:#e2857a;font-size:11px;margin-left:6px;}
   .card-actions{
     display:flex;
     gap:10px;
@@ -618,15 +624,18 @@ function buildCard(obj){
   const seatsLine = document.createElement('div');
   seatsLine.className = 'seats-line';
   if (blockIds.length === 0){
-    seatsLine.textContent = 'No seats in your block yet';
+    seatsLine.innerHTML = '<div class="seats-empty">No seats in your block yet</div>';
   } else {
-    seatsLine.innerHTML = blockIds.map(id => {
+    const namedIds = blockIds.filter(id => seats[id].name);
+    const availCount = blockIds.length - namedIds.length;
+    const availLine = '<div class="seats-avail-line ' + (availCount > 0 ? 'seats-avail-green' : 'seats-avail-red') + '">'
+      + availCount + ' seat' + (availCount === 1 ? '' : 's') + ' available</div>';
+    const namedLines = namedIds.map(id => {
       const s = seats[id];
-      const hasName = !!s.name;
-      const label = hasName ? escapeHtml(s.name) : 'AVAILABLE';
-      const paidTag = hasName ? ('<span class="' + (s.paid ? 'paid-tag">&#10003; paid' : 'unpaid-tag">unpaid') + '</span>') : '';
-      return '<span class="seat-entry' + (hasName ? '' : ' is-available') + '">' + escapeHtml(id) + ': <b>' + label + '</b> ' + paidTag + '</span>';
+      const paidTag = '<span class="' + (s.paid ? 'paid-tag">&#10003; paid' : 'unpaid-tag">unpaid') + '</span>';
+      return '<div class="seat-line"><b>' + escapeHtml(s.name) + '</b> <span class="seat-id">(' + escapeHtml(id) + ')</span>' + paidTag + '</div>';
     }).join('');
+    seatsLine.innerHTML = availLine + namedLines;
   }
   card.appendChild(seatsLine);
 

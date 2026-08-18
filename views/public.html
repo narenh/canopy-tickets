@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reserve a Spot</title>
+<style>
+  :root{
+    --gold:#c9a24b;
+    --red:#e2333d;
+    --green:#2ecc71;
+    --bg:#0b0b0d;
+    --muted:#9a9a9a;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:#fff;
+    font-family:-apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    padding-bottom:40px;
+  }
+  .hidden{display:none !important;}
+
+  .list-header{
+    padding:24px 20px 10px;
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:10px;
+  }
+  .list-header h1{
+    font-size:26px;
+    margin:0 0 4px;
+  }
+  .list-header p{
+    margin:0;
+    color:var(--muted);
+    font-size:14px;
+  }
+  .logout-link{
+    color:var(--muted);
+    font-size:12px;
+    cursor:pointer;
+    text-decoration:underline;
+    white-space:nowrap;
+    margin-top:4px;
+  }
+  .cards{
+    padding:14px 20px 20px;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+  }
+  .card{
+    background:#151517;
+    border:1px solid #2a2a2a;
+    border-radius:14px;
+    padding:14px 16px;
+  }
+  .card h3{
+    margin:0 0 4px;
+    font-size:18px;
+  }
+  .card .meta{
+    color:#ccc;
+    font-size:13px;
+    margin-bottom:10px;
+  }
+  .seats-avail-line{
+    font-size:14px;
+    font-weight:700;
+    margin-bottom:8px;
+  }
+  .seats-avail-green{color:var(--green);}
+  .seats-avail-red{color:var(--red);}
+  .seats-empty{
+    color:var(--muted);
+    font-size:13px;
+    margin-bottom:8px;
+  }
+  .seat-line{
+    font-size:13px;
+    color:#ddd;
+    margin-bottom:3px;
+  }
+  .seat-line b{color:var(--gold);}
+  .seat-line .paid-tag{color:var(--green);font-size:11px;margin-left:6px;}
+  .seat-line .unpaid-tag{color:#e2857a;font-size:11px;margin-left:6px;}
+  .claimed-list{margin-bottom:10px;}
+  .claim-btn{
+    width:100%;
+    background:var(--gold);
+    color:#241c07;
+    border:none;
+    border-radius:20px;
+    padding:10px;
+    font-size:14px;
+    font-weight:700;
+    cursor:pointer;
+  }
+  .empty-state, .loading-state{
+    padding:40px 20px;
+    text-align:center;
+    color:var(--muted);
+    font-size:14px;
+  }
+
+  .claim-overlay{
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,0.6);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:20px;
+    z-index:50;
+  }
+  .claim-card{
+    width:100%;
+    max-width:320px;
+    background:#151517;
+    border:1px solid #2a2a2a;
+    border-radius:14px;
+    padding:20px;
+  }
+  .claim-title{
+    font-size:17px;
+    font-weight:700;
+    margin-bottom:6px;
+  }
+  .claim-sub{
+    color:var(--muted);
+    font-size:12px;
+    margin-bottom:14px;
+  }
+  .claim-card input[type="text"]{
+    width:100%;
+    background:#0f0f10;
+    color:#fff;
+    border:1px solid #3a3a3a;
+    border-radius:10px;
+    padding:10px 12px;
+    font-size:15px;
+    margin-bottom:14px;
+  }
+  .claim-actions{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+  .claim-actions button{
+    width:100%;
+    padding:10px;
+    border-radius:20px;
+    font-size:14px;
+    cursor:pointer;
+  }
+  .claim-submit-btn{
+    background:var(--gold);
+    color:#241c07;
+    border:none;
+    font-weight:700;
+  }
+  .claim-cancel-btn{
+    background:#1e1e1e;
+    color:#fff;
+    border:1px solid #3a3a3a;
+  }
+  .claim-error{
+    color:#e2857a;
+    font-size:12px;
+    min-height:16px;
+    margin-bottom:6px;
+  }
+</style>
+</head>
+<body>
+
+  <div class="list-header">
+    <div>
+      <h1>Reserve a Spot</h1>
+      <p>Grab an open seat, then Venmo to lock it in</p>
+    </div>
+    <div class="logout-link" onclick="logout()">Log out</div>
+  </div>
+  <div class="cards" id="cardsContainer">
+    <div class="loading-state">Loading...</div>
+  </div>
+
+  <div class="claim-overlay hidden" id="claimOverlay">
+    <div class="claim-card">
+      <div class="claim-title" id="claimTitle">Claim a spot</div>
+      <div class="claim-sub">Your name will be shown next to your seat so the host knows it's yours.</div>
+      <div class="claim-error" id="claimError"></div>
+      <input type="text" id="claimName" placeholder="Your name" autocomplete="name">
+      <div class="claim-actions">
+        <button type="button" class="claim-submit-btn" onclick="submitClaim()">Claim it</button>
+        <button type="button" class="claim-cancel-btn" onclick="closeClaimOverlay()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+let claimingShowtimeId = null;
+
+async function handleAuthFailure(res){
+  if (res.status === 401){
+    window.location.href = '/shared-login.html';
+    return true;
+  }
+  return false;
+}
+
+async function logout(){
+  try{ await fetch('/api/shared-logout', { method: 'POST' }); }catch(e){}
+  window.location.href = '/shared-login.html';
+}
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function formatPrice(price){
+  return (typeof price === 'number') ? ('$' + price.toFixed(2)) : '';
+}
+
+function formatDateDisplay(iso){
+  try{
+    const [y,m,d] = iso.split('-').map(Number);
+    const dt = new Date(y, m-1, d);
+    return dt.toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric' });
+  }catch(e){ return iso; }
+}
+function formatTimeDisplay(t){
+  try{
+    const [h,m] = t.split(':').map(Number);
+    const dt = new Date();
+    dt.setHours(h, m, 0, 0);
+    return dt.toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' });
+  }catch(e){ return t; }
+}
+
+async function loadList(){
+  const container = document.getElementById('cardsContainer');
+  container.innerHTML = '<div class="loading-state">Loading...</div>';
+  try{
+    const res = await fetch('/api/public/showtimes');
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok) throw new Error('failed to load');
+    const data = await res.json();
+    const items = data.showtimes || [];
+    if (items.length === 0){
+      container.innerHTML = '<div class="empty-state">No showtimes posted yet. Check back soon.</div>';
+      return;
+    }
+    container.innerHTML = '';
+    items.forEach(obj => container.appendChild(buildCard(obj)));
+  }catch(e){
+    container.innerHTML = '<div class="empty-state">Could not load showtimes. Try again.</div>';
+  }
+}
+
+function buildCard(obj){
+  const card = document.createElement('div');
+  card.className = 'card';
+
+  const h3 = document.createElement('h3');
+  h3.textContent = obj.title || 'Untitled';
+  card.appendChild(h3);
+
+  const meta = document.createElement('div');
+  meta.className = 'meta';
+  meta.textContent = [obj.theater, formatDateDisplay(obj.date), formatTimeDisplay(obj.time), obj.format, formatPrice(obj.price)]
+    .filter(Boolean).join(' | ');
+  card.appendChild(meta);
+
+  const seats = obj.seats || {};
+  const ids = Object.keys(seats).sort();
+  const claimed = ids.filter(id => seats[id].name);
+  const availCount = ids.length - claimed.length;
+
+  if (ids.length === 0){
+    const empty = document.createElement('div');
+    empty.className = 'seats-empty';
+    empty.textContent = 'No seats posted yet';
+    card.appendChild(empty);
+  } else {
+    const availLine = document.createElement('div');
+    availLine.className = 'seats-avail-line ' + (availCount > 0 ? 'seats-avail-green' : 'seats-avail-red');
+    availLine.textContent = availCount + ' seat' + (availCount === 1 ? '' : 's') + ' available';
+    card.appendChild(availLine);
+
+    if (claimed.length > 0){
+      const claimedList = document.createElement('div');
+      claimedList.className = 'claimed-list';
+      claimedList.innerHTML = claimed.map(id => {
+        const s = seats[id];
+        const paidTag = s.paid ? '<span class="paid-tag">&#10003; paid</span>' : '<span class="unpaid-tag">unpaid</span>';
+        return '<div class="seat-line"><b>' + escapeHtml(s.name) + '</b>' + paidTag + '</div>';
+      }).join('');
+      card.appendChild(claimedList);
+    }
+
+    if (availCount > 0){
+      const claimBtn = document.createElement('button');
+      claimBtn.className = 'claim-btn';
+      claimBtn.textContent = 'Claim a spot';
+      claimBtn.onclick = () => openClaimOverlay(obj.id, obj.title);
+      card.appendChild(claimBtn);
+    }
+  }
+
+  return card;
+}
+
+function openClaimOverlay(showtimeId, title){
+  claimingShowtimeId = showtimeId;
+  document.getElementById('claimTitle').textContent = 'Claim a spot: ' + title;
+  document.getElementById('claimError').textContent = '';
+  document.getElementById('claimName').value = '';
+  document.getElementById('claimOverlay').classList.remove('hidden');
+  setTimeout(() => document.getElementById('claimName').focus(), 0);
+}
+
+function closeClaimOverlay(){
+  claimingShowtimeId = null;
+  document.getElementById('claimOverlay').classList.add('hidden');
+}
+
+async function submitClaim(){
+  if (!claimingShowtimeId) return;
+  const errorEl = document.getElementById('claimError');
+  const name = document.getElementById('claimName').value.trim();
+  if (!name){
+    errorEl.textContent = 'Enter your name first.';
+    return;
+  }
+  try{
+    const res = await fetch('/api/public/showtimes/' + claimingShowtimeId + '/claim', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    });
+    if (await handleAuthFailure(res)) return;
+    if (res.status === 409){
+      errorEl.textContent = 'Sorry, no seats left -- someone just grabbed the last one.';
+      return;
+    }
+    if (!res.ok){
+      errorEl.textContent = 'Could not claim a seat. Try again.';
+      return;
+    }
+    closeClaimOverlay();
+    loadList();
+  }catch(e){
+    errorEl.textContent = 'Could not reach the server. Try again.';
+  }
+}
+
+// ---------------- INIT ----------------
+loadList();
+</script>
+
+</body>
+</html>

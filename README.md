@@ -1,34 +1,55 @@
 # Canopy Tickets
 
-A small tool for tracking AMC seat blocks you've bought so friends can later
-claim seats. Right now this covers the admin side: creating showtimes,
-picking which seats you actually bought on a real AMC seat map, and marking
-which seats in the auditorium are otherwise unavailable. Everything is
-persisted server-side, behind a password.
+A small tool for tracking AMC seat blocks you've bought so friends can
+claim seats. Two sides, two separate passwords:
 
-The public "browse showtimes and claim a seat" view isn't built yet — this
-is just the create/manage side for now.
+- **Admin** (`/`, gated by `ADMIN_PASSWORD`) — create showtimes, pick which
+  seats you actually bought on a real AMC seat map, assign seats to
+  specific friends, and mark them paid.
+- **Reserve** (`/reserve`, gated by `SHARED_PASSWORD`) — the page you hand
+  out to friends. They see upcoming showtimes and how many spots are still
+  open, and can claim one for themselves by name. You still confirm
+  payment (Venmo, etc.) manually on the admin side.
+
+Everything is persisted server-side as a JSON file (see "Deploying on
+Coolify" below for making that survive redeploys).
 
 ## How it works
 
-- `server.js` — Express app: password-gated auth (signed cookie) + a JSON
-  REST API for showtimes.
+- `server.js` — Express app: two independent password-gated sessions
+  (admin + shared) and a JSON REST API for showtimes.
 - `lib/store.js` — persistence: showtimes are stored as one JSON file on
   disk (`data/showtimes.json`), written atomically. No database needed at
-  this scale.
+  this scale. `claimAnySeat` does the friend-facing claim atomically (read,
+  check, write inside one lock) so two people claiming at the same instant
+  can't collide on the same seat.
+- `lib/auth.js` — one small password-session helper, instantiated twice
+  (`canopy_admin` and `canopy_shared` cookies) so admin and friend logins
+  never overlap.
+- `lib/seats.js` — normalizes a stored seat entry (handles the legacy
+  plain-string format from before per-seat names/paid existed) into
+  `{status: 'occupied'}` or `{status: 'assigned', name, paid}`.
 - `views/admin.html` — the showtime list + seat-map editor. Only served to
-  authenticated requests.
-- `public/login.html` — the password screen.
+  authenticated admin requests.
+- `views/public.html` — the friend-facing reservation page. Only served to
+  authenticated shared requests. Shows each showtime's remaining spot count
+  (green if any are open, red if sold out) and who's already claimed a
+  seat; doesn't expose the full seat map or which physical seat is sold
+  out vs. never purchased.
+- `public/login.html`, `public/shared-login.html` — the two password
+  screens.
 
 ## Running locally
 
 ```bash
 npm install
-ADMIN_PASSWORD=whatever npm start
+ADMIN_PASSWORD=whatever SHARED_PASSWORD=whatever2 npm start
 ```
 
-Then visit `http://localhost:3000`. If you don't set `ADMIN_PASSWORD`, the
-server generates a random one and prints it to the console on startup.
+Then visit `http://localhost:3000` for the admin side, or
+`http://localhost:3000/reserve` for the friend-facing side. If you don't
+set `ADMIN_PASSWORD`/`SHARED_PASSWORD`, the server generates random ones
+and prints them to the console on startup.
 
 ## Deploying on Coolify
 
@@ -40,7 +61,9 @@ static files. The included `Dockerfile` builds and runs the app directly.
 1. In the Coolify resource settings, change the build pack from **Static**
    to **Dockerfile**.
 2. Set environment variables:
-   - `ADMIN_PASSWORD` — your password for the editor.
+   - `ADMIN_PASSWORD` — your password for the editor. Keep this one to
+     yourself.
+   - `SHARED_PASSWORD` — the password you give friends for `/reserve`.
    - `SESSION_SECRET` — a long random string (e.g. `openssl rand -hex 32`),
      so logins survive restarts/redeploys.
 3. Add a **persistent volume** — this is where `showtimes.json` lives.
