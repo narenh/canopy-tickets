@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Reserve a Spot</title>
+<title>Upcoming Showtimes</title>
 <!-- OG_META -->
 <style>
   :root{
@@ -42,11 +42,6 @@
     color:var(--muted);
     font-size:14px;
   }
-  .list-header p#venmoNote{
-    margin-top:4px;
-    font-size:12px;
-  }
-  .list-header p#venmoNote a{color:var(--venmo);}
   .logout-link{
     color:var(--muted);
     font-size:12px;
@@ -94,6 +89,7 @@
     margin-bottom:3px;
   }
   .seat-line b{color:var(--gold);}
+  .seat-line .seat-id{color:var(--muted);font-size:11px;}
   .seat-line .paid-tag{color:var(--green);font-size:11px;margin-left:6px;}
   .seat-line .unpaid-tag{color:#e2857a;font-size:11px;margin-left:6px;}
   .claimed-list{margin-bottom:10px;}
@@ -259,13 +255,7 @@
     display:block;
     box-sizing:border-box;
   }
-  .claim-submit-btn{
-    background:var(--gold);
-    color:#241c07;
-    border:none;
-    font-weight:700;
-  }
-  .venmo-btn{
+  .claim-actions .claim-submit-btn, .claim-actions .venmo-btn{
     background:var(--venmo);
     color:#fff;
     border:none;
@@ -290,9 +280,8 @@
   <div id="listView">
     <div class="list-header">
       <div>
-        <h1>Reserve a Spot</h1>
-        <p>Grab an open seat, then Venmo to lock it in</p>
-        <p id="venmoNote" class="hidden"></p>
+        <h1>Upcoming Showtimes</h1>
+        <p>Reserve a spot below. Choose your concessions until 2 hours before showtime (coming soon).</p>
       </div>
       <div class="logout-link" onclick="logout()">Log out</div>
     </div>
@@ -319,10 +308,10 @@
     </div>
 
     <div class="seatmap" id="seatmap"></div>
-    <div class="toolbar-note">Tap a gold seat to claim it. Red seats are already taken; gray seats aren't part of this block.</div>
+    <div class="toolbar-note">Tap a gold seat to reserve it. Red seats are already taken; gray seats aren't part of this block.</div>
 
     <div class="legend">
-      <div class="legend-item"><span class="legend-swatch sw-pickable"></span> Open -- tap to claim</div>
+      <div class="legend-item"><span class="legend-swatch sw-pickable"></span> Open -- tap to reserve</div>
       <div class="legend-item"><span class="legend-swatch sw-taken"></span> Taken</div>
       <div class="legend-item"><span class="legend-swatch sw-unavail"></span> Not part of this block</div>
     </div>
@@ -336,7 +325,7 @@
       <div class="claim-error" id="claimError"></div>
       <input type="text" id="claimName" placeholder="Your name" autocomplete="name">
       <div class="claim-actions">
-        <button type="button" class="claim-submit-btn" onclick="submitClaim()">Claim it</button>
+        <button type="button" class="claim-submit-btn" onclick="submitClaim()">Reserve</button>
         <button type="button" onclick="closeClaimOverlay()">Cancel</button>
       </div>
     </div>
@@ -349,7 +338,7 @@
       <div class="success-sub" id="successSub"></div>
       <div class="claim-actions">
         <a class="venmo-btn hidden" id="venmoLink" href="#" target="_blank" rel="noopener">Pay via Venmo</a>
-        <button type="button" onclick="closeSuccessOverlay()">Done</button>
+        <button type="button" onclick="closeSuccessOverlay()">Skip</button>
       </div>
     </div>
   </div>
@@ -514,7 +503,7 @@ function buildCard(obj){
       claimedList.innerHTML = claimed.map(id => {
         const s = seats[id];
         const paidTag = s.paid ? '<span class="paid-tag">&#10003; paid</span>' : '<span class="unpaid-tag">unpaid</span>';
-        return '<div class="seat-line"><b>' + escapeHtml(s.name) + '</b>' + paidTag + '</div>';
+        return '<div class="seat-line"><b>' + escapeHtml(s.name) + '</b> <span class="seat-id">(' + escapeHtml(id) + ')</span>' + paidTag + '</div>';
       }).join('');
       card.appendChild(claimedList);
     }
@@ -522,7 +511,7 @@ function buildCard(obj){
     if (availCount > 0){
       const pickBtn = document.createElement('button');
       pickBtn.className = 'claim-btn';
-      pickBtn.textContent = 'Pick a seat';
+      pickBtn.textContent = 'Reserve';
       pickBtn.onclick = () => openSeatPicker(obj.id);
       card.appendChild(pickBtn);
     }
@@ -576,7 +565,7 @@ function buildSeatmap(obj){
 // ---------------- CLAIM OVERLAY ----------------
 function openClaimOverlay(seatId){
   claimingSeatId = seatId;
-  document.getElementById('claimTitle').textContent = 'Claim seat ' + seatId;
+  document.getElementById('claimTitle').textContent = 'Reserve seat ' + seatId;
   document.getElementById('claimError').textContent = '';
   document.getElementById('claimName').value = '';
   document.getElementById('claimOverlay').classList.remove('hidden');
@@ -649,13 +638,7 @@ async function submitClaim(){
 
 // ---------------- INIT ----------------
 loadList();
-loadConfig().then(() => {
-  if (venmoHandle){
-    const note = document.getElementById('venmoNote');
-    note.innerHTML = 'Or Venmo <a href="https://venmo.com/' + encodeURIComponent(venmoHandle) + '" target="_blank" rel="noopener">@' + escapeHtml(venmoHandle) + '</a> directly.';
-    note.classList.remove('hidden');
-  }
-});
+loadConfig(); // populates venmoHandle for the post-claim pay link
 </script>
 
 </body>
