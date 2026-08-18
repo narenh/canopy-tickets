@@ -284,6 +284,12 @@
     margin:2px 0;
     width:max-content;
   }
+  /* Stadium-style rooms with a few flat rows up front (e.g. Dolby's A-C)
+     get extra breathing room here before the raised rows start -- no
+     divider line, just space. */
+  .row.row-gap-after{
+    margin-bottom:24px;
+  }
   .seat{
     position:relative;
     width:22px;
@@ -548,8 +554,13 @@
         <select id="format">
           <option>IMAX with Laser</option>
           <option>IMAX 70mm</option>
+          <option>Dolby Cinema</option>
         </select>
         <span class="sep">at AMC</span>
+        <select id="screen" onchange="buildSeatGrid()">
+          <option value="16">IMAX (16)</option>
+          <option value="13">Dolby Cinema (13)</option>
+        </select>
         <span class="sep">|</span>
         <span class="price-field">$<input type="number" id="price" step="0.01" min="0" placeholder="16.49"></span>
       </div>
@@ -604,8 +615,6 @@
 
 <script src="/seat-layout.js"></script>
 <script>
-const rowDefs = SEAT_LAYOUT;
-
 let currentId = null;      // null = unsaved new showtime
 let seatStates = {};       // seatId -> { status: 'occupied' } | { status: 'assigned', name, paid }
 let seatEls = {};          // seatId -> DOM element, populated by buildSeatGrid
@@ -804,6 +813,7 @@ function openNew(){
   document.getElementById('showDate').value = todayISO();
   document.getElementById('showTime').value = '19:00';
   document.getElementById('format').value = 'IMAX with Laser';
+  document.getElementById('screen').value = '16';
   document.getElementById('price').value = '16.49';
   seatStates = {};
   document.getElementById('deleteBtn').classList.add('hidden');
@@ -828,6 +838,7 @@ async function openExisting(id){
     document.getElementById('showDate').value = obj.date || todayISO();
     document.getElementById('showTime').value = obj.time || '19:00';
     document.getElementById('format').value = obj.format || 'IMAX with Laser';
+    document.getElementById('screen').value = obj.screen || '16';
     document.getElementById('price').value = (typeof obj.price === 'number') ? obj.price.toFixed(2) : '';
     seatStates = normalizeSeats(obj.seats);
     document.getElementById('deleteBtn').classList.remove('hidden');
@@ -864,12 +875,14 @@ function buildSeatGrid(){
   seatmap.innerHTML = '';
   seatEls = {};
 
+  const rowDefs = getSeatLayout(document.getElementById('screen').value);
+
   const screenWrap = buildScreenWrap();
   seatmap.appendChild(screenWrap);
 
   rowDefs.forEach(row => {
     const rowEl = document.createElement('div');
-    rowEl.className = 'row';
+    rowEl.className = 'row' + (row.gapAfter ? ' row-gap-after' : '');
     for (let i = row.count; i >= 1; i--){
       const seatId = row.letter + i;
       const type = row.special[i] || 'seat';
@@ -1006,6 +1019,7 @@ async function saveCurrent(){
     date: document.getElementById('showDate').value,
     time: document.getElementById('showTime').value,
     format: document.getElementById('format').value,
+    screen: document.getElementById('screen').value,
     price: document.getElementById('price').value,
     seats: seatStates
   };

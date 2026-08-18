@@ -177,6 +177,12 @@
     margin:2px 0;
     width:max-content;
   }
+  /* Stadium-style rooms with a few flat rows up front (e.g. Dolby's A-C)
+     get extra breathing room here before the raised rows start -- no
+     divider line, just space. */
+  .row.row-gap-after{
+    margin-bottom:24px;
+  }
   .seat{
     position:relative;
     width:22px;
@@ -378,7 +384,6 @@
 
 <script src="/seat-layout.js"></script>
 <script>
-const rowDefs = SEAT_LAYOUT;
 
 let allShowtimes = [];     // last-loaded list from /api/public/showtimes
 let currentShowtimeId = null;
@@ -597,12 +602,14 @@ function buildSeatmap(obj){
   seatmap.innerHTML = '';
   seatEls = {};
 
+  const rowDefs = getSeatLayout(obj.screen);
+
   const screenWrap = buildScreenWrap();
   seatmap.appendChild(screenWrap);
 
   rowDefs.forEach(row => {
     const rowEl = document.createElement('div');
-    rowEl.className = 'row';
+    rowEl.className = 'row' + (row.gapAfter ? ' row-gap-after' : '');
     for (let i = row.count; i >= 1; i--){
       const seatId = row.letter + i;
       const type = row.special[i] || 'seat';

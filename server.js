@@ -128,6 +128,20 @@ function parsePrice(raw) {
   return Math.round(n * 100) / 100;
 }
 
+// Every showtime needs an auditorium/seat-map now, keyed by AMC's actual
+// screen number (see public/seat-layout.js for what each one renders).
+// DEFAULT_SCREEN is IMAX (16) -- every showtime made before this field
+// existed gets treated as IMAX wherever it's read (see the `|| DEFAULT_SCREEN`
+// fallbacks below), so nothing needs a one-time migration: an old record
+// with no `screen` on disk just keeps rendering the IMAX map it always
+// implicitly meant, forever, unless the admin re-saves it with a
+// different one.
+const DEFAULT_SCREEN = '16';
+function normalizeScreenInput(raw) {
+  if (typeof raw === 'string' && raw.trim()) return raw.trim().slice(0, 20);
+  return DEFAULT_SCREEN;
+}
+
 // Builds the Open Graph / Twitter Card <meta> tags for the link-preview
 // shown by iMessage, Facebook, Instagram, etc. when tix.canopysf.com gets
 // shared. Same title/description everywhere on purpose -- there's one
@@ -200,6 +214,7 @@ function publicShowtimeView(s) {
     date: s.date,
     time: s.time,
     format: s.format,
+    screen: s.screen || DEFAULT_SCREEN,
     price: s.price,
     seats: blockSeats
   };
@@ -264,15 +279,21 @@ app.post('/api/shared-password', adminAuth.requireAuth('/'), (req, res) => {
 
 app.use('/api/showtimes', adminAuth.requireAuth('/'));
 
+// Read-side fallback for showtimes saved before `screen` existed -- see
+// the DEFAULT_SCREEN comment above.
+function withScreenFallback(item) {
+  return { ...item, screen: item.screen || DEFAULT_SCREEN };
+}
+
 app.get('/api/showtimes', (req, res) => {
-  const items = store.listShowtimes().sort(byShowtime);
+  const items = store.listShowtimes().sort(byShowtime).map(withScreenFallback);
   res.json({ showtimes: items });
 });
 
 app.get('/api/showtimes/:id', (req, res) => {
   const item = store.getShowtime(req.params.id);
   if (!item) return res.status(404).json({ error: 'not found' });
-  res.json({ showtime: item });
+  res.json({ showtime: withScreenFallback(item) });
 });
 
 app.post('/api/showtimes', async (req, res) => {
@@ -289,6 +310,7 @@ app.post('/api/showtimes', async (req, res) => {
     date: String(body.date || '').slice(0, 20),
     time: String(body.time || '').slice(0, 20),
     format: String(body.format || '').slice(0, 100),
+    screen: normalizeScreenInput(body.screen),
     price: parsePrice(body.price),
     seats: body.seats,
     createdAt: now,
@@ -311,6 +333,7 @@ app.put('/api/showtimes/:id', async (req, res) => {
     date: String(body.date ?? existing.date).slice(0, 20),
     time: String(body.time ?? existing.time).slice(0, 20),
     format: String(body.format ?? existing.format).slice(0, 100),
+    screen: body.screen !== undefined ? normalizeScreenInput(body.screen) : (existing.screen || DEFAULT_SCREEN),
     price: body.price !== undefined ? parsePrice(body.price) : existing.price,
     seats,
     updatedAt: Date.now()
