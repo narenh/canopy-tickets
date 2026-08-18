@@ -128,17 +128,22 @@ function parsePrice(raw) {
   return Math.round(n * 100) / 100;
 }
 
-// Every showtime needs an auditorium/seat-map now, keyed by AMC's actual
-// screen number (see public/seat-layout.js for what each one renders).
-// DEFAULT_SCREEN is IMAX (16) -- every showtime made before this field
-// existed gets treated as IMAX wherever it's read (see the `|| DEFAULT_SCREEN`
-// fallbacks below), so nothing needs a one-time migration: an old record
-// with no `screen` on disk just keeps rendering the IMAX map it always
-// implicitly meant, forever, unless the admin re-saves it with a
-// different one.
-const DEFAULT_SCREEN = '16';
+// Every showtime needs an auditorium/seat-map now, keyed by a
+// theater+auditorium id (see public/seat-layout.js -- SEAT_LAYOUTS keys
+// look like "amc-metreon-16", since a bare auditorium number only means
+// something within one specific theater). This constant is kept in sync
+// by hand with the same-named one there, since that file is browser-only
+// and can't be required from here.
+//
+// DEFAULT_SCREEN is IMAX at Metreon -- every showtime made before this
+// field existed gets treated as that wherever it's read (see the
+// `|| DEFAULT_SCREEN` fallbacks below), so nothing needs a one-time
+// migration: an old record with no `screen` on disk just keeps rendering
+// the IMAX map it always implicitly meant, forever, unless the admin
+// re-saves it with a different one.
+const DEFAULT_SCREEN = 'amc-metreon-16';
 function normalizeScreenInput(raw) {
-  if (typeof raw === 'string' && raw.trim()) return raw.trim().slice(0, 20);
+  if (typeof raw === 'string' && raw.trim()) return raw.trim().slice(0, 60);
   return DEFAULT_SCREEN;
 }
 

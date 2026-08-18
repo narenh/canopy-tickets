@@ -556,11 +556,10 @@
           <option>IMAX 70mm</option>
           <option>Dolby Cinema</option>
         </select>
-        <span class="sep">at AMC</span>
-        <select id="screen" onchange="buildSeatGrid()">
-          <option value="16">IMAX (16)</option>
-          <option value="13">Dolby Cinema (13)</option>
-        </select>
+        <span class="sep">|</span>
+        <!-- Options populated at load time from SEAT_LAYOUTS (seat-layout.js),
+             grouped by theater -- see populateScreenOptions(). -->
+        <select id="screen" onchange="buildSeatGrid()"></select>
         <span class="sep">|</span>
         <span class="price-field">$<input type="number" id="price" step="0.01" min="0" placeholder="16.49"></span>
       </div>
@@ -569,7 +568,7 @@
         <button type="button" class="quick-price-btn" onclick="setPrice(16.49)">$16.49</button>
         <button type="button" class="quick-price-btn" onclick="setPrice(28.99)">$28.99</button>
       </div>
-      <div class="edit-hint">Tap title/theater to rename; use pickers for date/time and the dropdown for format.</div>
+      <div class="edit-hint">Tap title/theater to rename; use pickers for date/time and the dropdowns for format and screen.</div>
     </div>
 
     <div class="seatmap" id="seatmap"></div>
@@ -813,7 +812,7 @@ function openNew(){
   document.getElementById('showDate').value = todayISO();
   document.getElementById('showTime').value = '19:00';
   document.getElementById('format').value = 'IMAX with Laser';
-  document.getElementById('screen').value = '16';
+  document.getElementById('screen').value = DEFAULT_SCREEN;
   document.getElementById('price').value = '16.49';
   seatStates = {};
   document.getElementById('deleteBtn').classList.add('hidden');
@@ -838,7 +837,7 @@ async function openExisting(id){
     document.getElementById('showDate').value = obj.date || todayISO();
     document.getElementById('showTime').value = obj.time || '19:00';
     document.getElementById('format').value = obj.format || 'IMAX with Laser';
-    document.getElementById('screen').value = obj.screen || '16';
+    document.getElementById('screen').value = obj.screen || DEFAULT_SCREEN;
     document.getElementById('price').value = (typeof obj.price === 'number') ? obj.price.toFixed(2) : '';
     seatStates = normalizeSeats(obj.seats);
     document.getElementById('deleteBtn').classList.remove('hidden');
@@ -1145,7 +1144,37 @@ async function saveSharedPassword(){
   }
 }
 
+// Builds the Screen dropdown's options from SEAT_LAYOUTS (seat-layout.js),
+// grouped by theater, so adding a new auditorium there is the only thing
+// that's ever needed -- nothing here to keep in sync by hand.
+function populateScreenOptions(){
+  const select = document.getElementById('screen');
+  select.innerHTML = '';
+  const groups = {};
+  const groupOrder = [];
+  Object.keys(SEAT_LAYOUTS).forEach(screenId => {
+    const layout = SEAT_LAYOUTS[screenId];
+    if (!groups[layout.theater]) {
+      groups[layout.theater] = [];
+      groupOrder.push(layout.theater);
+    }
+    groups[layout.theater].push({ screenId, layout });
+  });
+  groupOrder.forEach(theaterName => {
+    const optgroup = document.createElement('optgroup');
+    optgroup.label = theaterName;
+    groups[theaterName].forEach(({ screenId, layout }) => {
+      const option = document.createElement('option');
+      option.value = screenId;
+      option.textContent = 'Auditorium ' + layout.auditorium + ' (' + layout.name + ')';
+      optgroup.appendChild(option);
+    });
+    select.appendChild(optgroup);
+  });
+}
+
 // ---------------- INIT ----------------
+populateScreenOptions();
 loadList();
 loadSharedPassword();
 loadOgPreview();

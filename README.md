@@ -38,8 +38,9 @@ Coolify" below for making that survive redeploys).
   against a single open seat (1 winner, 9 correctly rejected). Every
   showtime carries a `screen` (which auditorium/seat-map it uses, see
   `public/seat-layout.js`) -- a showtime saved before this field existed
-  just reads back as IMAX (`"16"`) every time, forever, via a fallback in
-  `server.js`, so nothing needed a one-time migration.
+  just reads back as IMAX at Metreon (`"amc-metreon-16"`) every time,
+  forever, via a fallback in `server.js`, so nothing needed a one-time
+  migration.
 - `lib/sharedPassword.js` — persistence for the friend password (see
   below). No password saved means friend login is off.
 - `lib/auth.js` — one small password-session helper, instantiated twice
@@ -51,20 +52,24 @@ Coolify" below for making that survive redeploys).
 - `lib/uploadedImage.js` — persistence for admin-uploaded site images (the
   link-preview image, the logo): `createImageStore(name)` gives each one
   its own file in `DATA_DIR`, same durability story as `showtimes.json`.
-- `public/seat-layout.js` — `SEAT_LAYOUTS`, keyed by AMC's actual
-  auditorium/screen number (`"16"` = IMAX, `"13"` = Dolby Cinema), each
-  with the row/seat geometry (how many rows, seats per row, wheelchair/
-  companion icon positions, and an optional `gapAfter` on a row to add
-  breathing room -- no divider line -- before a stadium section starts,
-  used for Dolby's three flat front rows). `getSeatLayout(screenId)`
-  looks one up, falling back to IMAX for an unknown id. The one place
-  both `admin.html` and `public.html` get a layout from, so they always
-  agree on which seat IDs exist for a given showtime. Currently
-  approximate, not pulled from AMC's real charts -- safe to correct later
-  since a seat's identity is just its ID string (e.g. `"F14"`); just
-  don't rename/renumber a seat that's already assigned to someone. Add a
-  new auditorium by adding an entry here and to the `<select id="screen">`
-  in `views/admin.html`.
+- `public/seat-layout.js` — `SEAT_LAYOUTS`, keyed by a theater+auditorium
+  id (e.g. `"amc-metreon-16"`) rather than a bare auditorium number,
+  since a number alone only means something within one specific theater
+  and more theaters can get added later. Each entry carries its own
+  `theater`/`auditorium`/`name` fields plus the row/seat geometry (how
+  many rows, seats per row, wheelchair/companion icon positions, and an
+  optional `gapAfter` on a row to add breathing room -- no divider line
+  -- before a stadium section starts, used for Dolby's three flat front
+  rows). `getSeatLayout(screenId)` looks one up, falling back to IMAX
+  for an unknown id. The one place both `admin.html` and `public.html`
+  get a layout from, so they always agree on which seat IDs exist for a
+  given showtime. Currently approximate, not pulled from AMC's real
+  charts -- safe to correct later since a seat's identity is just its ID
+  string (e.g. `"F14"`); just don't rename/renumber a seat that's
+  already assigned to someone (or a screen's key, one level up). Add a
+  new auditorium by adding an entry here -- the admin editor's Screen
+  dropdown is built from this file at load time, grouped by theater,
+  so there's nothing else to keep in sync by hand.
 - `views/admin.html` — the showtime list + seat-map editor, plus (below
   the showtimes list) the friend-password field and the logo/link-preview
   uploaders. Only served to authenticated admin requests.
