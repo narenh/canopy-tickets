@@ -9,6 +9,7 @@
     --gold:#c9a24b;
     --gold-dark:#8a712f;
     --red:#e2333d;
+    --green:#2ecc71;
     --bg:#0b0b0d;
     --muted:#9a9a9a;
   }
@@ -83,11 +84,20 @@
     margin-bottom:8px;
   }
   .card .seats-line{
-    color:var(--gold);
+    color:#ddd;
     font-size:13px;
+    line-height:1.6;
     margin-bottom:12px;
     word-break:break-word;
   }
+  .card .seats-line .seat-entry{
+    display:inline-block;
+    margin:0 8px 4px 0;
+  }
+  .card .seats-line .seat-entry b{color:var(--gold);}
+  .card .seats-line .seat-entry.is-available b{color:var(--muted);font-weight:400;}
+  .card .seats-line .paid-tag{color:var(--green);font-size:11px;}
+  .card .seats-line .unpaid-tag{color:#e2857a;font-size:11px;}
   .card-actions{
     display:flex;
     gap:10px;
@@ -159,6 +169,20 @@
   }
   .subtitle select option{background:#111;color:#fff;}
   .subtitle input::-webkit-calendar-picker-indicator{filter:invert(1);}
+  .price-field{display:inline-flex;align-items:center;gap:2px;}
+  #price{width:64px;}
+  .price-quick{
+    margin-top:8px;
+    display:flex;
+    gap:8px;
+    align-items:center;
+  }
+  .price-quick span{color:var(--muted);font-size:11px;}
+  .quick-price-btn{
+    padding:4px 10px;
+    font-size:12px;
+    border-radius:14px;
+  }
   .edit-hint{
     color:var(--muted);
     font-size:11px;
@@ -184,6 +208,7 @@
     width:max-content;
   }
   .seat{
+    position:relative;
     width:22px;
     height:20px;
     border-radius:4px;
@@ -199,10 +224,21 @@
     user-select:none;
     flex:0 0 auto;
   }
-  .seat.selected{background:var(--red);border-color:#8f1319;color:#fff;}
-  .seat.occupied{background:transparent;border:1px solid #444;color:#555;cursor:not-allowed;}
+  .seat.assigned{background:var(--red);border-color:#8f1319;color:#fff;}
+  .seat.occupied{background:transparent;border:1px solid #444;color:#555;cursor:pointer;}
   .seat.wc, .seat.comp{border-radius:50%;background:var(--gold);}
-  .seat.wc.selected, .seat.comp.selected{background:var(--red);}
+  .seat.wc.assigned, .seat.comp.assigned{background:var(--red);}
+  .seat.assigned.paid::after{
+    content:'';
+    position:absolute;
+    top:-2px;
+    right:-2px;
+    width:6px;
+    height:6px;
+    border-radius:50%;
+    background:var(--green);
+    border:1px solid #0b0b0d;
+  }
   .legend{
     margin-top:20px;
     padding:14px 20px;
@@ -214,10 +250,14 @@
     color:#ddd;
   }
   .legend-item{display:flex;align-items:center;gap:8px;}
-  .legend-swatch{width:18px;height:18px;border-radius:4px;display:inline-block;}
+  .legend-swatch{width:18px;height:18px;border-radius:4px;display:inline-block;position:relative;}
   .sw-avail{background:var(--gold);border:1px solid var(--gold-dark);}
   .sw-sel{background:var(--red);}
   .sw-occ{background:transparent;border:1px solid #666;}
+  .sw-paid-dot{
+    position:absolute;top:-2px;right:-2px;width:6px;height:6px;border-radius:50%;
+    background:var(--green);border:1px solid #0b0b0d;
+  }
   .summary{padding:16px 20px 4px;font-size:14px;color:#fff;}
   .summary b{color:var(--gold);}
   .controls{
@@ -274,6 +314,78 @@
     padding:0 20px 4px;
     min-height:16px;
   }
+
+  /* ---------- SEAT EDITOR OVERLAY ---------- */
+  .seat-editor-overlay{
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,0.6);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:20px;
+    z-index:50;
+  }
+  .seat-editor-card{
+    width:100%;
+    max-width:320px;
+    background:#151517;
+    border:1px solid #2a2a2a;
+    border-radius:14px;
+    padding:20px;
+  }
+  .seat-editor-title{
+    font-size:17px;
+    font-weight:700;
+    margin-bottom:14px;
+  }
+  .se-field{
+    display:block;
+    margin-bottom:14px;
+  }
+  .se-field span{
+    display:block;
+    font-size:12px;
+    color:var(--muted);
+    margin-bottom:6px;
+  }
+  .se-field input[type="text"]{
+    width:100%;
+    background:#0f0f10;
+    color:#fff;
+    border:1px solid #3a3a3a;
+    border-radius:10px;
+    padding:10px 12px;
+    font-size:15px;
+  }
+  .se-checkbox{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-bottom:16px;
+    font-size:14px;
+  }
+  .se-checkbox input{width:16px;height:16px;}
+  .seat-editor-actions{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+  .seat-editor-actions button{
+    width:100%;
+    padding:10px;
+  }
+  .se-save-btn{
+    background:var(--gold);
+    color:#241c07;
+    border:none;
+    font-weight:700;
+  }
+  .se-danger-btn{
+    background:#2a1616;
+    border:1px solid #5a2323;
+    color:#e2857a;
+  }
 </style>
 </head>
 <body>
@@ -314,6 +426,13 @@
           <option>IMAX 70mm</option>
         </select>
         <span class="sep">at AMC</span>
+        <span class="sep">|</span>
+        <span class="price-field">$<input type="number" id="price" step="0.01" min="0" placeholder="16.49"></span>
+      </div>
+      <div class="price-quick">
+        <span>Quick price:</span>
+        <button type="button" class="quick-price-btn" onclick="setPrice(16.49)">$16.49</button>
+        <button type="button" class="quick-price-btn" onclick="setPrice(28.99)">$28.99</button>
       </div>
       <div class="edit-hint">Tap title/theater to rename; use pickers for date/time and the dropdown for format.</div>
     </div>
@@ -327,25 +446,47 @@
 
     <div class="seatmap" id="seatmap"></div>
 
-    <div class="summary" id="summary">Selected seats: <b>none</b></div>
+    <div class="summary" id="summary">Your seats: <b>none</b></div>
 
     <div class="controls">
       <button onclick="clearSelection()">Clear selection</button>
       <button onclick="resetAll()">Reset all seats</button>
       <button onclick="markRestSoldOut()">Mark rest sold out</button>
     </div>
-    <div class="toolbar-note">Tap a gold seat to select it (turns red, your tix). Tap a red seat to mark it occupied/blocked. Tap again for available.</div>
+    <div class="toolbar-note">Tap a gold seat to grab it for your block (unassigned, unpaid). Tap a red seat to assign a name, mark it paid, mark it sold, or clear it. Tap a gray seat to release it back to available.</div>
 
     <div class="legend">
       <div class="legend-item"><span class="legend-swatch sw-avail"></span> Available</div>
-      <div class="legend-item"><span class="legend-swatch sw-sel"></span> Selected (your tix)</div>
-      <div class="legend-item"><span class="legend-swatch sw-occ"></span> Occupied</div>
+      <div class="legend-item"><span class="legend-swatch sw-sel"></span> Your block (unassigned = "AVAILABLE" to friends)</div>
+      <div class="legend-item"><span class="legend-swatch sw-sel"><span class="sw-paid-dot"></span></span> Assigned &amp; paid</div>
+      <div class="legend-item"><span class="legend-swatch sw-occ"></span> Sold out (not yours)</div>
     </div>
 
     <div class="save-status" id="saveStatus"></div>
     <div class="save-bar">
       <button class="save-btn" onclick="saveCurrent()">Save Showtime</button>
       <button class="delete-btn hidden" id="deleteBtn" onclick="deleteCurrent()">Delete</button>
+    </div>
+  </div>
+
+  <!-- ===================== SEAT EDITOR OVERLAY ===================== -->
+  <div class="seat-editor-overlay hidden" id="seatEditorOverlay">
+    <div class="seat-editor-card">
+      <div class="seat-editor-title" id="seatEditorTitle">Seat</div>
+      <label class="se-field">
+        <span>Assigned to (leave blank = available for a friend to claim)</span>
+        <input type="text" id="seatEditorName" placeholder="e.g. Jordan">
+      </label>
+      <label class="se-checkbox">
+        <input type="checkbox" id="seatEditorPaid">
+        <span>Paid (Venmo received)</span>
+      </label>
+      <div class="seat-editor-actions">
+        <button type="button" class="se-save-btn" onclick="applySeatEdit()">Save</button>
+        <button type="button" onclick="markSeatOccupiedFromEditor()">Mark sold out (not mine)</button>
+        <button type="button" class="se-danger-btn" onclick="clearSeatFromEditor()">Clear seat (available)</button>
+        <button type="button" onclick="closeSeatEditor()">Cancel</button>
+      </div>
     </div>
   </div>
 
@@ -367,11 +508,40 @@ const rowDefs = [
 ];
 
 let currentId = null;      // null = unsaved new showtime
-let seatStates = {};       // seatId -> 'selected' | 'occupied'
+let seatStates = {};       // seatId -> { status: 'occupied' } | { status: 'assigned', name, paid }
+let seatEls = {};          // seatId -> DOM element, populated by buildSeatGrid
+let editingSeatId = null;
 
 function todayISO(){
   const d = new Date();
   return d.toISOString().slice(0,10);
+}
+
+// Normalizes a raw seat entry -- handles the legacy string format
+// ('selected' / 'occupied') from before per-seat names/paid tracking
+// existed, alongside the current object format. Returns null for
+// "available" (i.e. no entry at all).
+function normalizeSeatEntry(raw){
+  if (!raw) return null;
+  if (typeof raw === 'string'){
+    if (raw === 'selected') return { status: 'assigned', name: '', paid: true };
+    if (raw === 'occupied') return { status: 'occupied' };
+    return null;
+  }
+  if (typeof raw === 'object'){
+    if (raw.status === 'assigned') return { status: 'assigned', name: raw.name || '', paid: !!raw.paid };
+    if (raw.status === 'occupied') return { status: 'occupied' };
+  }
+  return null;
+}
+
+function normalizeSeats(rawSeats){
+  const out = {};
+  Object.keys(rawSeats || {}).forEach(id => {
+    const n = normalizeSeatEntry(rawSeats[id]);
+    if (n) out[id] = n;
+  });
+  return out;
 }
 
 async function handleAuthFailure(res){
@@ -423,11 +593,16 @@ async function loadList(){
   }
 }
 
+function formatPrice(price){
+  return (typeof price === 'number') ? ('$' + price.toFixed(2)) : '';
+}
+
 function buildCard(obj){
   const card = document.createElement('div');
   card.className = 'card';
 
-  const selectedIds = Object.keys(obj.seats||{}).filter(k => obj.seats[k] === 'selected');
+  const seats = normalizeSeats(obj.seats);
+  const blockIds = Object.keys(seats).filter(k => seats[k].status === 'assigned').sort();
   const dateDisplay = obj.date ? formatDateDisplay(obj.date) : '';
   const timeDisplay = obj.time ? formatTimeDisplay(obj.time) : '';
 
@@ -437,14 +612,22 @@ function buildCard(obj){
 
   const meta = document.createElement('div');
   meta.className = 'meta';
-  meta.textContent = [obj.theater, dateDisplay, timeDisplay, obj.format].filter(Boolean).join(' | ');
+  meta.textContent = [obj.theater, dateDisplay, timeDisplay, obj.format, formatPrice(obj.price)].filter(Boolean).join(' | ');
   card.appendChild(meta);
 
   const seatsLine = document.createElement('div');
   seatsLine.className = 'seats-line';
-  seatsLine.textContent = selectedIds.length
-    ? selectedIds.length + ' seat(s): ' + selectedIds.join(', ')
-    : 'No seats selected yet';
+  if (blockIds.length === 0){
+    seatsLine.textContent = 'No seats in your block yet';
+  } else {
+    seatsLine.innerHTML = blockIds.map(id => {
+      const s = seats[id];
+      const hasName = !!s.name;
+      const label = hasName ? escapeHtml(s.name) : 'AVAILABLE';
+      const paidTag = hasName ? ('<span class="' + (s.paid ? 'paid-tag">&#10003; paid' : 'unpaid-tag">unpaid') + '</span>') : '';
+      return '<span class="seat-entry' + (hasName ? '' : ' is-available') + '">' + escapeHtml(id) + ': <b>' + label + '</b> ' + paidTag + '</span>';
+    }).join('');
+  }
   card.appendChild(seatsLine);
 
   const actions = document.createElement('div');
@@ -462,6 +645,12 @@ function buildCard(obj){
 
   card.appendChild(actions);
   return card;
+}
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
 }
 
 function formatDateDisplay(iso){
@@ -500,6 +689,7 @@ function openNew(){
   document.getElementById('showDate').value = todayISO();
   document.getElementById('showTime').value = '19:00';
   document.getElementById('format').value = 'IMAX with Laser';
+  document.getElementById('price').value = '16.49';
   seatStates = {};
   document.getElementById('deleteBtn').classList.add('hidden');
   document.getElementById('saveStatus').textContent = '';
@@ -520,7 +710,8 @@ async function openExisting(id){
     document.getElementById('showDate').value = obj.date || todayISO();
     document.getElementById('showTime').value = obj.time || '19:00';
     document.getElementById('format').value = obj.format || 'IMAX with Laser';
-    seatStates = obj.seats || {};
+    document.getElementById('price').value = (typeof obj.price === 'number') ? obj.price.toFixed(2) : '';
+    seatStates = normalizeSeats(obj.seats);
     document.getElementById('deleteBtn').classList.remove('hidden');
     document.getElementById('saveStatus').textContent = '';
     buildSeatGrid();
@@ -530,10 +721,15 @@ async function openExisting(id){
   }
 }
 
+function setPrice(v){
+  document.getElementById('price').value = v.toFixed(2);
+}
+
 // ---------------- SEAT GRID ----------------
 function buildSeatGrid(){
   const seatmap = document.getElementById('seatmap');
   seatmap.innerHTML = '';
+  seatEls = {};
   rowDefs.forEach(row => {
     const rowEl = document.createElement('div');
     rowEl.className = 'row';
@@ -542,65 +738,133 @@ function buildSeatGrid(){
       const type = row.special[i] || 'seat';
       const seatEl = document.createElement('div');
       seatEl.className = 'seat' + (type !== 'seat' ? ' ' + type : '');
-      const state = seatStates[seatId] || 'available';
-      if (state === 'selected') seatEl.classList.add('selected');
-      if (state === 'occupied') seatEl.classList.add('occupied');
-      seatEl.dataset.state = state;
       seatEl.dataset.id = seatId;
-      seatEl.textContent = type === 'wc' ? '♿' : (type === 'comp' ? '+' : seatId);
+      seatEl.dataset.baseText = type === 'wc' ? '♿' : (type === 'comp' ? '+' : seatId);
+      seatEl.textContent = seatEl.dataset.baseText;
       seatEl.title = seatId;
-      seatEl.addEventListener('click', () => cycleSeat(seatEl));
+      seatEl.addEventListener('click', () => seatTap(seatId));
       rowEl.appendChild(seatEl);
+      seatEls[seatId] = seatEl;
     }
     seatmap.appendChild(rowEl);
   });
+  Object.keys(seatStates).forEach(id => renderSeat(id));
   updateSummary();
 }
 
-function cycleSeat(el){
-  const state = el.dataset.state;
-  const id = el.dataset.id;
-  let next;
-  if (state === 'available') next = 'selected';
-  else if (state === 'selected') next = 'occupied';
-  else next = 'available';
+function renderSeat(id){
+  const el = seatEls[id];
+  if (!el) return;
+  const s = seatStates[id];
+  el.classList.remove('assigned', 'occupied', 'paid');
+  if (!s){
+    el.textContent = el.dataset.baseText;
+    return;
+  }
+  if (s.status === 'occupied'){
+    el.classList.add('occupied');
+    el.textContent = el.dataset.baseText;
+    return;
+  }
+  if (s.status === 'assigned'){
+    el.classList.add('assigned');
+    if (s.paid) el.classList.add('paid');
+    el.textContent = el.dataset.baseText;
+  }
+}
 
-  el.dataset.state = next;
-  el.classList.remove('selected','occupied');
-  if (next === 'selected') el.classList.add('selected');
-  if (next === 'occupied') el.classList.add('occupied');
+// Single tap: available -> grabbed for your block (unassigned, unpaid).
+// Tapping a block seat opens the editor (name/paid/sold/clear).
+// Tapping an occupied (sold out) seat releases it back to available.
+function seatTap(id){
+  const cur = seatStates[id];
+  if (!cur){
+    seatStates[id] = { status: 'assigned', name: '', paid: false };
+    renderSeat(id);
+    updateSummary();
+    return;
+  }
+  if (cur.status === 'assigned'){
+    openSeatEditor(id);
+    return;
+  }
+  if (cur.status === 'occupied'){
+    delete seatStates[id];
+    renderSeat(id);
+    updateSummary();
+  }
+}
 
-  if (next === 'available') delete seatStates[id];
-  else seatStates[id] = next;
+function openSeatEditor(id){
+  editingSeatId = id;
+  const cur = seatStates[id];
+  document.getElementById('seatEditorTitle').textContent = 'Seat ' + id;
+  document.getElementById('seatEditorName').value = (cur && cur.status === 'assigned') ? (cur.name || '') : '';
+  document.getElementById('seatEditorPaid').checked = !!(cur && cur.status === 'assigned' && cur.paid);
+  document.getElementById('seatEditorOverlay').classList.remove('hidden');
+  setTimeout(() => document.getElementById('seatEditorName').focus(), 0);
+}
 
+function closeSeatEditor(){
+  editingSeatId = null;
+  document.getElementById('seatEditorOverlay').classList.add('hidden');
+}
+
+function applySeatEdit(){
+  if (!editingSeatId) return;
+  const name = document.getElementById('seatEditorName').value.trim();
+  const paid = document.getElementById('seatEditorPaid').checked;
+  seatStates[editingSeatId] = { status: 'assigned', name, paid };
+  renderSeat(editingSeatId);
   updateSummary();
+  closeSeatEditor();
+}
+
+function markSeatOccupiedFromEditor(){
+  if (!editingSeatId) return;
+  seatStates[editingSeatId] = { status: 'occupied' };
+  renderSeat(editingSeatId);
+  updateSummary();
+  closeSeatEditor();
+}
+
+function clearSeatFromEditor(){
+  if (!editingSeatId) return;
+  delete seatStates[editingSeatId];
+  renderSeat(editingSeatId);
+  updateSummary();
+  closeSeatEditor();
 }
 
 function updateSummary(){
-  const selected = Object.keys(seatStates).filter(k => seatStates[k] === 'selected');
+  const blockIds = Object.keys(seatStates).filter(id => seatStates[id].status === 'assigned').sort();
   const summary = document.getElementById('summary');
-  summary.innerHTML = selected.length
-    ? 'Selected seats (' + selected.length + '): <b>' + selected.join(', ') + '</b>'
-    : 'Selected seats: <b>none</b>';
+  if (blockIds.length === 0){
+    summary.innerHTML = 'Your seats: <b>none</b>';
+    return;
+  }
+  const parts = blockIds.map(id => {
+    const s = seatStates[id];
+    const label = s.name ? s.name : 'AVAILABLE';
+    const paidTag = s.name ? (s.paid ? ' ✓paid' : ' unpaid') : '';
+    return id + ': ' + label + paidTag;
+  });
+  summary.innerHTML = 'Your seats (' + blockIds.length + '): <b>' + parts.join(', ') + '</b>';
 }
 
 function clearSelection(){
   Object.keys(seatStates).forEach(id => {
-    if (seatStates[id] === 'selected') delete seatStates[id];
+    if (seatStates[id].status === 'assigned') delete seatStates[id];
   });
-  document.querySelectorAll('.seat.selected').forEach(s => {
-    s.classList.remove('selected');
-    s.dataset.state = 'available';
-  });
+  Object.keys(seatEls).forEach(id => renderSeat(id));
   updateSummary();
 }
 
 function markRestSoldOut(){
-  document.querySelectorAll('.seat').forEach(s => {
-    if (s.dataset.state === 'available'){
-      s.dataset.state = 'occupied';
-      s.classList.add('occupied');
-      seatStates[s.dataset.id] = 'occupied';
+  Object.keys(seatEls).forEach(id => {
+    if (!seatStates[id]){
+      seatStates[id] = { status: 'occupied' };
+      renderSeat(id);
     }
   });
   updateSummary();
@@ -608,10 +872,7 @@ function markRestSoldOut(){
 
 function resetAll(){
   seatStates = {};
-  document.querySelectorAll('.seat').forEach(s => {
-    s.classList.remove('selected','occupied');
-    s.dataset.state = 'available';
-  });
+  Object.keys(seatEls).forEach(id => renderSeat(id));
   updateSummary();
 }
 
@@ -625,6 +886,7 @@ async function saveCurrent(){
     date: document.getElementById('showDate').value,
     time: document.getElementById('showTime').value,
     format: document.getElementById('format').value,
+    price: document.getElementById('price').value,
     seats: seatStates
   };
   try{
