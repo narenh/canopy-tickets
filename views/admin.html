@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Showtime Seat Blocks</title>
 <!-- OG_META -->
 <style>
@@ -509,17 +509,6 @@
     </div>
 
     <div class="og-section">
-      <h3>Site Logo</h3>
-      <p>Shown on the login screen and at the top of this and the reservation page. PNG with a transparent background works best.</p>
-      <img id="logoPreview" class="og-preview hidden" alt="Current site logo">
-      <div class="og-controls">
-        <input type="file" id="logoFileInput" accept="image/png">
-        <button type="button" onclick="uploadLogo()">Upload</button>
-      </div>
-      <div class="og-status" id="logoStatus"></div>
-    </div>
-
-    <div class="og-section">
       <h3>Link Preview Image</h3>
       <p>Shown when this site's link is shared in iMessage, Facebook, Instagram, etc.</p>
       <img id="ogPreview" class="og-preview hidden" alt="Current link preview image">
@@ -528,6 +517,17 @@
         <button type="button" onclick="uploadOgImage()">Upload</button>
       </div>
       <div class="og-status" id="ogStatus"></div>
+    </div>
+
+    <div class="og-section">
+      <h3>Site Logo</h3>
+      <p>Shown on the login screen and at the top of this and the reservation page. PNG with a transparent background works best.</p>
+      <img id="logoPreview" class="og-preview hidden" alt="Current site logo">
+      <div class="og-controls">
+        <input type="file" id="logoFileInput" accept="image/png">
+        <button type="button" onclick="uploadLogo()">Upload</button>
+      </div>
+      <div class="og-status" id="logoStatus"></div>
     </div>
   </div>
 
