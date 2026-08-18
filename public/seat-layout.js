@@ -72,12 +72,14 @@ const SEAT_LAYOUTS = {
   // directly off a labeled screenshot and should be accurate; C is
   // marked gapAfter since it's the last of the three flat rows before
   // the stadium section starts at D. Rows D-H (22 each, no specials)
-  // are also direct reads. Row J (the back row) is NOT fully confirmed
-  // -- the screenshot was cropped at the bottom -- so its count (22,
-  // matching D-H) and its wheelchair cluster position are a reasonable
-  // estimate, not a confirmed read; the real map may have more than one
-  // such cluster back there. Tighten against AMC's real chart when
-  // convenient.
+  // are also direct reads. Row J (the back row) is a direct read off a
+  // clearer screenshot than the one used originally: it's shorter than
+  // D-H, not the same 22 -- it tops out at J16, not J22, because most of
+  // what would be J15 down to J7 is wheelchair/companion space instead
+  // of real seats (two 4-seat clusters plus one more single spot). Real
+  // seats are J16 and J6 down to J1 -- 7 seats total, out of 16 slots.
+  // The very bottom edge of that screenshot is still slightly cropped,
+  // so treat this as high-confidence but not 100% certain.
   'amc-metreon-13': {
     theater: 'AMC Metreon',
     auditorium: '13',
@@ -91,7 +93,7 @@ const SEAT_LAYOUTS = {
       { letter: 'F', count: 22, special: {} },
       { letter: 'G', count: 22, special: {} },
       { letter: 'H', count: 22, special: {} },
-      { letter: 'J', count: 22, special: {6:'comp', 7:'wc', 8:'wc', 9:'comp'} },
+      { letter: 'J', count: 16, special: {7:'comp', 8:'comp', 9:'wc', 10:'wc', 11:'comp', 12:'comp', 13:'wc', 14:'wc', 15:'comp'} },
     ]
   }
 };
