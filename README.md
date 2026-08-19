@@ -43,22 +43,18 @@ Docker" below for making that survive restarts/redeploys).
   same instant can't both win it -- verified with 10 concurrent claims
   against a single open seat (1 winner, 9 correctly rejected). Every
   showtime carries a `screen` (which auditorium/seat-map it uses, see
-  `public/seat-layout.js`) -- a showtime saved before this field existed
-  just reads back as IMAX at Metreon (`"amc-metreon-16"`) every time,
-  forever, via a fallback in `server.js`, so nothing needed a one-time
-  migration.
+  `public/seat-layout.js`), defaulting to IMAX at Metreon
+  (`"amc-metreon-16"`) via a fallback in `server.js` if unset.
 - `lib/sharedPassword.js` — persistence for the friend password (see
   below). No password saved means friend login is off.
-- `lib/textSetting.js` — generic version of the same idea:
-  `createTextSettingStore(name)` gives each named setting its own file in
-  `DATA_DIR`. Used for the Venmo and Cash App handles (see "Payment
-  handles" below) — `sharedPassword.js` predates this and could arguably
-  be rewritten on top of it, left alone since it already works.
+- `lib/textSetting.js` — generic persistence for a single admin-settable
+  string setting: `createTextSettingStore(name)` gives each named setting
+  its own file in `DATA_DIR`. Used for the Venmo and Cash App handles
+  (see "Payment handles" below).
 - `lib/auth.js` — one small password-session helper, instantiated twice
   (`canopy_admin` and `canopy_shared` cookies) so admin and friend logins
   never overlap.
-- `lib/seats.js` — normalizes a stored seat entry (handles the legacy
-  plain-string format from before per-seat names/paid existed) into
+- `lib/seats.js` — normalizes a stored seat entry into
   `{status: 'occupied'}` or `{status: 'assigned', name, paid}`.
 - `lib/uploadedImage.js` — persistence for admin-uploaded site images (the
   link-preview image, the logo): `createImageStore(name)` gives each one
@@ -120,13 +116,12 @@ access, not already-granted access.
 ## Payment handles
 
 Like the friend password, Venmo and Cash App handles are **not**
-environment variables (there used to be a `HOST_VENMO` env var for this —
-it's gone; set it from the editor now instead). Set either, both, or
-neither from the "Payment Handles" field in the admin editor, below the
-showtimes list — a friend only sees a pay button on the reservation page
-for the one(s) you've actually filled in. Store the handle without the
-leading `@` (Venmo) or `$` (Cash App); it gets added back automatically
-when building the pay link.
+environment variables. Set either, both, or neither from the "Payment
+Handles" field in the admin editor, below the showtimes list — a friend
+only sees a pay button on the reservation page for the one(s) you've
+actually filled in. Store the handle without the leading `@` (Venmo) or
+`$` (Cash App); it gets added back automatically when building the pay
+link.
 
 Cash App's pay links only support pre-filling an amount, not a note —
 Venmo's link includes a note identifying the movie/date/seat, Cash App's
@@ -266,7 +261,7 @@ as static files instead of actually running the Node server.
    `PORT` is provided (defaulting to `3000`).
 5. In Coolify's **Domains** settings for this resource, make sure the
    domain you actually want to hand out is bound as the app's URL — since
-   there's only one URL now (no separate `/reserve`), that domain is the
+   there's only one URL (no separate reservation link), that domain is the
    single link for both you and your friends.
 6. Deploy. Visit the app URL, enter your `ADMIN_PASSWORD` to get to the
    editor, set a friend password from there, and start adding showtimes.
