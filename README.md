@@ -16,11 +16,11 @@ claim seats. One URL, one login form, two possible passwords:
 There's nothing "admin-flavored" about the URL or login page — the same
 link works for you and for friends, it just goes different places
 depending on which password you type. That's the whole point of it being
-one URL: `tix.canopysf.com` (or whatever domain you point at this app) is
-the only link you ever need to share.
+one URL: whatever domain you point at this app is the only link you ever
+need to share.
 
-Everything is persisted server-side as a JSON file (see "Deploying on
-Coolify" below for making that survive redeploys).
+Everything is persisted server-side as a JSON file (see "Deploying with
+Docker" below for making that survive restarts/redeploys).
 
 ## How it works
 
@@ -150,12 +150,64 @@ nothing to log into until you do). If you don't set `ADMIN_PASSWORD`, the
 server generates a random one and prints it to the console on startup.
 `HOST_VENMO` is optional locally (the Venmo link just won't appear).
 
+## Deploying with Docker
+
+This repo ships a `Dockerfile` and a `docker-compose.yml`, so it runs
+anywhere Docker does — a VPS, a NAS, a spare machine on your network, or a
+PaaS like Coolify (see the Coolify-specific section below, which is built
+on this same `Dockerfile`).
+
+### docker compose (recommended)
+
+```bash
+cp .env.example .env
+# edit .env -- at minimum set ADMIN_PASSWORD, ideally SESSION_SECRET too
+docker compose up -d --build
+```
+
+Visit `http://localhost:3000`, log in with `ADMIN_PASSWORD`, and set a
+friend password from the editor (see "The friend password" above). The
+`canopy-data` named volume declared in `docker-compose.yml` is what
+persists `showtimes.json`, the friend password, and uploaded images across
+restarts and rebuilds — don't remove it (`docker compose down -v` would
+wipe it).
+
+To pick up new code later: `docker compose up -d --build` again. The
+volume is untouched by this.
+
+### Plain `docker build` / `docker run`
+
+If you'd rather not use compose:
+
+```bash
+docker build -t canopy-tickets .
+docker run -d \
+  --name canopy-tickets \
+  -p 3000:3000 \
+  -e ADMIN_PASSWORD=change-me \
+  -e SESSION_SECRET=$(openssl rand -hex 32) \
+  -e HOST_VENMO=your-venmo-username \
+  -v canopy-data:/app/data \
+  canopy-tickets
+```
+
+Same rule as above: `-v canopy-data:/app/data` (a named volume, or a bind
+mount to a real directory on the host) is what makes data survive a
+container restart or recreate. Skip it and every `docker run` starts from
+an empty slate.
+
+Either way, put this behind whatever reverse proxy/TLS setup you'd
+normally use to get a real domain in front of it (Caddy, nginx, Traefik,
+Coolify, etc.) — the app itself just listens on plain HTTP on `PORT`.
+
 ## Deploying on Coolify
 
-This repo is currently set to Coolify's "static" build pack — switch it to
+Coolify is one specific way to run the `Dockerfile` above, with a managed
+reverse proxy/TLS and a UI for volumes and env vars, which is why it gets
+its own walkthrough. In Coolify's resource settings, set the build pack to
 **Dockerfile** (or "Application"/"Docker" depending on your Coolify
-version) so it actually runs the Node server instead of being served as
-static files. The included `Dockerfile` builds and runs the app directly.
+version) — it's currently defaulted to "static," which would serve this
+as static files instead of actually running the Node server.
 
 1. In the Coolify resource settings, change the build pack from **Static**
    to **Dockerfile**.
@@ -187,10 +239,9 @@ static files. The included `Dockerfile` builds and runs the app directly.
 4. Coolify will set `PORT` automatically; the app listens on whatever
    `PORT` is provided (defaulting to `3000`).
 5. In Coolify's **Domains** settings for this resource, make sure the
-   domain you actually want to hand out (e.g. `tix.canopysf.com`) is
-   bound as the app's URL — since there's only one URL now (no separate
-   `/reserve`), that domain is the single link for both you and your
-   friends.
+   domain you actually want to hand out is bound as the app's URL — since
+   there's only one URL now (no separate `/reserve`), that domain is the
+   single link for both you and your friends.
 6. Deploy. Visit the app URL, enter your `ADMIN_PASSWORD` to get to the
    editor, set a friend password from there, and start adding showtimes.
 

@@ -1,0 +1,15 @@
+services:
+  canopy-tickets:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "3000:3000"
+    volumes:
+      # Persists showtimes.json, the friend password, and uploaded
+      # images. Without this, all of it is gone on every rebuild/restart.
+      - canopy-data:/app/data
+
+volumes:
+  canopy-data:
