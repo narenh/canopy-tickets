@@ -552,7 +552,7 @@ function buildCard(obj){
   card.appendChild(meta);
 
   const seats = obj.seats || {};
-  const ids = Object.keys(seats).sort();
+  const ids = Object.keys(seats).sort(compareSeatIds);
   const claimed = ids.filter(id => seats[id].name);
   const availCount = ids.length - claimed.length;
 

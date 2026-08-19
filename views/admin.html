@@ -737,7 +737,7 @@ function buildCard(obj){
   card.className = 'card';
 
   const seats = normalizeSeats(obj.seats);
-  const blockIds = Object.keys(seats).filter(k => seats[k].status === 'assigned').sort();
+  const blockIds = Object.keys(seats).filter(k => seats[k].status === 'assigned').sort(compareSeatIds);
   const dateDisplay = obj.date ? formatDateDisplay(obj.date) : '';
   const timeDisplay = obj.time ? formatTimeDisplay(obj.time) : '';
 
@@ -1008,7 +1008,7 @@ function releaseSeatFromEditor(){
 }
 
 function updateSummary(){
-  const blockIds = Object.keys(seatStates).filter(id => seatStates[id].status === 'assigned').sort();
+  const blockIds = Object.keys(seatStates).filter(id => seatStates[id].status === 'assigned').sort(compareSeatIds);
   const summary = document.getElementById('summary');
   if (blockIds.length === 0){
     summary.innerHTML = 'Your seats: <b>none</b>';
