@@ -442,11 +442,17 @@ async function loadConfig(){
 // Builds a Venmo pay link pre-filled with amount + a note identifying
 // what it's for, so paying is a single tap instead of hunting the host
 // down in Venmo's search.
+//
+// Deliberately not using URLSearchParams here: its toString() encodes
+// spaces as "+" (the application/x-www-form-urlencoded convention), but
+// Venmo's app displays the note as-is without decoding "+" back to a
+// space, so the note showed up literally full of plus signs. encodeURIComponent
+// encodes spaces as %20 instead, which Venmo does render correctly.
 function buildVenmoLink(amount, note){
   if (!venmoHandle) return null;
-  const params = new URLSearchParams({ txn: 'pay', note });
-  if (typeof amount === 'number') params.set('amount', amount.toFixed(2));
-  return 'https://venmo.com/' + encodeURIComponent(venmoHandle) + '?' + params.toString();
+  const parts = ['txn=pay', 'note=' + encodeURIComponent(note)];
+  if (typeof amount === 'number') parts.push('amount=' + encodeURIComponent(amount.toFixed(2)));
+  return 'https://venmo.com/' + encodeURIComponent(venmoHandle) + '?' + parts.join('&');
 }
 
 // Cash App's pay links only support pre-filling an amount, not a note --
