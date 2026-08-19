@@ -12,6 +12,7 @@
     --red:#e2333d;
     --green:#2ecc71;
     --venmo:#008CFF;
+    --cashapp:#00D64F;
     --bg:#0b0b0d;
     --muted:#9a9a9a;
   }
@@ -306,6 +307,12 @@
     border:none;
     font-weight:700;
   }
+  .claim-actions .cashapp-btn{
+    background:var(--cashapp);
+    color:#04240f;
+    border:none;
+    font-weight:700;
+  }
   .success-sub{
     color:#e8e8e8;
     font-size:14px;
@@ -377,6 +384,7 @@
       <div class="success-sub" id="successSub"></div>
       <div class="claim-actions">
         <a class="venmo-btn hidden" id="venmoLink" href="#" target="_blank" rel="noopener">Pay via Venmo</a>
+        <a class="cashapp-btn hidden" id="cashappLink" href="#" target="_blank" rel="noopener">Pay via Cash App</a>
         <button type="button" onclick="closeSuccessOverlay()">Skip</button>
       </div>
     </div>
@@ -390,6 +398,7 @@ let currentShowtimeId = null;
 let claimingSeatId = null;
 let seatEls = {};          // seatId -> DOM element, populated by buildSeatmap
 let venmoHandle = null;    // loaded once from /api/public/config
+let cashappHandle = null;  // loaded once from /api/public/config
 
 // Bouncing to '/' on a 401 is normally a one-shot fix (session expired,
 // go log in again). But if the page we land on still thinks we're
@@ -424,8 +433,9 @@ async function loadConfig(){
     if (!res.ok) return;
     const data = await res.json();
     venmoHandle = data.venmoHandle || null;
+    cashappHandle = data.cashappHandle || null;
   }catch(e){
-    // Non-fatal -- the claim flow just skips the Venmo link.
+    // Non-fatal -- the claim flow just skips both pay links.
   }
 }
 
@@ -437,6 +447,15 @@ function buildVenmoLink(amount, note){
   const params = new URLSearchParams({ txn: 'pay', note });
   if (typeof amount === 'number') params.set('amount', amount.toFixed(2));
   return 'https://venmo.com/' + encodeURIComponent(venmoHandle) + '?' + params.toString();
+}
+
+// Cash App's pay links only support pre-filling an amount, not a note --
+// unlike Venmo, there's no query param for that.
+function buildCashAppLink(amount){
+  if (!cashappHandle) return null;
+  let url = 'https://cash.app/$' + encodeURIComponent(cashappHandle);
+  if (typeof amount === 'number') url += '/' + amount.toFixed(2);
+  return url;
 }
 
 function escapeHtml(str){
@@ -669,6 +688,16 @@ function openSuccessOverlay(showtime, seatId){
     venmoLink.classList.remove('hidden');
   } else {
     venmoLink.classList.add('hidden');
+  }
+
+  const cashappLink = document.getElementById('cashappLink');
+  const cashLink = buildCashAppLink(showtime.price);
+  if (cashLink){
+    cashappLink.href = cashLink;
+    cashappLink.textContent = typeof showtime.price === 'number' ? ('Pay ' + formatPrice(showtime.price) + ' via Cash App') : 'Pay via Cash App';
+    cashappLink.classList.remove('hidden');
+  } else {
+    cashappLink.classList.add('hidden');
   }
 
   document.getElementById('successOverlay').classList.remove('hidden');

@@ -6,11 +6,19 @@ const multer = require('multer');
 const store = require('./lib/store');
 const { createImageStore } = require('./lib/uploadedImage');
 const sharedPasswordStore = require('./lib/sharedPassword');
+const { createTextSettingStore } = require('./lib/textSetting');
 const { createPasswordAuth } = require('./lib/auth');
 const { normalizeSeats } = require('./lib/seats');
 
 const ogImageStore = createImageStore('og');
 const logoImageStore = createImageStore('logo');
+
+// Replaces the old HOST_VENMO env var: like the friend password, these are
+// admin-settable from the editor UI (below the showtimes list) instead of
+// fixed at deploy time, and either/both/neither can be set -- the
+// reservation page only shows a pay button for the one(s) that are.
+const venmoHandleStore = createTextSettingStore('venmo-handle');
+const cashappHandleStore = createTextSettingStore('cashapp-handle');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -44,14 +52,6 @@ const ADMIN_PASSWORD = requireEnvPassword('ADMIN_PASSWORD', 'admin');
 if (!sharedPasswordStore.get()) {
   console.warn(
     '[canopy-tickets] No friend/shared password set yet -- friend login is off until one is set from the admin editor.'
-  );
-}
-
-const HOST_VENMO = process.env.HOST_VENMO || '';
-if (!HOST_VENMO) {
-  console.warn(
-    '[canopy-tickets] HOST_VENMO not set -- the reservation page will skip showing a Venmo link. ' +
-      'Set it to your Venmo username (no @) to enable one.'
   );
 }
 
@@ -306,6 +306,27 @@ app.post('/api/shared-password', adminAuth.requireAuth('/'), (req, res) => {
   res.json({ ok: true, password: saved });
 });
 
+// ---------------- Payment handles (admin auth required) ----------------
+//
+// Replaces HOST_VENMO. Both are optional and independent -- leaving one
+// blank just means the reservation page won't show a button for it.
+// Stored without a leading @ (Venmo) or $ (Cash App), same convention as
+// how each service's own share sheets display a handle; the leading
+// character gets added back only when building the pay link/URL.
+
+app.get('/api/payment-handles', adminAuth.requireAuth('/'), (req, res) => {
+  res.json({ venmo: venmoHandleStore.get(), cashapp: cashappHandleStore.get() });
+});
+
+app.post('/api/payment-handles', adminAuth.requireAuth('/'), (req, res) => {
+  const { venmo, cashapp } = req.body || {};
+  const cleanVenmo = typeof venmo === 'string' ? venmo.trim().replace(/^@/, '').slice(0, 100) : '';
+  const cleanCashapp = typeof cashapp === 'string' ? cashapp.trim().replace(/^\$/, '').slice(0, 100) : '';
+  const savedVenmo = venmoHandleStore.set(cleanVenmo || null);
+  const savedCashapp = cashappHandleStore.set(cleanCashapp || null);
+  res.json({ ok: true, venmo: savedVenmo, cashapp: savedCashapp });
+});
+
 // ---------------- Showtimes API (admin auth required) ----------------
 
 app.use('/api/showtimes', adminAuth.requireAuth('/'));
@@ -384,7 +405,7 @@ app.delete('/api/showtimes/:id', async (req, res) => {
 app.use('/api/public', sharedAuth.requireAuth('/'));
 
 app.get('/api/public/config', (req, res) => {
-  res.json({ venmoHandle: HOST_VENMO || null });
+  res.json({ venmoHandle: venmoHandleStore.get(), cashappHandle: cashappHandleStore.get() });
 });
 
 app.get('/api/public/showtimes', (req, res) => {

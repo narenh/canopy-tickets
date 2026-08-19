@@ -10,7 +10,8 @@ claim seats. One URL, one login form, two possible passwords:
   below) and you land on the reservation page — the one you hand out to
   friends. They see upcoming showtimes (soonest first) and how many spots
   are still open, pick a specific open seat off a seat map, claim it by
-  name, and get a one-tap Venmo link pre-filled with the price. You still
+  name, and get a one-tap Venmo and/or Cash App link pre-filled with the
+  price (whichever you've set up — see "Payment handles" below). You still
   confirm the payment actually landed manually on the admin side.
 
 There's nothing "admin-flavored" about the URL or login page — the same
@@ -43,6 +44,11 @@ Docker" below for making that survive restarts/redeploys).
   migration.
 - `lib/sharedPassword.js` — persistence for the friend password (see
   below). No password saved means friend login is off.
+- `lib/textSetting.js` — generic version of the same idea:
+  `createTextSettingStore(name)` gives each named setting its own file in
+  `DATA_DIR`. Used for the Venmo and Cash App handles (see "Payment
+  handles" below) — `sharedPassword.js` predates this and could arguably
+  be rewritten on top of it, left alone since it already works.
 - `lib/auth.js` — one small password-session helper, instantiated twice
   (`canopy_admin` and `canopy_shared` cookies) so admin and friend logins
   never overlap.
@@ -71,15 +77,17 @@ Docker" below for making that survive restarts/redeploys).
   dropdown is built from this file at load time, grouped by theater,
   so there's nothing else to keep in sync by hand.
 - `views/admin.html` — the showtime list + seat-map editor, plus (below
-  the showtimes list) the friend-password field and the logo/link-preview
-  uploaders. Only served to authenticated admin requests.
+  the showtimes list) the friend-password field, the payment handles
+  fields, and the logo/link-preview uploaders. Only served to
+  authenticated admin requests.
 - `views/public.html` — the friend-facing reservation page. Only served to
   authenticated shared requests. Shows each showtime's remaining spot count
   (green if any are open, red if sold out), who's already claimed a seat,
   a seat map to pick a specific open one from (hover a seat for who it's
-  assigned to), and (if `HOST_VENMO` is set) a pre-filled Venmo pay link
-  right after claiming; doesn't expose which seats are sold-out-but-not-mine
-  vs. simply not part of the block.
+  assigned to), and a pre-filled Venmo and/or Cash App pay button right
+  after claiming for whichever handle(s) are set (see "Payment handles"
+  below); doesn't expose which seats are sold-out-but-not-mine vs. simply
+  not part of the block.
 - `public/login.html` — the one password screen (no "admin" language --
   it doesn't know or care which password you're about to type).
 
@@ -103,6 +111,21 @@ force-log-out friends who are already signed in (sessions are independent
 of the password's current value, same as `ADMIN_PASSWORD` changes don't
 log out an existing admin session). Rotating the password controls new
 access, not already-granted access.
+
+## Payment handles
+
+Like the friend password, Venmo and Cash App handles are **not**
+environment variables (there used to be a `HOST_VENMO` env var for this —
+it's gone; set it from the editor now instead). Set either, both, or
+neither from the "Payment Handles" field in the admin editor, below the
+showtimes list — a friend only sees a pay button on the reservation page
+for the one(s) you've actually filled in. Store the handle without the
+leading `@` (Venmo) or `$` (Cash App); it gets added back automatically
+when building the pay link.
+
+Cash App's pay links only support pre-filling an amount, not a note —
+Venmo's link includes a note identifying the movie/date/seat, Cash App's
+doesn't, since there's no query param for that on Cash App's side.
 
 ## Link-preview image & logo
 
@@ -141,14 +164,14 @@ A few things worth knowing about how these actually work:
 
 ```bash
 npm install
-ADMIN_PASSWORD=whatever HOST_VENMO=yourvenmo npm start
+ADMIN_PASSWORD=whatever npm start
 ```
 
 Then visit `http://localhost:3000`, enter `ADMIN_PASSWORD` to reach the
-editor, and set a friend password from there (the reservation page has
-nothing to log into until you do). If you don't set `ADMIN_PASSWORD`, the
-server generates a random one and prints it to the console on startup.
-`HOST_VENMO` is optional locally (the Venmo link just won't appear).
+editor, and set a friend password (and, optionally, Venmo/Cash App
+handles) from there (the reservation page has nothing to log into until
+you set a friend password). If you don't set `ADMIN_PASSWORD`, the server
+generates a random one and prints it to the console on startup.
 
 ## Deploying with Docker
 
@@ -186,7 +209,6 @@ docker run -d \
   -p 3000:3000 \
   -e ADMIN_PASSWORD=change-me \
   -e SESSION_SECRET=$(openssl rand -hex 32) \
-  -e HOST_VENMO=your-venmo-username \
   -v canopy-data:/app/data \
   canopy-tickets
 ```
@@ -213,11 +235,9 @@ as static files instead of actually running the Node server.
    to **Dockerfile**.
 2. Set environment variables:
    - `ADMIN_PASSWORD` — your password for the editor. Keep this one to
-     yourself. (There's no env var for the friend password — set that from
-     the editor after deploying; see "The friend password" above.)
-   - `HOST_VENMO` — your Venmo username (no `@`), so the reservation page
-     can show a one-tap pay link. Optional; the link is just skipped if
-     unset.
+     yourself. (There's no env var for the friend password, or for Venmo/
+     Cash App — set those from the editor after deploying; see "The
+     friend password" and "Payment handles" above.)
    - `SESSION_SECRET` — a long random string (e.g. `openssl rand -hex 32`).
      Recommended, not strictly required: if unset, one is derived
      deterministically from `ADMIN_PASSWORD` instead of being randomized,
@@ -225,7 +245,8 @@ as static files instead of actually running the Node server.
      way. Set it explicitly so that changing `ADMIN_PASSWORD` later
      doesn't also silently log everyone out.
 3. Add a **persistent volume** — this is where `showtimes.json`, the
-   friend password, and the uploaded logo/link-preview images all live.
+   friend password, the Venmo/Cash App handles, and the uploaded
+   logo/link-preview images all live.
    Without it, every redeploy gives the container a brand-new, empty
    filesystem and all of that is gone. The `Dockerfile`'s `VOLUME` line
    does *not* do this by itself — it just marks the path as
@@ -258,5 +279,5 @@ Check this in Coolify's deployment logs right after a redeploy. If it says
 actually attached (Storages tab is empty, wrong destination path, or it
 was added but the resource hasn't been redeployed since) — fix that and
 redeploy again; nothing else changes. The same volume is also what makes
-the friend password and uploaded images survive a redeploy, so this check
-covers all three.
+the friend password, payment handles, and uploaded images survive a
+redeploy, so this check covers all of it.

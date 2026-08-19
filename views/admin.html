@@ -526,6 +526,21 @@
     </div>
 
     <div class="og-section">
+      <h3>Payment Handles</h3>
+      <p>Shown as pay buttons to friends right after they claim a seat. Fill in either, both, or neither -- a button only shows up for the one(s) you've set.</p>
+      <div class="og-controls">
+        <input type="text" id="venmoInput" placeholder="Venmo username (no @)">
+      </div>
+      <div class="og-controls" style="margin-top:8px;">
+        <input type="text" id="cashappInput" placeholder="Cash App $cashtag (no $)">
+      </div>
+      <div class="og-controls" style="margin-top:10px;">
+        <button type="button" onclick="savePaymentHandles()">Save</button>
+      </div>
+      <div class="og-status" id="paymentHandlesStatus"></div>
+    </div>
+
+    <div class="og-section">
       <h3>Site Logo</h3>
       <p>Shown on the login screen and at the top of this and the reservation page. PNG with a transparent background works best.</p>
       <img id="logoPreview" class="og-preview hidden" alt="Current site logo">
@@ -1144,6 +1159,46 @@ async function saveSharedPassword(){
   }
 }
 
+// ---------------- PAYMENT HANDLES ----------------
+async function loadPaymentHandles(){
+  try{
+    const res = await fetch('/api/payment-handles');
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok) return;
+    const data = await res.json();
+    document.getElementById('venmoInput').value = data.venmo || '';
+    document.getElementById('cashappInput').value = data.cashapp || '';
+  }catch(e){
+    // Non-fatal -- the fields just start blank if this fails.
+  }
+}
+
+async function savePaymentHandles(){
+  const venmoInput = document.getElementById('venmoInput');
+  const cashappInput = document.getElementById('cashappInput');
+  const statusEl = document.getElementById('paymentHandlesStatus');
+  statusEl.textContent = 'Saving...';
+  try{
+    const res = await fetch('/api/payment-handles', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ venmo: venmoInput.value, cashapp: cashappInput.value })
+    });
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok){
+      statusEl.textContent = 'Save failed. Try again.';
+      return;
+    }
+    const data = await res.json();
+    venmoInput.value = data.venmo || '';
+    cashappInput.value = data.cashapp || '';
+    statusEl.textContent = 'Saved.';
+    setTimeout(() => { if (statusEl.textContent === 'Saved.') statusEl.textContent = ''; }, 1500);
+  }catch(e){
+    statusEl.textContent = 'Save failed. Try again.';
+  }
+}
+
 // Builds the Screen dropdown's options from SEAT_LAYOUTS (seat-layout.js),
 // grouped by theater, so adding a new auditorium there is the only thing
 // that's ever needed -- nothing here to keep in sync by hand.
@@ -1179,6 +1234,7 @@ loadList();
 loadSharedPassword();
 loadOgPreview();
 loadLogoPreview();
+loadPaymentHandles();
 </script>
 
 </body>
