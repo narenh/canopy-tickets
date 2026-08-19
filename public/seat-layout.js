@@ -107,19 +107,28 @@ function getSeatLayout(screenId){
   return (SEAT_LAYOUTS[screenId] || SEAT_LAYOUTS[DEFAULT_SCREEN]).rows;
 }
 
-// A plain .sort() on seat IDs compares them as strings, so "K10" sorts
-// before "K9" (the character '1' is less than '9'). Splits each ID into
-// its row letters and seat number and compares the number part
-// numerically instead, so a row reads K1, K2, ... K9, K10, K11 -- the
-// order seats are actually laid out in. Falls back to a plain string
-// compare for anything that doesn't look like "<letters><digits>" (there
-// shouldn't be any, but better than throwing). Used by both admin.html
-// and public.html wherever a list of seat IDs needs to display in seat
-// order rather than alphabetical order.
+// A plain .sort() on seat IDs compares them as strings, so e.g. "K10"
+// sorts before "K9" (the character '1' is less than '9'). Splits each ID
+// into its row letters and seat number and compares those separately
+// instead: letters ascending (row A before row B, same as reading top to
+// bottom), numbers *descending* within a row. That second part isn't a
+// typo -- every seat map here numbers a row ascending left-to-right as
+// seen *from the seat facing the screen* (so it's easy to find your seat
+// walking in), which means the highest number is actually on the left
+// and the lowest on the right when you look at the map printed on a page
+// or screen (see buildSeatGrid()/buildSeatmap(), which render seat
+// `row.count` down to `1` left-to-right, matching this). Sorting numbers
+// descending makes a seat *list* read in that same left-to-right map
+// order (K12, K11, ... K9) instead of the walking-in order.
+//
+// Falls back to a plain string compare for anything that doesn't look
+// like "<letters><digits>" (there shouldn't be any, but better than
+// throwing). Used by both admin.html and public.html wherever a list of
+// seat IDs needs to display in seat-map order rather than alphabetical.
 function compareSeatIds(a, b){
   const matchA = /^([A-Za-z]+)(\d+)$/.exec(a);
   const matchB = /^([A-Za-z]+)(\d+)$/.exec(b);
   if (!matchA || !matchB) return a < b ? -1 : (a > b ? 1 : 0);
   if (matchA[1] !== matchB[1]) return matchA[1] < matchB[1] ? -1 : 1;
-  return Number(matchA[2]) - Number(matchB[2]);
+  return Number(matchB[2]) - Number(matchA[2]);
 }
