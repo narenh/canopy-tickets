@@ -20,6 +20,11 @@ depending on which password you type. That's the whole point of it being
 one URL: whatever domain you point at this app is the only link you ever
 need to share.
 
+**Seat maps currently only cover AMC Metreon (San Francisco) — IMAX
+(Auditorium 16) and Dolby Cinema (Auditorium 13).** Other screens/theaters
+are coming soon; see `public/seat-layout.js` below for how a new one gets
+added.
+
 Everything is persisted server-side as a JSON file (see "Deploying with
 Docker" below for making that survive restarts/redeploys).
 
