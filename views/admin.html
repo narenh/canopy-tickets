@@ -629,6 +629,15 @@
 
 <script src="/seat-layout.js"></script>
 <script>
+// Inline (not an emoji -- at seat-icon size, the wheelchair emoji renders
+// as a tiny broken-looking glyph on several platforms, easily mistaken
+// for a failed image load). currentColor picks up whatever text color
+// the seat's current state (in-block/claimed/etc.) already sets.
+const WHEELCHAIR_ICON_SVG =
+  '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" ' +
+  'stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2" fill="currentColor" stroke="none"/>' +
+  '<path d="M12 7v5l5 5"/><path d="M9 12h6"/><circle cx="17" cy="17" r="4"/></svg>';
+
 let currentId = null;      // null = unsaved new showtime
 let seatStates = {};       // seatId -> { status: 'occupied' } | { status: 'assigned', name, paid }
 let seatEls = {};          // seatId -> DOM element, populated by buildSeatGrid
@@ -903,8 +912,14 @@ function buildSeatGrid(){
       const seatEl = document.createElement('div');
       seatEl.className = 'seat' + (type !== 'seat' ? ' ' + type : '');
       seatEl.dataset.id = seatId;
-      seatEl.dataset.baseText = type === 'wc' ? '♿' : (type === 'comp' ? '+' : seatId);
-      seatEl.textContent = seatEl.dataset.baseText;
+      // baseText only covers the plain-text cases -- 'wc' is rendered as
+      // an SVG icon instead (see renderSeat), which textContent can't hold.
+      seatEl.dataset.baseText = type === 'comp' ? '+' : seatId;
+      if (type === 'wc') {
+        seatEl.innerHTML = WHEELCHAIR_ICON_SVG;
+      } else {
+        seatEl.textContent = seatEl.dataset.baseText;
+      }
       seatEl.setAttribute('aria-label', seatId);
       seatEl.addEventListener('click', () => seatTap(seatId));
       rowEl.appendChild(seatEl);
@@ -929,7 +944,11 @@ function renderSeat(id){
   if (!el) return;
   const s = seatStates[id];
   el.classList.remove('in-block', 'claimed', 'paid');
-  el.textContent = el.dataset.baseText;
+  if (el.classList.contains('wc')) {
+    el.innerHTML = WHEELCHAIR_ICON_SVG;
+  } else {
+    el.textContent = el.dataset.baseText;
+  }
   // Anything that isn't 'assigned' -- including no entry at all, or a
   // legacy 'occupied' entry from before that state was retired -- just
   // renders as "not in your block."
