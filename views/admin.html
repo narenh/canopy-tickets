@@ -398,6 +398,10 @@
      for the icon. Comes after the state rules above so it wins the tie
      (same specificity, later wins) on wc's own state classes. */
   .seat.wc{background:none;border:none;}
+  /* Blank spacer -- see seat-layout.js's `padEnd`. Same box size as a
+     real seat (so it takes up exactly one column) but otherwise nothing:
+     no border, no background, not part of the tap/hover behavior. */
+  .seat-filler{width:22px;height:20px;flex:0 0 auto;}
   .seat.claimed.paid::after{
     content:'';
     position:absolute;
@@ -1133,6 +1137,15 @@ function buildSeatGrid(){
       rowEl.appendChild(seatEl);
       seatEls[seatId] = seatEl;
     }
+    // Blank, non-interactive slots after the last real seat -- see
+    // seat-layout.js's `padEnd` comment. Same width as a real seat, so
+    // normal centering does the actual alignment work, no special-case
+    // math needed here.
+    for (let p = 0; p < (row.padEnd || 0); p++){
+      const filler = document.createElement('div');
+      filler.className = 'seat-filler';
+      rowEl.appendChild(filler);
+    }
     seatmap.appendChild(rowEl);
   });
 
@@ -1145,25 +1158,6 @@ function buildSeatGrid(){
   // tooltip and default styling are set for the "not in your block" ones too.
   Object.keys(seatEls).forEach(id => renderSeat(id));
   updateSummary();
-  applyRowAlignments(rowDefs);
-}
-
-// A row can opt in (see seat-layout.js -- `alignTo`) to a specific
-// seat-to-seat pairing that doesn't match plain centering (e.g. IMAX's
-// row A, which the real chart shows off-center). Rather than compute
-// the right margin/transform ourselves, measure where both seats
-// actually rendered after normal centering and nudge by the exact
-// pixel delta -- correct regardless of seat size, gap, or how wide the
-// scroll container happens to be.
-function applyRowAlignments(rowDefs){
-  rowDefs.forEach(row => {
-    if (!row.alignTo) return;
-    const fromEl = seatEls[row.alignTo.seat];
-    const toEl = seatEls[row.alignTo.matchSeat];
-    if (!fromEl || !toEl) return;
-    const delta = toEl.getBoundingClientRect().left - fromEl.getBoundingClientRect().left;
-    fromEl.parentElement.style.transform = 'translateX(' + delta + 'px)';
-  });
 }
 
 function renderSeat(id){

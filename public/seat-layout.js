@@ -52,15 +52,18 @@ const SEAT_LAYOUTS = {
     auditorium: '16',
     name: 'IMAX',
     rows: [
-      // Row A is 5 seats narrower than the rows behind it, but the real
-      // chart doesn't center it symmetrically (a plain center would put
-      // A29 about 2.5 seat-widths in from B34, splitting the extra
-      // width evenly) -- A29 actually lines up with B32, a 2/3 split
-      // instead of 2.5/2.5. `alignTo` says so explicitly instead of
-      // guessing at margins: renderer measures where `matchSeat` ends
-      // up and nudges this row by the exact pixel delta needed to put
-      // `seat` there too, on top of whatever centering already did.
-      { letter: 'A', count: 29, special: {3:'comp', 4:'wc', 5:'comp', 25:'comp', 26:'wc', 27:'comp'}, alignTo: {seat:'A29', matchSeat:'B32'} },
+      // Row A is 5 seats narrower than the rows behind it -- an ODD
+      // difference, so plain centering can never land A29 on a whole
+      // seat column (it'd split the extra width 2.5/2.5). The real
+      // chart has A29 lining up with B32 (a clean 2-seat gap on each
+      // side), which only falls out of centering if the *effective*
+      // width difference is even. `padEnd: 1` adds one blank,
+      // non-interactive filler slot after A1 (see buildSeatmap/
+      // buildSeatGrid) -- same width as a real seat, so it doesn't
+      // change where A29 sits within its own row, but it does turn the
+      // 5-seat difference into an even 4, which centers out to exactly
+      // the 2/2 split that puts A29 under B32.
+      { letter: 'A', count: 29, special: {3:'comp', 4:'wc', 5:'comp', 25:'comp', 26:'wc', 27:'comp'}, padEnd: 1 },
       { letter: 'B', count: 34, special: {} },
       { letter: 'C', count: 34, special: {} },
       { letter: 'D', count: 34, special: {} },
