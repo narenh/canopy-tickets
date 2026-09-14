@@ -52,18 +52,18 @@ const SEAT_LAYOUTS = {
     auditorium: '16',
     name: 'IMAX',
     rows: [
-      // Row A is 5 seats narrower than the rows behind it -- an ODD
-      // difference, so plain centering can never land A29 on a whole
-      // seat column (it'd split the extra width 2.5/2.5). The real
-      // chart has A29 lining up with B32 (a clean 2-seat gap on each
-      // side), which only falls out of centering if the *effective*
-      // width difference is even. `padEnd: 1` adds one blank,
-      // non-interactive filler slot after A1 (see buildSeatmap/
-      // buildSeatGrid) -- same width as a real seat, so it doesn't
-      // change where A29 sits within its own row, but it does turn the
-      // 5-seat difference into an even 4, which centers out to exactly
-      // the 2/2 split that puts A29 under B32.
-      { letter: 'A', count: 29, special: {3:'comp', 4:'wc', 5:'comp', 25:'comp', 26:'wc', 27:'comp'}, padEnd: 1 },
+      // Real seats stop at A29, but the physical room continues -- two
+      // more seat-widths' worth of space exist where A30/A31 would be
+      // before the wheelchair cluster starts. `padStart: 2` renders two
+      // blank, non-interactive filler slots there (see buildSeatmap/
+      // buildSeatGrid), so A29 sits exactly 2 columns in from the row's
+      // left edge, same as every other row -- which is what actually
+      // puts it under B32 (B34/B33/B32 being that row's own first 3
+      // columns). Rows render flush-left (see .seatmap's align-items),
+      // not centered, so this is the only thing establishing row A's
+      // horizontal position -- no dependency on how any given browser
+      // handles cross-axis centering.
+      { letter: 'A', count: 29, special: {3:'comp', 4:'wc', 5:'comp', 25:'comp', 26:'wc', 27:'comp'}, padStart: 2 },
       { letter: 'B', count: 34, special: {} },
       { letter: 'C', count: 34, special: {} },
       { letter: 'D', count: 34, special: {} },
