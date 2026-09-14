@@ -309,7 +309,13 @@
   }
   .seat.in-block{background:var(--green);border-color:var(--green-dark);color:#06331a;}
   .seat.claimed{background:var(--red);border-color:#8f1319;color:#fff;}
-  .seat.wc, .seat.comp{border-radius:50%;}
+  /* A wheelchair space is just the icon -- no seat box at all, so it
+     doesn't read as a seat you'd claim the way a companion seat is. A
+     companion seat keeps the normal seat box (same shape/coloring as
+     any other seat, state colors included) and just swaps its number
+     for the icon. Comes after the state rules above so it wins the tie
+     (same specificity, later wins) on wc's own state classes. */
+  .seat.wc{background:none;border:none;}
   .seat.claimed.paid::after{
     content:'';
     position:absolute;
@@ -914,10 +920,11 @@ function buildSeatGrid(){
       const seatEl = document.createElement('div');
       seatEl.className = 'seat' + (type !== 'seat' ? ' ' + type : '');
       seatEl.dataset.id = seatId;
-      // baseText only covers the plain-text cases -- 'wc' is rendered as
-      // an SVG icon instead (see renderSeat), which textContent can't hold.
-      seatEl.dataset.baseText = type === 'comp' ? '+' : seatId;
-      if (type === 'wc') {
+      // baseText only covers the plain-seat-number case -- 'wc' and
+      // 'comp' both render as the SVG icon instead (see renderSeat),
+      // which textContent can't hold.
+      seatEl.dataset.baseText = seatId;
+      if (type === 'wc' || type === 'comp') {
         seatEl.innerHTML = WHEELCHAIR_ICON_SVG;
       } else {
         seatEl.textContent = seatEl.dataset.baseText;
@@ -946,7 +953,7 @@ function renderSeat(id){
   if (!el) return;
   const s = seatStates[id];
   el.classList.remove('in-block', 'claimed', 'paid');
-  if (el.classList.contains('wc')) {
+  if (el.classList.contains('wc') || el.classList.contains('comp')) {
     el.innerHTML = WHEELCHAIR_ICON_SVG;
   } else {
     el.textContent = el.dataset.baseText;

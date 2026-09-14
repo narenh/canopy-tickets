@@ -201,7 +201,13 @@
   }
   .seat.pickable{background:var(--gold);border-color:var(--gold-dark);color:#3a2f10;cursor:pointer;}
   .seat.taken{background:var(--red);border-color:#8f1319;color:#fff;cursor:not-allowed;}
-  .seat.wc, .seat.comp{border-radius:50%;}
+  /* A wheelchair space is just the icon -- no seat box at all, so it
+     doesn't read as a seat you'd claim the way a companion seat is. A
+     companion seat keeps the normal seat box (same shape/coloring as
+     any other seat, state colors included) and just swaps its number
+     for the icon. Comes after the state rules above so it wins the tie
+     (same specificity, later wins) on wc's own state classes. */
+  .seat.wc{background:none;border:none;}
   /* Custom hover tooltip (seat number + assignment), bigger and more
      legible than the browser's native title-attribute tooltip. */
   .seat:hover::before{
@@ -652,10 +658,10 @@ function buildSeatmap(obj){
       const type = row.special[i] || 'seat';
       const seatEl = document.createElement('div');
       seatEl.className = 'seat' + (type !== 'seat' ? ' ' + type : '');
-      if (type === 'wc') {
+      if (type === 'wc' || type === 'comp') {
         seatEl.innerHTML = WHEELCHAIR_ICON_SVG;
       } else {
-        seatEl.textContent = type === 'comp' ? '+' : seatId;
+        seatEl.textContent = seatId;
       }
       seatEl.setAttribute('aria-label', seatId);
       seatEl.dataset.tooltip = seatId + ' — not part of this block';
