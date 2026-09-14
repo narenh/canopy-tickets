@@ -445,10 +445,19 @@ app.get('/api/amc-test', adminAuth.requireAuth('/'), async (req, res) => {
   const apiKey = process.env.AMC_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'AMC_API_KEY not set in this environment' });
 
-  const base = 'https://api.amctheatres.com/v2';
-  const headers = { 'X-AMC-Vendor-API-Key': apiKey, Accept: 'application/json' };
+  // Masked, not the raw key -- but enough to catch the #1 cause of "valid
+  // key, still rejected": a stray newline/space from pasting it into
+  // Coolify's env var field (trim() below would silently hide that, so
+  // report the raw length instead of trimming).
+  const keyDiagnostics = {
+    length: apiKey.length,
+    preview: apiKey.length > 8 ? `${apiKey.slice(0, 4)}...${apiKey.slice(-4)}` : '(too short to preview safely)',
+    hasWhitespace: /^\s|\s$/.test(apiKey) || /\s/.test(apiKey)
+  };
 
-  async function tryFetch(label, url) {
+  const base = 'https://api.amctheatres.com/v2';
+
+  async function tryFetch(label, url, headers) {
     try {
       const r = await fetch(url, { headers });
       const text = await r.text();
@@ -464,14 +473,32 @@ app.get('/api/amc-test', adminAuth.requireAuth('/'), async (req, res) => {
     }
   }
 
+  // The exact header AMC's API expects isn't confirmed (their docs
+  // portal blocks non-browser fetches), so try the documented one plus a
+  // few plausible variants against one cheap endpoint before assuming
+  // the key itself is bad.
+  const headerVariants = [
+    ['X-AMC-Vendor-API-Key', { 'X-AMC-Vendor-API-Key': apiKey, Accept: 'application/json' }],
+    ['X-AMC-API-Key', { 'X-AMC-API-Key': apiKey, Accept: 'application/json' }],
+    ['Authorization: Bearer', { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' }],
+    ['Ocp-Apim-Subscription-Key', { 'Ocp-Apim-Subscription-Key': apiKey, Accept: 'application/json' }]
+  ];
+  const headerVariantResults = [];
+  for (const [label, headers] of headerVariants) {
+    headerVariantResults.push(await tryFetch(`header variant: ${label}`, `${base}/theatres?pageSize=1`, headers));
+  }
+
+  // Whichever variant above returned something other than 400
+  // "requires vendor authentication" is the one to use for the rest.
+  const headers = { 'X-AMC-Vendor-API-Key': apiKey, Accept: 'application/json' };
   const results = [];
 
   // Three different guesses at how theatre search works, since the exact
   // query param isn't confirmed -- whichever actually returns Metreon
   // tells us the right shape for the rest.
-  results.push(await tryFetch('theatres?name=Metreon', `${base}/theatres?name=Metreon`));
-  results.push(await tryFetch('theatres?query=Metreon', `${base}/theatres?query=Metreon`));
-  results.push(await tryFetch('theatres (raw, first page)', `${base}/theatres?pageSize=200`));
+  results.push(await tryFetch('theatres?name=Metreon', `${base}/theatres?name=Metreon`, headers));
+  results.push(await tryFetch('theatres?query=Metreon', `${base}/theatres?query=Metreon`, headers));
+  results.push(await tryFetch('theatres (raw, first page)', `${base}/theatres?pageSize=200`, headers));
 
   // Pull a Metreon theatre id out of whichever of the above actually
   // returned theatre objects.
@@ -488,14 +515,14 @@ app.get('/api/amc-test', adminAuth.requireAuth('/'), async (req, res) => {
   }
 
   if (theatreId) {
-    results.push(await tryFetch('theatre detail', `${base}/theatres/${theatreId}`));
-    results.push(await tryFetch('theatre showtimes (today, guess)', `${base}/theatres/${theatreId}/showtimes/today`));
-    results.push(await tryFetch('theatre menu (guess)', `${base}/theatres/${theatreId}/menu`));
-    results.push(await tryFetch('theatre concessions (guess)', `${base}/theatres/${theatreId}/concessions`));
-    results.push(await tryFetch('theatre food-and-beverage (guess)', `${base}/theatres/${theatreId}/food-and-beverage`));
+    results.push(await tryFetch('theatre detail', `${base}/theatres/${theatreId}`, headers));
+    results.push(await tryFetch('theatre showtimes (today, guess)', `${base}/theatres/${theatreId}/showtimes/today`, headers));
+    results.push(await tryFetch('theatre menu (guess)', `${base}/theatres/${theatreId}/menu`, headers));
+    results.push(await tryFetch('theatre concessions (guess)', `${base}/theatres/${theatreId}/concessions`, headers));
+    results.push(await tryFetch('theatre food-and-beverage (guess)', `${base}/theatres/${theatreId}/food-and-beverage`, headers));
   }
 
-  res.json({ apiKeyPresent: true, theatreId, results });
+  res.json({ apiKeyPresent: true, keyDiagnostics, headerVariantResults, theatreId, results });
 });
 
 // ---------------- Pages ----------------
