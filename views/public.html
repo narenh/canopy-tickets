@@ -71,6 +71,27 @@
     border-radius:14px;
     padding:14px 16px;
   }
+  /* Poster + title/info/seat-count column, side by side; the claimed-
+     seat names and the Reserve button below stay full-width (not part
+     of this row). */
+  .card-body{
+    display:flex;
+    gap:12px;
+    margin-bottom:10px;
+  }
+  .card-info{flex:1;min-width:0;}
+  /* Same box whether or not this title has a poster yet, so every card's
+     title/info column starts at the same x regardless. */
+  .poster-thumb{
+    flex:0 0 auto;
+    width:60px;
+    height:90px;
+    border-radius:8px;
+    overflow:hidden;
+    background:#000;
+  }
+  .poster-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+  .poster-thumb.poster-placeholder{background:#0f0f10;border:1px solid #2a2a2a;}
   .card h3{
     margin:0 0 4px;
     font-size:18px;
@@ -78,7 +99,12 @@
   .card .meta{
     color:#ccc;
     font-size:13px;
-    margin-bottom:10px;
+    line-height:1.4;
+    /* Reserves 2 lines' worth of height even when the text only wraps to
+       one -- keeps the poster's fixed height from ever fighting a
+       shorter info column for the row's height. */
+    min-height:calc(13px * 1.4 * 2);
+    margin-bottom:6px;
   }
   .seats-avail-line{
     font-size:14px;
@@ -568,18 +594,45 @@ function showtimeSubtitle(obj){
     .filter(Boolean).join(' | ');
 }
 
+// Poster art, when this title has any (see server's posterUrlForTitle),
+// goes to the left of the title/info/open-seat-count column -- not the
+// claimed-seat names or the button below, which stay full-width. Same
+// fixed size whether or not there's actually a poster, so cards line up
+// evenly; the placeholder fills that box instead of leaving a gap when
+// a title has no art yet.
+function buildPosterEl(obj){
+  const poster = document.createElement('div');
+  poster.className = 'poster-thumb';
+  if (obj.posterUrl){
+    const img = document.createElement('img');
+    img.src = obj.posterUrl;
+    img.alt = '';
+    poster.appendChild(img);
+  } else {
+    poster.classList.add('poster-placeholder');
+  }
+  return poster;
+}
+
 function buildCard(obj){
   const card = document.createElement('div');
   card.className = 'card';
 
+  const body = document.createElement('div');
+  body.className = 'card-body';
+  body.appendChild(buildPosterEl(obj));
+
+  const info = document.createElement('div');
+  info.className = 'card-info';
+
   const h3 = document.createElement('h3');
   h3.textContent = obj.title || 'Untitled';
-  card.appendChild(h3);
+  info.appendChild(h3);
 
   const meta = document.createElement('div');
   meta.className = 'meta';
   meta.textContent = showtimeSubtitle(obj);
-  card.appendChild(meta);
+  info.appendChild(meta);
 
   const seats = obj.seats || {};
   const ids = Object.keys(seats).sort(compareSeatIds);
@@ -590,13 +643,18 @@ function buildCard(obj){
     const empty = document.createElement('div');
     empty.className = 'seats-empty';
     empty.textContent = 'No seats posted yet';
-    card.appendChild(empty);
+    info.appendChild(empty);
   } else {
     const availLine = document.createElement('div');
     availLine.className = 'seats-avail-line ' + (availCount > 0 ? 'seats-avail-green' : 'seats-avail-red');
     availLine.textContent = availCount + ' seat' + (availCount === 1 ? '' : 's') + ' available';
-    card.appendChild(availLine);
+    info.appendChild(availLine);
+  }
 
+  body.appendChild(info);
+  card.appendChild(body);
+
+  if (ids.length > 0){
     if (claimed.length > 0){
       const claimedList = document.createElement('div');
       claimedList.className = 'claimed-list';

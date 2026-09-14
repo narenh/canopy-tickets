@@ -159,6 +159,27 @@
     border-radius:14px;
     padding:14px 16px;
   }
+  /* Poster + title/info/seat-count column, side by side; the claimed-
+     seat names and Open/Delete buttons below stay full-width (not part
+     of this row). */
+  .card-body{
+    display:flex;
+    gap:12px;
+    margin-bottom:12px;
+  }
+  .card-info{flex:1;min-width:0;}
+  /* Same box whether or not this title has a poster yet, so every
+     card's title/info column starts at the same x regardless. */
+  .poster-thumb{
+    flex:0 0 auto;
+    width:60px;
+    height:90px;
+    border-radius:8px;
+    overflow:hidden;
+    background:#000;
+  }
+  .poster-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+  .poster-thumb.poster-placeholder{background:#0f0f10;border:1px solid #2a2a2a;}
   .card h3{
     margin:0 0 4px;
     font-size:18px;
@@ -166,11 +187,12 @@
   .card .meta{
     color:#ccc;
     font-size:13px;
-    margin-bottom:8px;
-  }
-  .card .seats-line{
-    color:#ddd;
-    margin-bottom:12px;
+    line-height:1.4;
+    /* Reserves 2 lines' worth of height even when the text only wraps to
+       one -- keeps the poster's fixed height from ever fighting a
+       shorter info column for the row's height. */
+    min-height:calc(13px * 1.4 * 2);
+    margin-bottom:6px;
   }
   .card .seats-avail-line{
     font-size:14px;
@@ -234,6 +256,40 @@
     min-width:0;
   }
   .title:hover{background:rgba(255,255,255,0.06);}
+  .poster-row{
+    display:flex;
+    gap:10px;
+    align-items:flex-start;
+    margin-top:8px;
+  }
+  .poster-editor-preview{
+    width:50px;
+    height:75px;
+    object-fit:cover;
+    border-radius:6px;
+    border:1px solid #3a3a3a;
+    flex:0 0 auto;
+  }
+  .poster-editor-controls{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    flex-wrap:wrap;
+  }
+  .poster-editor-controls input[type="file"]{
+    color:#ccc;
+    font-size:12px;
+    max-width:180px;
+  }
+  .poster-editor-controls button{
+    background:#1e1e1e;
+    color:#fff;
+    border:1px solid #3a3a3a;
+    border-radius:8px;
+    padding:6px 10px;
+    font-size:12px;
+    cursor:pointer;
+  }
   .subtitle{
     margin-top:10px;
     color:#e8e8e8;
@@ -598,12 +654,24 @@
     <div class="header">
       <div class="top-row">
         <div class="back-btn" onclick="backToList()">&#8592;</div>
-        <input class="title" id="titleField" list="titleSuggestions" value="Movie Title">
+        <input class="title" id="titleField" list="titleSuggestions" value="Movie Title" oninput="schedulePosterPreviewRefresh()">
         <!-- Populated at load time from every distinct title already used
              across your showtimes (see refreshTitleSuggestions()), so
              retyping "Barbie" a second time autocompletes instead of
              risking a typo that'd split it into two different titles. -->
         <datalist id="titleSuggestions"></datalist>
+      </div>
+      <!-- Poster is looked up/saved by the title text above, not by this
+           showtime -- reusing a title reuses whatever's already
+           uploaded for it. refreshPosterPreview() re-checks on every
+           edit to the title field (see titleField's oninput below). -->
+      <div class="poster-row">
+        <img id="posterPreview" class="poster-editor-preview hidden" alt="Current poster">
+        <div class="poster-editor-controls">
+          <input type="file" id="posterFileInput" accept="image/png,image/jpeg,image/webp,image/gif">
+          <button type="button" onclick="uploadPoster()">Upload poster</button>
+          <span class="og-status" id="posterStatus"></span>
+        </div>
       </div>
       <div class="subtitle">
         <span class="theater" id="theaterField" contenteditable="true">Theater Name</span>
@@ -831,6 +899,25 @@ function formatPrice(price){
   return (typeof price === 'number') ? ('$' + price.toFixed(2)) : '';
 }
 
+// Poster art, when this title has any (see server's posterUrlForTitle),
+// goes to the left of the title/info/open-seat-count column -- not the
+// claimed-seat names or the Open/Delete buttons below, which stay
+// full-width. Same fixed size whether or not there's actually a poster,
+// so cards line up evenly.
+function buildPosterEl(obj){
+  const poster = document.createElement('div');
+  poster.className = 'poster-thumb';
+  if (obj.posterUrl){
+    const img = document.createElement('img');
+    img.src = obj.posterUrl;
+    img.alt = '';
+    poster.appendChild(img);
+  } else {
+    poster.classList.add('poster-placeholder');
+  }
+  return poster;
+}
+
 function buildCard(obj){
   const card = document.createElement('div');
   card.className = 'card';
@@ -840,32 +927,48 @@ function buildCard(obj){
   const dateDisplay = obj.date ? formatDateDisplay(obj.date) : '';
   const timeDisplay = obj.time ? formatTimeDisplay(obj.time) : '';
 
+  const body = document.createElement('div');
+  body.className = 'card-body';
+  body.appendChild(buildPosterEl(obj));
+
+  const info = document.createElement('div');
+  info.className = 'card-info';
+
   const h3 = document.createElement('h3');
   h3.textContent = obj.title || 'Untitled';
-  card.appendChild(h3);
+  info.appendChild(h3);
 
   const meta = document.createElement('div');
   meta.className = 'meta';
   meta.textContent = [obj.theater, dateDisplay, timeDisplay, obj.format, formatPrice(obj.price)].filter(Boolean).join(' | ');
-  card.appendChild(meta);
+  info.appendChild(meta);
 
-  const seatsLine = document.createElement('div');
-  seatsLine.className = 'seats-line';
+  const namedIds = blockIds.filter(id => seats[id].name);
+  const availLine = document.createElement('div');
   if (blockIds.length === 0){
-    seatsLine.innerHTML = '<div class="seats-empty">No seats in your block yet</div>';
+    availLine.className = 'seats-empty';
+    availLine.textContent = 'No seats in your block yet';
   } else {
-    const namedIds = blockIds.filter(id => seats[id].name);
     const availCount = blockIds.length - namedIds.length;
-    const availLine = '<div class="seats-avail-line ' + (availCount > 0 ? 'seats-avail-green' : 'seats-avail-red') + '">'
-      + availCount + ' seat' + (availCount === 1 ? '' : 's') + ' available</div>';
+    availLine.className = 'seats-avail-line ' + (availCount > 0 ? 'seats-avail-green' : 'seats-avail-red');
+    availLine.textContent = availCount + ' seat' + (availCount === 1 ? '' : 's') + ' available';
+  }
+  info.appendChild(availLine);
+
+  body.appendChild(info);
+  card.appendChild(body);
+
+  if (namedIds.length > 0){
     const namedLines = namedIds.map(id => {
       const s = seats[id];
       const paidTag = '<span class="' + (s.paid ? 'paid-tag">&#10003; paid' : 'unpaid-tag">unpaid') + '</span>';
       return '<div class="seat-line"><b>' + escapeHtml(s.name) + '</b> <span class="seat-id">(' + escapeHtml(id) + ')</span>' + paidTag + '</div>';
     }).join('');
-    seatsLine.innerHTML = availLine + namedLines;
+    const namedList = document.createElement('div');
+    namedList.className = 'claimed-list';
+    namedList.innerHTML = namedLines;
+    card.appendChild(namedList);
   }
-  card.appendChild(seatsLine);
 
   const actions = document.createElement('div');
   actions.className = 'card-actions';
@@ -931,6 +1034,9 @@ function openNew(){
   seatStates = {};
   document.getElementById('deleteBtn').classList.add('hidden');
   document.getElementById('saveStatus').textContent = '';
+  document.getElementById('posterFileInput').value = '';
+  document.getElementById('posterStatus').textContent = '';
+  refreshPosterPreview();
   // Show the editor before building the grid -- buildSeatGrid measures
   // row widths via offsetWidth, which reads 0 on anything still inside a
   // display:none ancestor.
@@ -956,6 +1062,17 @@ async function openExisting(id){
     seatStates = normalizeSeats(obj.seats);
     document.getElementById('deleteBtn').classList.remove('hidden');
     document.getElementById('saveStatus').textContent = '';
+    document.getElementById('posterFileInput').value = '';
+    document.getElementById('posterStatus').textContent = '';
+    // The list response already carries posterUrl (see server's
+    // posterUrlForTitle) -- no need for a second round-trip on open.
+    const posterImg = document.getElementById('posterPreview');
+    if (obj.posterUrl){
+      posterImg.src = obj.posterUrl;
+      posterImg.classList.remove('hidden');
+    } else {
+      posterImg.classList.add('hidden');
+    }
     // Same ordering reason as openNew() -- show before measuring.
     showEditor();
     buildSeatGrid();
@@ -1251,6 +1368,69 @@ function loadOgPreview(){ return loadImagePreview('/api/og-image', 'ogPreview');
 function uploadOgImage(){ return uploadImage('/api/og-image', 'ogFileInput', 'ogStatus', loadOgPreview); }
 function loadLogoPreview(){ return loadImagePreview('/api/logo-image', 'logoPreview'); }
 function uploadLogo(){ return uploadImage('/api/logo-image', 'logoFileInput', 'logoStatus', loadLogoPreview); }
+
+// ---------------- POSTER ART (keyed by title, not by showtime) ----------------
+
+let posterPreviewTimer = null;
+// Debounced so typing a title doesn't fire a lookup on every keystroke --
+// only once things settle for a moment.
+function schedulePosterPreviewRefresh(){
+  clearTimeout(posterPreviewTimer);
+  posterPreviewTimer = setTimeout(refreshPosterPreview, 400);
+}
+
+async function refreshPosterPreview(){
+  const title = document.getElementById('titleField').value.trim();
+  const img = document.getElementById('posterPreview');
+  if (!title){ img.classList.add('hidden'); return; }
+  try{
+    const res = await fetch('/api/poster?title=' + encodeURIComponent(title));
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.url){
+      img.src = data.url;
+      img.classList.remove('hidden');
+    } else {
+      img.classList.add('hidden');
+    }
+  }catch(e){
+    // Non-fatal -- the upload control still works even if this fails.
+  }
+}
+
+async function uploadPoster(){
+  const title = document.getElementById('titleField').value.trim();
+  const input = document.getElementById('posterFileInput');
+  const statusEl = document.getElementById('posterStatus');
+  if (!title){
+    statusEl.textContent = 'Type a title first.';
+    return;
+  }
+  if (!input.files || !input.files[0]){
+    statusEl.textContent = 'Choose an image first.';
+    return;
+  }
+  statusEl.textContent = 'Uploading...';
+  const formData = new FormData();
+  formData.append('title', title);
+  formData.append('image', input.files[0]);
+  try{
+    const res = await fetch('/api/poster', { method: 'POST', body: formData });
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok){
+      const data = await res.json().catch(() => ({}));
+      statusEl.textContent = data.error || 'Upload failed. Try again.';
+      return;
+    }
+    input.value = '';
+    statusEl.textContent = 'Uploaded.';
+    refreshPosterPreview();
+    setTimeout(() => { if (statusEl.textContent === 'Uploaded.') statusEl.textContent = ''; }, 1500);
+  }catch(e){
+    statusEl.textContent = 'Upload failed. Try again.';
+  }
+}
 
 // ---------------- FRIEND PASSWORD ----------------
 async function loadSharedPassword(){
