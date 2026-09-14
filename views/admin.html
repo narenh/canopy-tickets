@@ -353,8 +353,15 @@
   .seatmap{
     display:flex;
     flex-direction:column;
+    /* Flush-left, not centered -- `align-items:safe center` (the
+       previous approach) silently falls back to flex-start on browsers
+       that don't support the `safe` keyword (confirmed: Mobile Safari),
+       so different rows ended up genuinely centered in some browsers
+       and flush-left in others, with row A's alignment fix computed
+       for the wrong one. Flush-left is unambiguous everywhere -- row
+       A's own padStart (see seat-layout.js) is what actually aligns it
+       now, not a browser's cross-axis alignment support. */
     align-items:flex-start;
-    align-items:safe center;
     overflow-x:auto;
     -webkit-overflow-scrolling:touch;
     padding:6px 16px 10px;
@@ -398,7 +405,7 @@
      for the icon. Comes after the state rules above so it wins the tie
      (same specificity, later wins) on wc's own state classes. */
   .seat.wc{background:none;border:none;}
-  /* Blank spacer -- see seat-layout.js's `padEnd`. Same box size as a
+  /* Blank spacer -- see seat-layout.js's `padStart`. Same box size as a
      real seat (so it takes up exactly one column) but otherwise nothing:
      no border, no background, not part of the tap/hover behavior. */
   .seat-filler{width:22px;height:20px;flex:0 0 auto;}
@@ -1103,6 +1110,16 @@ function buildSeatGrid(){
   rowDefs.forEach(row => {
     const rowEl = document.createElement('div');
     rowEl.className = 'row' + (row.gapAfter ? ' row-gap-after' : '');
+    // Blank, non-interactive slots before the first real seat -- see
+    // seat-layout.js's `padStart` comment. Rows render flush-left, so
+    // this is what actually sets this row's horizontal offset from
+    // every other row -- not dependent on any browser's cross-axis
+    // centering support.
+    for (let p = 0; p < (row.padStart || 0); p++){
+      const filler = document.createElement('div');
+      filler.className = 'seat-filler';
+      rowEl.appendChild(filler);
+    }
     for (let i = row.count; i >= 1; i--){
       const seatId = row.letter + i;
       const type = row.special[i] || 'seat';
@@ -1122,15 +1139,6 @@ function buildSeatGrid(){
       seatEl.addEventListener('click', () => seatTap(seatId));
       rowEl.appendChild(seatEl);
       seatEls[seatId] = seatEl;
-    }
-    // Blank, non-interactive slots after the last real seat -- see
-    // seat-layout.js's `padEnd` comment. Same width as a real seat, so
-    // normal centering does the actual alignment work, no special-case
-    // math needed here.
-    for (let p = 0; p < (row.padEnd || 0); p++){
-      const filler = document.createElement('div');
-      filler.className = 'seat-filler';
-      rowEl.appendChild(filler);
     }
     seatmap.appendChild(rowEl);
   });
