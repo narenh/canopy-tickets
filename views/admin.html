@@ -75,6 +75,26 @@
     font-weight:700;
     cursor:pointer;
   }
+  .past-section{
+    margin:6px 20px 6px;
+  }
+  .past-section summary{
+    cursor:pointer;
+    color:var(--muted);
+    font-size:14px;
+    font-weight:600;
+    padding:10px 0;
+    list-style:none;
+  }
+  .past-section summary::-webkit-details-marker{display:none;}
+  .past-section summary::before{
+    content:'▸';
+    display:inline-block;
+    margin-right:6px;
+    transition:transform .15s;
+  }
+  .past-section[open] summary::before{transform:rotate(90deg);}
+  .past-section .cards{padding:6px 0 0;}
   .og-section{
     margin:14px 20px 6px;
     padding:14px 16px;
@@ -206,6 +226,12 @@
     line-height:1.15;
     outline:none;
     flex:1;
+    background:transparent;
+    border:none;
+    color:#fff;
+    font-family:inherit;
+    padding:0;
+    min-width:0;
   }
   .title:hover{background:rgba(255,255,255,0.06);}
   .subtitle{
@@ -510,6 +536,15 @@
       <div class="loading-state">Loading...</div>
     </div>
 
+    <!-- Collapsed by default (native <details>, no JS needed for the
+         toggle itself) -- hidden entirely via the .hidden class when
+         there's nothing past yet. Cards inside sort most-recent-first,
+         the opposite of the upcoming list above. -->
+    <details class="past-section hidden" id="pastSection">
+      <summary>Past showtimes (<span id="pastCount">0</span>)</summary>
+      <div class="cards" id="pastCardsContainer"></div>
+    </details>
+
     <div class="og-section">
       <h3>Friend Password</h3>
       <p>What friends enter at login to reach the reservation page. Change it any time -- e.g. a fresh password per movie. Leave it blank and save to turn off friend access entirely.</p>
@@ -563,7 +598,12 @@
     <div class="header">
       <div class="top-row">
         <div class="back-btn" onclick="backToList()">&#8592;</div>
-        <div class="title" id="titleField" contenteditable="true">Movie Title</div>
+        <input class="title" id="titleField" list="titleSuggestions" value="Movie Title">
+        <!-- Populated at load time from every distinct title already used
+             across your showtimes (see refreshTitleSuggestions()), so
+             retyping "Barbie" a second time autocompletes instead of
+             risking a typo that'd split it into two different titles. -->
+        <datalist id="titleSuggestions"></datalist>
       </div>
       <div class="subtitle">
         <span class="theater" id="theaterField" contenteditable="true">Theater Name</span>
@@ -582,11 +622,11 @@
              grouped by theater -- see populateScreenOptions(). -->
         <select id="screen" onchange="buildSeatGrid()"></select>
         <span class="sep">|</span>
-        <span class="price-field">$<input type="number" id="price" step="0.01" min="0" placeholder="16.49"></span>
+        <span class="price-field">$<input type="number" id="price" step="0.01" min="0" placeholder="17.49"></span>
       </div>
       <div class="price-quick">
         <span>Quick price:</span>
-        <button type="button" class="quick-price-btn" onclick="setPrice(16.49)">$16.49</button>
+        <button type="button" class="quick-price-btn" onclick="setPrice(17.49)">$17.49</button>
         <button type="button" class="quick-price-btn" onclick="setPrice(28.99)">$28.99</button>
       </div>
       <div class="edit-hint">Tap title/theater to rename; use pickers for date/time and the dropdowns for format and screen.</div>
@@ -723,23 +763,65 @@ function backToList(){
   loadList();
 }
 
+// A showtime is "past" starting the day after it occurs -- it stays in
+// the main upcoming list through its own date, then moves to the
+// collapsed Past section the next calendar day. Plain YYYY-MM-DD string
+// comparison against today's own YYYY-MM-DD (both local) sidesteps any
+// UTC/local timezone conversion bugs a real Date object could introduce.
+function isPastShowtime(obj){
+  return typeof obj.date === 'string' && obj.date < todayISO();
+}
+
+// Every distinct title already used, so the title field's <datalist>
+// can autocomplete instead of risking a typo splitting one movie into
+// two different titles across showtimes.
+function refreshTitleSuggestions(items){
+  const seen = new Set();
+  items.forEach(obj => { if (obj.title) seen.add(obj.title); });
+  const datalist = document.getElementById('titleSuggestions');
+  datalist.innerHTML = Array.from(seen).sort()
+    .map(t => '<option value="' + escapeHtml(t) + '">')
+    .join('');
+}
+
 // ---------------- LIST VIEW ----------------
 async function loadList(){
   const container = document.getElementById('cardsContainer');
+  const pastSection = document.getElementById('pastSection');
+  const pastContainer = document.getElementById('pastCardsContainer');
   container.innerHTML = '<div class="loading-state">Loading...</div>';
+  pastSection.classList.add('hidden');
   try{
     const res = await fetch('/api/showtimes');
     if (await handleAuthFailure(res)) return;
     if (!res.ok) throw new Error('failed to load');
     const data = await res.json();
     const items = data.showtimes || [];
+    refreshTitleSuggestions(items);
     if (items.length === 0){
       container.innerHTML = '<div class="empty-state">No showtimes yet. Tap "+ New Showtime" to create your first seat block.</div>';
       return;
     }
-    items.sort((a,b) => (a.date+'T'+a.time).localeCompare(b.date+'T'+b.time));
+    const upcoming = items.filter(obj => !isPastShowtime(obj));
+    const past = items.filter(isPastShowtime);
+
+    upcoming.sort((a,b) => (a.date+'T'+a.time).localeCompare(b.date+'T'+b.time));
     container.innerHTML = '';
-    items.forEach(obj => container.appendChild(buildCard(obj)));
+    if (upcoming.length === 0){
+      container.innerHTML = '<div class="empty-state">No upcoming showtimes. Tap "+ New Showtime" to create one.</div>';
+    } else {
+      upcoming.forEach(obj => container.appendChild(buildCard(obj)));
+    }
+
+    if (past.length > 0){
+      // Most-recent-first -- the opposite order from the upcoming list,
+      // since "longer ago" matters less the further back it gets.
+      past.sort((a,b) => (b.date+'T'+b.time).localeCompare(a.date+'T'+a.time));
+      pastContainer.innerHTML = '';
+      past.forEach(obj => pastContainer.appendChild(buildCard(obj)));
+      document.getElementById('pastCount').textContent = past.length;
+      pastSection.classList.remove('hidden');
+    }
   }catch(e){
     container.innerHTML = '<div class="empty-state">Could not load showtimes. Try again.</div>';
   }
@@ -839,13 +921,13 @@ async function deleteFromList(id){
 // ---------------- EDITOR: NEW / OPEN ----------------
 function openNew(){
   currentId = null;
-  document.getElementById('titleField').textContent = 'Movie Title';
+  document.getElementById('titleField').value = 'Movie Title';
   document.getElementById('theaterField').textContent = 'AMC Metreon 16';
   document.getElementById('showDate').value = todayISO();
   document.getElementById('showTime').value = '19:00';
   document.getElementById('format').value = 'IMAX with Laser';
   document.getElementById('screen').value = DEFAULT_SCREEN;
-  document.getElementById('price').value = '16.49';
+  document.getElementById('price').value = '17.49';
   seatStates = {};
   document.getElementById('deleteBtn').classList.add('hidden');
   document.getElementById('saveStatus').textContent = '';
@@ -864,7 +946,7 @@ async function openExisting(id){
     const data = await res.json();
     const obj = data.showtime;
     currentId = id;
-    document.getElementById('titleField').textContent = obj.title || 'Movie Title';
+    document.getElementById('titleField').value = obj.title || 'Movie Title';
     document.getElementById('theaterField').textContent = obj.theater || 'AMC Metreon 16';
     document.getElementById('showDate').value = obj.date || todayISO();
     document.getElementById('showTime').value = obj.time || '19:00';
@@ -1056,7 +1138,7 @@ async function saveCurrent(){
   const statusEl = document.getElementById('saveStatus');
   statusEl.textContent = 'Saving...';
   const payload = {
-    title: document.getElementById('titleField').textContent.trim() || 'Untitled',
+    title: document.getElementById('titleField').value.trim() || 'Untitled',
     theater: document.getElementById('theaterField').textContent.trim() || '',
     date: document.getElementById('showDate').value,
     time: document.getElementById('showTime').value,

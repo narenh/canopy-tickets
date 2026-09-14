@@ -528,6 +528,20 @@ function backToList(){
   loadList();
 }
 
+function todayISO(){
+  const d = new Date();
+  return d.toISOString().slice(0,10);
+}
+
+// A showtime disappears from the friend-facing list starting the day
+// after it occurs -- it's still shown on its own date, just not the day
+// after. Plain YYYY-MM-DD string comparison against today's own
+// YYYY-MM-DD (both local) sidesteps any UTC/local timezone conversion
+// bugs a real Date object could introduce.
+function isPastShowtime(obj){
+  return typeof obj.date === 'string' && obj.date < todayISO();
+}
+
 // ---------------- LIST VIEW ----------------
 async function loadList(){
   const container = document.getElementById('cardsContainer');
@@ -537,7 +551,7 @@ async function loadList(){
     if (await handleAuthFailure(res)) return;
     if (!res.ok) throw new Error('failed to load');
     const data = await res.json();
-    allShowtimes = data.showtimes || [];
+    allShowtimes = (data.showtimes || []).filter(obj => !isPastShowtime(obj));
     if (allShowtimes.length === 0){
       container.innerHTML = '<div class="empty-state">No showtimes posted yet. Check back soon.</div>';
       return;
