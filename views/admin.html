@@ -977,15 +977,13 @@ function buildCard(obj){
   const actions = document.createElement('div');
   actions.className = 'card-actions';
 
+  // Delete lives inside the editor (deleteBtn/deleteCurrent()), not
+  // here -- you have to open a showtime to delete it, so it's not one
+  // misplaced tap away from the list.
   const editBtn = document.createElement('button');
-  editBtn.textContent = 'Open';
+  editBtn.textContent = 'Edit';
   editBtn.onclick = () => openExisting(obj.id);
   actions.appendChild(editBtn);
-
-  const delBtn = document.createElement('button');
-  delBtn.textContent = 'Delete';
-  delBtn.onclick = () => deleteFromList(obj.id);
-  actions.appendChild(delBtn);
 
   card.appendChild(actions);
   return card;
@@ -1011,18 +1009,6 @@ function formatTimeDisplay(t){
     dt.setHours(h, m, 0, 0);
     return dt.toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' });
   }catch(e){ return t; }
-}
-
-async function deleteFromList(id){
-  if (!confirm('Delete this showtime? This cannot be undone.')) return;
-  try{
-    const res = await fetch('/api/showtimes/' + id, { method: 'DELETE' });
-    if (await handleAuthFailure(res)) return;
-    if (!res.ok) throw new Error('failed to delete');
-    loadList();
-  }catch(e){
-    alert('Could not delete. Try again.');
-  }
 }
 
 // ---------------- EDITOR: NEW / OPEN ----------------

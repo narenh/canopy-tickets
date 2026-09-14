@@ -225,8 +225,14 @@
     user-select:none;
     flex:0 0 auto;
   }
-  .seat.pickable{background:var(--gold);border-color:var(--gold-dark);color:#3a2f10;cursor:pointer;}
-  .seat.taken{background:var(--red);border-color:#8f1319;color:#fff;cursor:not-allowed;}
+  /* Deliberately not var(--gold)/var(--red) here -- those still cover
+     buttons/text elsewhere on this page. Pickable is the one seat state
+     you'd actually tap, so it gets its own brighter/more saturated
+     gold to read as the obvious call to action; taken is done/inert
+     (nothing to click), so a darker, less alarming red keeps it from
+     visually competing with pickable for attention. */
+  .seat.pickable{background:#e8b93f;border-color:#a9791b;color:#2e2308;cursor:pointer;}
+  .seat.taken{background:#7a2a30;border-color:#551c20;color:#e8d4d4;cursor:not-allowed;}
   /* A wheelchair space is just the icon -- no seat box at all, so it
      doesn't read as a seat you'd claim the way a companion seat is. A
      companion seat keeps the normal seat box (same shape/coloring as
@@ -274,8 +280,8 @@
   }
   .legend-item{display:flex;align-items:center;gap:8px;}
   .legend-swatch{width:18px;height:18px;border-radius:4px;display:inline-block;}
-  .sw-pickable{background:var(--gold);border:1px solid var(--gold-dark);}
-  .sw-taken{background:var(--red);}
+  .sw-pickable{background:#e8b93f;border:1px solid #a9791b;}
+  .sw-taken{background:#7a2a30;}
   .sw-unavail{background:#2a2a2a;border:1px solid #3a3a3a;}
 
   /* ---------- CLAIM OVERLAY ---------- */
@@ -392,9 +398,9 @@
     <div class="toolbar-note">Tap a gold seat to reserve it. Red seats are already taken; gray seats aren't part of this block.</div>
 
     <div class="legend">
-      <div class="legend-item"><span class="legend-swatch sw-pickable"></span> Open -- tap to reserve</div>
+      <div class="legend-item"><span class="legend-swatch sw-pickable"></span> Open</div>
       <div class="legend-item"><span class="legend-swatch sw-taken"></span> Taken</div>
-      <div class="legend-item"><span class="legend-swatch sw-unavail"></span> Not part of this block</div>
+      <div class="legend-item"><span class="legend-swatch sw-unavail"></span> Not Purchased</div>
     </div>
   </div>
 
@@ -740,7 +746,7 @@ function buildSeatmap(obj){
         seatEl.textContent = seatId;
       }
       seatEl.setAttribute('aria-label', seatId);
-      seatEl.dataset.tooltip = seatId + ' — not part of this block';
+      seatEl.dataset.tooltip = seatId + ' — not purchased';
 
       const entry = seats[seatId];
       if (entry && entry.name){
