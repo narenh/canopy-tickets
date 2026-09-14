@@ -99,7 +99,6 @@
   }
   .seat-line b{color:var(--gold);}
   .seat-line .seat-id{color:var(--muted);font-size:11px;}
-  .seat-line .paid-tag{color:var(--green);font-size:11px;margin-left:6px;}
   .seat-line .unpaid-tag{color:#e2857a;font-size:11px;margin-left:6px;}
   .claimed-list{margin-bottom:10px;}
   .claim-btn{
@@ -393,6 +392,15 @@
 <script src="/seat-layout.js"></script>
 <script>
 
+// Inline (not an emoji -- at seat-icon size, the wheelchair emoji renders
+// as a tiny broken-looking glyph on several platforms, easily mistaken
+// for a failed image load). currentColor picks up whatever text color
+// the seat's current state (pickable/taken/etc.) already sets.
+const WHEELCHAIR_ICON_SVG =
+  '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" ' +
+  'stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2" fill="currentColor" stroke="none"/>' +
+  '<path d="M12 7v5l5 5"/><path d="M9 12h6"/><circle cx="17" cy="17" r="4"/></svg>';
+
 let allShowtimes = [];     // last-loaded list from /api/public/showtimes
 let currentShowtimeId = null;
 let claimingSeatId = null;
@@ -572,8 +580,10 @@ function buildCard(obj){
       claimedList.className = 'claimed-list';
       claimedList.innerHTML = claimed.map(id => {
         const s = seats[id];
-        const paidTag = s.paid ? '<span class="paid-tag">&#10003; paid</span>' : '<span class="unpaid-tag">unpaid</span>';
-        return '<div class="seat-line"><b>' + escapeHtml(s.name) + '</b> <span class="seat-id">(' + escapeHtml(id) + ')</span>' + paidTag + '</div>';
+        // Paid seats show just the name -- only unpaid ones get a tag, so
+        // this list reads as "who still owes" rather than a payment log.
+        const unpaidTag = s.paid ? '' : '<span class="unpaid-tag">unpaid</span>';
+        return '<div class="seat-line"><b>' + escapeHtml(s.name) + '</b> <span class="seat-id">(' + escapeHtml(id) + ')</span>' + unpaidTag + '</div>';
       }).join('');
       card.appendChild(claimedList);
     }
@@ -640,7 +650,11 @@ function buildSeatmap(obj){
       const type = row.special[i] || 'seat';
       const seatEl = document.createElement('div');
       seatEl.className = 'seat' + (type !== 'seat' ? ' ' + type : '');
-      seatEl.textContent = type === 'wc' ? '♿' : (type === 'comp' ? '+' : seatId);
+      if (type === 'wc') {
+        seatEl.innerHTML = WHEELCHAIR_ICON_SVG;
+      } else {
+        seatEl.textContent = type === 'comp' ? '+' : seatId;
+      }
       seatEl.setAttribute('aria-label', seatId);
       seatEl.dataset.tooltip = seatId + ' — not part of this block';
 
