@@ -429,6 +429,75 @@ app.post('/api/public/showtimes/:id/claim', async (req, res) => {
   res.json({ showtime: publicShowtimeView(result.showtime) });
 });
 
+// ---------------- AMC API test (admin auth required, TEMPORARY) ----------------
+//
+// One-off diagnostic, not wired into any page. Checks whether AMC_API_KEY
+// (set in Coolify, not available to this dev environment) can reach AMC's
+// public API at all, and whether it exposes anything menu/concession/
+// price-related for AMC Metreon 16 (SF) -- needed before building the
+// actual friend-order-building feature. The concessions/menu paths below
+// are guesses (AMC's public API isn't confirmed to expose that data at
+// all); this just probes them and reports back real status codes/bodies
+// instead of assuming. Hit /api/amc-test directly while logged in as
+// admin, read the JSON, then this whole block should come back out --
+// it's a debug tool, not a feature.
+app.get('/api/amc-test', adminAuth.requireAuth('/'), async (req, res) => {
+  const apiKey = process.env.AMC_API_KEY;
+  if (!apiKey) return res.status(500).json({ error: 'AMC_API_KEY not set in this environment' });
+
+  const base = 'https://api.amctheatres.com/v2';
+  const headers = { 'X-AMC-Vendor-API-Key': apiKey, Accept: 'application/json' };
+
+  async function tryFetch(label, url) {
+    try {
+      const r = await fetch(url, { headers });
+      const text = await r.text();
+      let body;
+      try {
+        body = JSON.parse(text);
+      } catch {
+        body = text.slice(0, 2000);
+      }
+      return { label, url, status: r.status, body };
+    } catch (err) {
+      return { label, url, error: err.message };
+    }
+  }
+
+  const results = [];
+
+  // Three different guesses at how theatre search works, since the exact
+  // query param isn't confirmed -- whichever actually returns Metreon
+  // tells us the right shape for the rest.
+  results.push(await tryFetch('theatres?name=Metreon', `${base}/theatres?name=Metreon`));
+  results.push(await tryFetch('theatres?query=Metreon', `${base}/theatres?query=Metreon`));
+  results.push(await tryFetch('theatres (raw, first page)', `${base}/theatres?pageSize=200`));
+
+  // Pull a Metreon theatre id out of whichever of the above actually
+  // returned theatre objects.
+  let theatreId = null;
+  for (const r of results) {
+    const list = r.body && r.body._embedded && r.body._embedded.theatres;
+    if (Array.isArray(list)) {
+      const match = list.find((t) => typeof t.name === 'string' && t.name.toLowerCase().includes('metreon'));
+      if (match) {
+        theatreId = match.id;
+        break;
+      }
+    }
+  }
+
+  if (theatreId) {
+    results.push(await tryFetch('theatre detail', `${base}/theatres/${theatreId}`));
+    results.push(await tryFetch('theatre showtimes (today, guess)', `${base}/theatres/${theatreId}/showtimes/today`));
+    results.push(await tryFetch('theatre menu (guess)', `${base}/theatres/${theatreId}/menu`));
+    results.push(await tryFetch('theatre concessions (guess)', `${base}/theatres/${theatreId}/concessions`));
+    results.push(await tryFetch('theatre food-and-beverage (guess)', `${base}/theatres/${theatreId}/food-and-beverage`));
+  }
+
+  res.json({ apiKeyPresent: true, theatreId, results });
+});
+
 // ---------------- Pages ----------------
 //
 // One front door. Whoever hits the root URL gets routed by which
