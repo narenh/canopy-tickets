@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const multer = require('multer');
 const store = require('./lib/store');
 const { createImageStore } = require('./lib/uploadedImage');
+const posterStore = require('./lib/posterStore');
 const sharedPasswordStore = require('./lib/sharedPassword');
 const { createTextSettingStore } = require('./lib/textSetting');
 const { createPasswordAuth } = require('./lib/auth');
@@ -227,6 +228,19 @@ function renderHtmlPage(res, req, filePath) {
   );
 }
 
+// Poster art is looked up by title (see lib/posterStore.js), not stored
+// on the showtime itself -- so every showtime sharing a title
+// automatically gets the same poster the moment one's uploaded for it.
+// Returns null (not a broken-image URL) if nothing's been uploaded for
+// this exact title yet -- both admin.html and public.html treat a null
+// posterUrl as "no poster, don't reserve space differently for it."
+function posterUrlForTitle(title) {
+  if (!title) return null;
+  const meta = posterStore.getMetaByTitle(title);
+  if (!meta) return null;
+  return `/poster-image?key=${posterStore.keyFor(title)}&v=${meta.uploadedAt}`;
+}
+
 // Trims a showtime down to what a friend on the public/shared side should
 // see: no full 377-seat auditorium map, just the block of seats the owner
 // actually bought (each either claimed by a name or still open).
@@ -247,6 +261,7 @@ function publicShowtimeView(s) {
     format: s.format,
     screen: s.screen || DEFAULT_SCREEN,
     price: s.price,
+    posterUrl: posterUrlForTitle(s.title),
     seats: blockSeats
   };
 }
@@ -332,9 +347,11 @@ app.post('/api/payment-handles', adminAuth.requireAuth('/'), (req, res) => {
 app.use('/api/showtimes', adminAuth.requireAuth('/'));
 
 // Read-side fallback for showtimes saved before `screen` existed -- see
-// the DEFAULT_SCREEN comment above.
+// the DEFAULT_SCREEN comment above. Also attaches posterUrl (see
+// posterUrlForTitle) since the admin list needs it too, not just the
+// public one.
 function withScreenFallback(item) {
-  return { ...item, screen: item.screen || DEFAULT_SCREEN };
+  return { ...item, screen: item.screen || DEFAULT_SCREEN, posterUrl: posterUrlForTitle(item.title) };
 }
 
 app.get('/api/showtimes', (req, res) => {
@@ -594,6 +611,43 @@ function mountImageRoutes(urlName, imageStore) {
 
 mountImageRoutes('og-image', ogImageStore);
 mountImageRoutes('logo-image', logoImageStore);
+
+// ---------------- Poster art (looked up/uploaded by title) ----------------
+//
+// Unlike og-image/logo-image (one fixed slot each), a poster is keyed by
+// the showtime's title (see lib/posterStore.js) -- there's no fixed set
+// of endpoints to mount, just one lookup/upload pair that takes a title,
+// plus one serving route keyed by the opaque hash already embedded in
+// posterUrl (see posterUrlForTitle above) rather than needing the title
+// again.
+
+app.get('/api/poster', adminAuth.requireAuth('/'), (req, res) => {
+  const title = typeof req.query.title === 'string' ? req.query.title.trim() : '';
+  if (!title) return res.status(400).json({ error: 'title required' });
+  res.json({ url: posterUrlForTitle(title) });
+});
+
+app.post('/api/poster', adminAuth.requireAuth('/'), siteImageUpload.single('image'), (req, res) => {
+  const title = typeof req.body.title === 'string' ? req.body.title.trim() : '';
+  if (!title) return res.status(400).json({ error: 'title required' });
+  if (!req.file) {
+    return res.status(400).json({ error: 'choose a PNG, JPEG, WebP, or GIF image' });
+  }
+  posterStore.save(title, req.file.buffer, req.file.mimetype);
+  res.json({ ok: true, url: posterUrlForTitle(title) });
+});
+
+// No auth -- posters show up on the friend-facing public page too, same
+// reasoning as og-image/logo-image. `key` is the hash posterUrlForTitle
+// already computed; this route never needs the raw title.
+app.get('/poster-image', (req, res) => {
+  const key = typeof req.query.key === 'string' ? req.query.key : '';
+  const meta = key && posterStore.getMetaByKey(key);
+  if (!meta) return res.status(404).end();
+  res.set('Content-Type', meta.mimeType);
+  res.set('Cache-Control', 'public, max-age=86400');
+  res.sendFile(posterStore.getFilePathByKey(key));
+});
 
 // no-cache (not no-store) forces a conditional GET on every load instead
 // of letting the browser silently reuse whatever it fetched last time --
