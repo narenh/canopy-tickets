@@ -52,7 +52,15 @@ const SEAT_LAYOUTS = {
     auditorium: '16',
     name: 'IMAX',
     rows: [
-      { letter: 'A', count: 29, special: {3:'comp', 4:'wc', 5:'comp', 25:'comp', 26:'wc', 27:'comp'} },
+      // Row A is 5 seats narrower than the rows behind it, but the real
+      // chart doesn't center it symmetrically (a plain center would put
+      // A29 about 2.5 seat-widths in from B34, splitting the extra
+      // width evenly) -- A29 actually lines up with B32, a 2/3 split
+      // instead of 2.5/2.5. `alignTo` says so explicitly instead of
+      // guessing at margins: renderer measures where `matchSeat` ends
+      // up and nudges this row by the exact pixel delta needed to put
+      // `seat` there too, on top of whatever centering already did.
+      { letter: 'A', count: 29, special: {3:'comp', 4:'wc', 5:'comp', 25:'comp', 26:'wc', 27:'comp'}, alignTo: {seat:'A29', matchSeat:'B32'} },
       { letter: 'B', count: 34, special: {} },
       { letter: 'C', count: 34, special: {} },
       { letter: 'D', count: 34, special: {} },

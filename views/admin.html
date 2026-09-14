@@ -1028,6 +1028,25 @@ function buildSeatGrid(){
   // tooltip and default styling are set for the "not in your block" ones too.
   Object.keys(seatEls).forEach(id => renderSeat(id));
   updateSummary();
+  applyRowAlignments(rowDefs);
+}
+
+// A row can opt in (see seat-layout.js -- `alignTo`) to a specific
+// seat-to-seat pairing that doesn't match plain centering (e.g. IMAX's
+// row A, which the real chart shows off-center). Rather than compute
+// the right margin/transform ourselves, measure where both seats
+// actually rendered after normal centering and nudge by the exact
+// pixel delta -- correct regardless of seat size, gap, or how wide the
+// scroll container happens to be.
+function applyRowAlignments(rowDefs){
+  rowDefs.forEach(row => {
+    if (!row.alignTo) return;
+    const fromEl = seatEls[row.alignTo.seat];
+    const toEl = seatEls[row.alignTo.matchSeat];
+    if (!fromEl || !toEl) return;
+    const delta = toEl.getBoundingClientRect().left - fromEl.getBoundingClientRect().left;
+    fromEl.parentElement.style.transform = 'translateX(' + delta + 'px)';
+  });
 }
 
 function renderSeat(id){
