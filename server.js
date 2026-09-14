@@ -456,6 +456,7 @@ app.get('/api/amc-test', adminAuth.requireAuth('/'), async (req, res) => {
   };
 
   const base = 'https://api.amctheatres.com/v2';
+  const baseV1 = 'https://api.amctheatres.com/v1';
 
   async function tryFetch(label, url, headers) {
     try {
@@ -473,31 +474,29 @@ app.get('/api/amc-test', adminAuth.requireAuth('/'), async (req, res) => {
     }
   }
 
-  // The exact header AMC's API expects isn't confirmed (their docs
-  // portal blocks non-browser fetches), so try the documented one plus a
-  // few plausible variants against one cheap endpoint before assuming
-  // the key itself is bad.
+  // First run tried X-AMC-Vendor-API-Key (a guess, wrong) and got the
+  // exact same "requires vendor authentication" error a garbage key
+  // gets. AMC's own docs (developers.amctheatres.com/GettingStarted/
+  // Authentication, read via search since the portal blocks non-browser
+  // fetches) confirm the real header is X-AMC-Vendor-Key -- keep the old
+  // guesses in the variant probe too, purely to double check that switch
+  // was in fact the fix rather than assuming it.
   const headerVariants = [
+    ['X-AMC-Vendor-Key', { 'X-AMC-Vendor-Key': apiKey, Accept: 'application/json' }],
     ['X-AMC-Vendor-API-Key', { 'X-AMC-Vendor-API-Key': apiKey, Accept: 'application/json' }],
-    ['X-AMC-API-Key', { 'X-AMC-API-Key': apiKey, Accept: 'application/json' }],
-    ['Authorization: Bearer', { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' }],
-    ['Ocp-Apim-Subscription-Key', { 'Ocp-Apim-Subscription-Key': apiKey, Accept: 'application/json' }]
+    ['Authorization: Bearer', { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' }]
   ];
   const headerVariantResults = [];
   for (const [label, headers] of headerVariants) {
     headerVariantResults.push(await tryFetch(`header variant: ${label}`, `${base}/theatres?pageSize=1`, headers));
   }
 
-  // Whichever variant above returned something other than 400
-  // "requires vendor authentication" is the one to use for the rest.
-  const headers = { 'X-AMC-Vendor-API-Key': apiKey, Accept: 'application/json' };
+  const headers = { 'X-AMC-Vendor-Key': apiKey, Accept: 'application/json' };
   const results = [];
 
-  // Three different guesses at how theatre search works, since the exact
-  // query param isn't confirmed -- whichever actually returns Metreon
-  // tells us the right shape for the rest.
+  // AMC's Theatres API v2 docs confirm a `name` query param filters by
+  // theatre name -- kept the raw/unfiltered call too as a sanity check.
   results.push(await tryFetch('theatres?name=Metreon', `${base}/theatres?name=Metreon`, headers));
-  results.push(await tryFetch('theatres?query=Metreon', `${base}/theatres?query=Metreon`, headers));
   results.push(await tryFetch('theatres (raw, first page)', `${base}/theatres?pageSize=200`, headers));
 
   // Pull a Metreon theatre id out of whichever of the above actually
@@ -516,10 +515,10 @@ app.get('/api/amc-test', adminAuth.requireAuth('/'), async (req, res) => {
 
   if (theatreId) {
     results.push(await tryFetch('theatre detail', `${base}/theatres/${theatreId}`, headers));
-    results.push(await tryFetch('theatre showtimes (today, guess)', `${base}/theatres/${theatreId}/showtimes/today`, headers));
-    results.push(await tryFetch('theatre menu (guess)', `${base}/theatres/${theatreId}/menu`, headers));
-    results.push(await tryFetch('theatre concessions (guess)', `${base}/theatres/${theatreId}/concessions`, headers));
-    results.push(await tryFetch('theatre food-and-beverage (guess)', `${base}/theatres/${theatreId}/food-and-beverage`, headers));
+    // Real Concessions API v1 paths per AMC's docs (developers.amctheatres.com/ApiReference/concessions-api-v1),
+    // not guesses -- this is the actual menu-items-with-prices endpoint.
+    results.push(await tryFetch('concessions categories', `${baseV1}/theatres/${theatreId}/concessions/categories`, headers));
+    results.push(await tryFetch('concessions (menu items + prices)', `${baseV1}/theatres/${theatreId}/concessions`, headers));
   }
 
   res.json({ apiKeyPresent: true, keyDiagnostics, headerVariantResults, theatreId, results });
