@@ -33,25 +33,26 @@
 // built from this object at load time (grouped by `theater`), so there's
 // nothing else to wire up.
 const SEAT_LAYOUTS = {
-  // IMAX (Auditorium 16). Row A's count and its 3-seat wheelchair/
-  // companion cluster (positions 25-27) are read directly off a
-  // close-up screenshot of the real map and should be accurate. Row B's
-  // count (34) is also a direct read (seat B34 is visible). Rows C-N
-  // are NOT individually confirmed -- a wide shot of the room showed
-  // every row behind A is visibly wider than A, so they're set to match
-  // B's 34 as the best-supported guess, not a precise count. The back
-  // row's 4 wheelchair-related seats are still an estimate (real icon
-  // spacing wasn't legible at that zoom); positions below are just
-  // row A's-style offsets rescaled to 34 seats. Tighten any of this
-  // against AMC's real seat chart when convenient -- it's all just data
-  // here, nothing else depends on these numbers being exact. IMAX is a
-  // single stadium-style room -- no gapAfter needed.
+  // IMAX (Auditorium 16). Row A's count and row B's count (34, seat B34
+  // is visible) are read directly off a close-up screenshot of the real
+  // map. Rows C-N are NOT individually confirmed -- a wide shot of the
+  // room showed every row behind A is visibly wider than A, so they're
+  // set to match B's 34 as the best-supported guess, not a precise
+  // count. Tighten any of this against AMC's real seat chart when
+  // convenient -- it's all just data here, nothing else depends on
+  // these numbers being exact. IMAX is a single stadium-style room --
+  // no gapAfter needed.
+  //
+  // Wheelchair spots (A4, A26, N7/N8, N13/N14, N27/N28) are confirmed
+  // against the real chart. Each gets a companion seat on either side
+  // (e.g. A4's neighbors A3/A5) -- companion seats aren't wheelchair
+  // spots themselves, just the seat you'd sit in next to one.
   'amc-metreon-16': {
     theater: 'AMC Metreon',
     auditorium: '16',
     name: 'IMAX',
     rows: [
-      { letter: 'A', count: 29, special: {25:'wc', 26:'wc', 27:'wc'} },
+      { letter: 'A', count: 29, special: {3:'comp', 4:'wc', 5:'comp', 25:'comp', 26:'wc', 27:'comp'} },
       { letter: 'B', count: 34, special: {} },
       { letter: 'C', count: 34, special: {} },
       { letter: 'D', count: 34, special: {} },
@@ -63,7 +64,15 @@ const SEAT_LAYOUTS = {
       { letter: 'K', count: 34, special: {} },
       { letter: 'L', count: 34, special: {} },
       { letter: 'M', count: 34, special: {} },
-      { letter: 'N', count: 34, special: {5:'wc', 6:'comp', 29:'comp', 30:'wc'} },
+      {
+        letter: 'N',
+        count: 34,
+        special: {
+          6:'comp', 7:'wc', 8:'wc', 9:'comp',
+          12:'comp', 13:'wc', 14:'wc', 15:'comp',
+          26:'comp', 27:'wc', 28:'wc', 29:'comp'
+        }
+      },
     ]
   },
 
