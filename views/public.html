@@ -710,6 +710,9 @@
     color:var(--muted);
   }
   .cart-section-body{padding-bottom:4px;}
+  /* Indented so a row inside a section reads as belonging to the header
+     above it rather than as another top-level item. */
+  .cart-section-body .cart-item{padding-left:14px;}
   .cart-empty-menu{
     color:var(--muted);
     font-size:13px;
@@ -732,11 +735,12 @@
      are rare enough that the shift when one appears is the better trade. */
   .cart-head .claim-error{min-height:0;}
   .cart-status{
-    color:var(--green);
-    font-size:12px;
+    color:var(--muted);
+    font-size:11.5px;
     min-height:16px;
     margin-bottom:4px;
   }
+  .cart-status.is-error{color:#e2857a;cursor:pointer;text-decoration:underline;}
 </style>
 </head>
 <body>
@@ -815,7 +819,9 @@
         <div class="claim-sub" id="cartSub"></div>
         <div class="cart-locked hidden" id="cartLocked"></div>
         <div class="claim-error" id="cartError"></div>
-        <div class="cart-status" id="cartStatus"></div>
+        <!-- Doubles as the retry affordance: with no Save button, a
+             failed write has nothing else to offer. -->
+        <div class="cart-status" id="cartStatus" onclick="retrySave()"></div>
       </div>
       <div class="cart-body" id="cartBody"></div>
       <!-- Its own flex item between the menu and the footer, not part of
@@ -839,10 +845,9 @@
         <div class="cart-hint hidden" id="cartHint"></div>
         <div class="cart-totals" id="cartTotals"></div>
         <div class="claim-actions">
-          <button type="button" class="claim-submit-btn" id="cartSaveBtn" onclick="saveCart()">Save order</button>
-          <!-- Side by side rather than stacked: four full-width buttons
-               were most of this footer's height, and on a short phone
-               that came straight out of the menu above. -->
+          <!-- Side by side rather than stacked: stacking every button
+               made this footer most of the card's height, and on a short
+               phone that came straight out of the menu above. -->
           <div class="cart-pay-row">
             <a class="venmo-btn hidden" id="cartVenmoLink" href="#" target="_blank" rel="noopener">Venmo</a>
             <a class="cashapp-btn hidden" id="cartCashappLink" href="#" target="_blank" rel="noopener">Cash App</a>
@@ -1430,8 +1435,15 @@ const menuRowEls = new Map();   // itemId -> { count } in the catalog
 const orderRowEls = new Map();  // uid -> { el } in the order list
 let sectionEls = [];            // collapsed catalog sections, for live counts
 let cartLocked = false;    // past the cutoff -- read-only
-let cartDirty = false;     // unsaved edits on screen
-let cartSaved = false;     // a save went through since this cart was opened
+// There's no Save button: every add and remove writes straight through.
+// With the pick made before a line exists, every state the cart can be in
+// is already a valid order, so asking someone to confirm it was ceremony
+// -- and a fourth full-width button in a footer that was crowding the
+// menu out.
+let saveTimer = null;      // debounce handle, so a burst of taps is one request
+let saveInFlight = false;  // only ever one PUT at a time, so writes can't land out of order
+let savePending = false;   // a change arrived mid-flight; save again when it lands
+let saveState = 'idle';    // 'idle' | 'saving' | 'error'
 let lastClaim = null;      // {showtimeId, seatId} -- for the success overlay's "Add concessions"
 
 async function loadConcessionMenu(){
@@ -1636,8 +1648,10 @@ async function openCart(showtimeId, seatId){
   cartShowtimeId = showtimeId;
   cartSeatId = seatId;
   cartLocked = !concessionsOpen(obj);
-  cartDirty = false;
-  cartSaved = false;
+  saveState = 'idle';
+  saveInFlight = false;
+  savePending = false;
+  if (saveTimer){ clearTimeout(saveTimer); saveTimer = null; }
 
   document.getElementById('cartTitle').textContent = 'Concessions';
   document.getElementById('cartSub').textContent = 'Seat ' + seatId + ' · ' + seat.name;
@@ -1681,11 +1695,17 @@ function openCartFromSuccess(){
 }
 
 function closeCartOverlay(){
+  // Flush first: closing a second after a tap must not drop that tap.
+  // runSave() reads the cart state, so it has to run before it's cleared.
+  if (saveTimer){
+    clearTimeout(saveTimer);
+    saveTimer = null;
+    runSave();
+  }
   cartShowtimeId = null;
   cartSeatId = null;
   cartOrder = [];
   orderRowEls.clear();
-  cartDirty = false;
   document.getElementById('cartOverlay').classList.add('hidden');
 }
 
@@ -1703,21 +1723,23 @@ function renderCart(){
     body.appendChild(empty);
   } else {
     const hidden = hiddenPeanutItemIds();
+    const visible = menuRows.filter(row => !hidden.has(row.itemId));
 
-    // Unsectioned items inline, then each named section folded away
-    // behind a header. 25 candy bars sitting above the eight things
-    // people usually want is the whole reason this exists.
-    const sections = new Map();
-    menuRows.forEach(row => {
-      if (hidden.has(row.itemId)) return;
+    // Unsectioned items inline; a named section folded away behind a
+    // header, rendered at the position of its FIRST item rather than
+    // always at the end -- that's what lets drinks sit collapsed at the
+    // top and snacks and candy sit collapsed underneath the food, in
+    // whatever order the menu itself is in.
+    const emitted = new Set();
+    visible.forEach(row => {
       if (!row.section){
         body.appendChild(buildMenuRowEl(row));
         return;
       }
-      if (!sections.has(row.section)) sections.set(row.section, []);
-      sections.get(row.section).push(row);
+      if (emitted.has(row.section)) return;
+      emitted.add(row.section);
+      body.appendChild(buildCartSectionEl(row.section, visible.filter(r => r.section === row.section)));
     });
-    sections.forEach((rows, name) => body.appendChild(buildCartSectionEl(name, rows)));
   }
 
   renderOrderList();
@@ -1915,7 +1937,7 @@ function addOrderLine(row, option){
   document.getElementById('cartOrderList').appendChild(buildOrderRowEl(line));
   syncOrderCount();
 
-  markCartDirty();
+  markCartChanged();
   syncMenuRowCount(row.itemId);
   syncSectionCounts();
   renderCartFoot();
@@ -1940,7 +1962,7 @@ function removeOrderLine(uid){
 
   document.getElementById('cartOrderWrap').classList.toggle('hidden', cartOrder.length === 0);
   syncOrderCount();
-  markCartDirty();
+  markCartChanged();
   syncMenuRowCount(gone.itemId);
   syncSectionCounts();
   renderCartFoot();
@@ -2006,10 +2028,93 @@ function buildOrderRowEl(line){
   return el;
 }
 
-function markCartDirty(){
-  if (cartDirty) return;
-  cartDirty = true;
-  document.getElementById('cartStatus').textContent = '';
+function markCartChanged(){
+  saveState = 'saving';
+  renderSaveStatus();
+  if (saveTimer) clearTimeout(saveTimer);
+  // Short debounce so adding three things in a row is one write, not
+  // three; long enough to coalesce taps, short enough that closing the
+  // card straight afterwards still flushes something tiny.
+  saveTimer = setTimeout(runSave, 350);
+}
+
+function renderSaveStatus(){
+  const el = document.getElementById('cartStatus');
+  el.classList.toggle('is-error', saveState === 'error');
+  if (saveState === 'saving'){
+    el.textContent = 'Saving\u2026';
+  } else if (saveState === 'error'){
+    // The only affordance left for a failed write, now that there's no
+    // Save button to press again -- silent loss is the one thing autosave
+    // must not do.
+    el.textContent = "Couldn't save \u2014 tap to retry";
+  } else {
+    el.textContent = 'Saved';
+  }
+}
+
+async function runSave(){
+  saveTimer = null;
+  if (!cartShowtimeId || !cartSeatId || cartLocked) return;
+  // One write at a time. A second change mid-flight doesn't start a
+  // racing request that might land first -- it queues, and the state that
+  // finally gets written is the latest one.
+  if (saveInFlight){ savePending = true; return; }
+  saveInFlight = true;
+
+  const showtimeId = cartShowtimeId;
+  const seatId = cartSeatId;
+  const items = cartLines();
+
+  try{
+    const res = await fetch(
+      '/api/public/showtimes/' + encodeURIComponent(showtimeId) +
+      '/seats/' + encodeURIComponent(seatId) + '/concessions',
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items })
+      }
+    );
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok){
+      saveState = 'error';
+      document.getElementById('cartError').textContent = res.status === 409
+        ? 'That seat is no longer reserved, so there is nothing to order for it.'
+        : '';
+      renderSaveStatus();
+      return;
+    }
+    const data = await res.json();
+    const idx = allShowtimes.findIndex(s => s.id === showtimeId);
+    if (idx !== -1) allShowtimes[idx] = data.showtime;
+    saveState = 'idle';
+    document.getElementById('cartError').textContent = '';
+    // Only touch the cart's own chrome if it's still this cart on screen
+    // -- the close path fires a last save on the way out.
+    if (cartShowtimeId === showtimeId && cartSeatId === seatId){
+      renderSaveStatus();
+      renderCartFoot();
+    }
+    // The list underneath is showing this seat's old order -- redraw it
+    // (and the seat map, if the picker is what's open behind this).
+    renderCards();
+    if (currentShowtimeId === showtimeId) buildSeatmap(data.showtime);
+  }catch(e){
+    saveState = 'error';
+    renderSaveStatus();
+  }finally{
+    saveInFlight = false;
+    if (savePending){
+      savePending = false;
+      runSave();
+    }
+  }
+}
+
+function retrySave(){
+  if (saveState !== 'error') return;
+  markCartChanged();
 }
 
 // Totals + the pay row. Pay links are shown only when what's on screen
@@ -2049,17 +2154,8 @@ function renderCartFoot(){
       missing.map(m => 'a ' + m.label + ' for ' + m.name + (m.missing > 1 ? ' (×' + m.missing + ')' : '')).join(', ') + '.';
   }
 
-  // Kept on screen (disabled) rather than hidden when there's nothing to
-  // save: hiding it would slide the pay buttons up under the thumb that
-  // just tapped Save, which is the one place a mis-tap costs money.
-  const saveBtn = document.getElementById('cartSaveBtn');
-  saveBtn.classList.toggle('hidden', cartLocked);
-  saveBtn.disabled = !cartDirty || missing.length > 0;
-  saveBtn.textContent = missing.length
-    ? 'Choose an option first'
-    : (cartDirty ? 'Save order' : (cartSaved ? 'Saved' : 'Nothing to save yet'));
-
-  document.getElementById('cartCloseBtn').textContent = cartDirty ? 'Discard changes' : 'Close';
+  // Nothing to confirm and nothing to discard -- every change is already
+  // written -- so Close is just Close.
 
   // Note carries the seat so the host can tell two friends' payments
   // apart in a Venmo feed; Cash App has no note param at all (see
@@ -2067,9 +2163,10 @@ function renderCartFoot(){
   const note = (obj && obj.title ? obj.title : 'Movie') +
     ' (' + formatDateShort(obj ? obj.date : '') + ', ' + cartSeatId + ')' +
     (concessions > 0 ? ' + concessions' : '');
-  // Also withheld while something is unchosen: an incomplete cart can't
-  // have been saved, so its total isn't one the host has agreed to.
-  const showPay = !cartDirty && missing.length === 0 && owed > 0;
+  // Withheld while a write is in flight or has failed (the figure on the
+  // button would be one the host hasn't got), and while a line is short
+  // its pick, because that order isn't one they can actually place.
+  const showPay = saveState === 'idle' && missing.length === 0 && owed > 0;
 
   const venmoEl = document.getElementById('cartVenmoLink');
   const venmoUrl = showPay ? buildVenmoLink(owed, note) : null;
@@ -2093,60 +2190,6 @@ function cartTotalRow(label, valueHtml){
   row.className = 'cart-total-row';
   row.innerHTML = '<span>' + escapeHtml(label) + '</span><span>' + valueHtml + '</span>';
   return row;
-}
-
-async function saveCart(){
-  if (!cartShowtimeId || !cartSeatId || cartLocked) return;
-  // The button is already disabled in this state; this is the backstop so
-  // the rule lives with the save rather than only with the control.
-  if (missingChoices().length){
-    renderCartFoot();
-    return;
-  }
-  const errorEl = document.getElementById('cartError');
-  const statusEl = document.getElementById('cartStatus');
-  const saveBtn = document.getElementById('cartSaveBtn');
-  errorEl.textContent = '';
-  statusEl.textContent = '';
-  saveBtn.disabled = true;
-  saveBtn.textContent = 'Saving...';
-
-  try{
-    const res = await fetch(
-      '/api/public/showtimes/' + encodeURIComponent(cartShowtimeId) +
-      '/seats/' + encodeURIComponent(cartSeatId) + '/concessions',
-      {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: cartLines() })
-      }
-    );
-    if (await handleAuthFailure(res)) return;
-    if (res.status === 409){
-      errorEl.textContent = 'That seat is no longer reserved, so there is nothing to order for it.';
-      renderCartFoot();
-      return;
-    }
-    if (!res.ok){
-      errorEl.textContent = 'Could not save that order. Try again.';
-      renderCartFoot();
-      return;
-    }
-    const data = await res.json();
-    const idx = allShowtimes.findIndex(s => s.id === cartShowtimeId);
-    if (idx !== -1) allShowtimes[idx] = data.showtime;
-    cartDirty = false;
-    cartSaved = true;
-    statusEl.textContent = 'Saved.';
-    renderCartFoot();
-    // The list underneath is showing this seat's old order -- redraw it
-    // (and the seat map, if the picker is what's open behind this).
-    renderCards();
-    if (currentShowtimeId === cartShowtimeId) buildSeatmap(data.showtime);
-  }catch(e){
-    errorEl.textContent = 'Could not reach the server. Try again.';
-    renderCartFoot();
-  }
 }
 
 // ---------------- INIT ----------------

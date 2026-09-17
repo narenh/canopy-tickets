@@ -180,6 +180,15 @@ menu" button appears once it has, and puts them back). It's one menu
 shared by every showtime, not one per showtime — this is one person's
 friend group at, in practice, one theater.
 
+**There is no Save button.** Every add and removal writes straight
+through: with the pick made before a line exists, every state the cart
+can be in is already a valid order, so confirming it was ceremony — and a
+fourth full-width button in a footer that was crowding out the menu.
+Rapid taps are debounced into one request and writes are serialised, so
+they can't land out of order; closing the card flushes anything still
+pending. A failed write says so and offers a retry, because silent loss
+is the one thing autosave must not do.
+
 **A price is what a friend actually owes**, with nothing added on top.
 You buy the whole order on your own AMC Stubs account, which waives the
 $1.99-per-order service fee AMC's app charges and passes your Stubs
@@ -213,11 +222,13 @@ ones.
 
 Orders saved before this existed can still be short a pick (a line from
 the old quantity UI, or an item that gained a group afterwards). Those
-show in red as "no sauce", hold the save closed, and the footer says what
-to do — "Remove and re-add to pick a sauce for Popcorn Chicken". The pay
-buttons are withheld on the same condition: an incomplete order can't
-have been saved, so its total isn't one you've agreed to. An item whose
-group the host hasn't filled in yet never triggers any of this.
+show in red as "no sauce", and the footer says what to do — "Remove and
+re-add to pick a sauce for Popcorn Chicken". They do *not* block writing:
+that line is already on the server in that state, and holding the cart
+hostage would mean you couldn't remove anything else until you'd dealt
+with it. What they do withhold is the pay buttons, since an order the
+host can't place isn't one to pay for. An item whose group the host
+hasn't filled in yet never triggers any of this.
 
 Per-item notes ("no ice") are no longer editable from the cart — that was
 the cost of making the list compact — but any note saved earlier still
@@ -231,14 +242,18 @@ whose group has no options behaves exactly like an item with no group
 until someone fills it.
 
 **Sections** keep the list readable. An item can carry a section name,
-and a named section is folded behind a collapsed header in the cart
-instead of sitting inline — that's what keeps 25 candy bars from burying
-the eight things people usually want. It's presentation only; a section
-has no bearing on price, options or what lands in an order. A section
-opens itself when it holds something already in the cart, so reopening a
-cart never hides what's in it, and its header shows how much is. The
-admin panel files rows the same way (a row moves to its new section on
-the next save, not mid-keystroke).
+and a named section is folded behind a collapsed, slightly indented
+header in the cart instead of sitting inline — that's what keeps 25 candy
+bars from burying the dozen things people usually want. Out of the box
+that's **Drinks** at the top, the food inline, then **Specialty Snacks**
+and **Candy** underneath. A section renders where its *first* item falls
+in the menu, so the order in `DEFAULT_ITEMS` is the order on screen.
+
+It's presentation only; a section has no bearing on price, options or
+what lands in an order. A section opens itself when it holds something
+already in the cart, so reopening a cart never hides what's in it, and
+its header shows how much is. The admin panel files rows the same way (a
+row moves to its new section on the next save, not mid-keystroke).
 
 **What the host sees.** Open a showtime in the editor and, under the seat
 summary, there's what everyone ordered: a line per seat (with their picks
