@@ -2211,7 +2211,7 @@ function renderCartLockedBanner(){
   const locked = document.getElementById('cartLocked');
   locked.classList.toggle('hidden', !cartLocked);
   locked.textContent =
-    'Orders for this showtime are closed \u2014 they\u2019ve gone in at the counter. ' +
+    'The order for this showtime is final \u2014 it\u2019s gone in at the counter. ' +
     'Message the host if you still need to change something.';
 }
 
@@ -2652,7 +2652,7 @@ async function runSave(){
         if (obj) obj.ordersClosed = true;
         cartLocked = true;
         document.getElementById('cartError').textContent =
-          'The host closed orders for this showtime, so this change was not saved.';
+          'The host finalized the order for this showtime, so this change was not saved.';
         renderCart();
         renderCards();
         return;

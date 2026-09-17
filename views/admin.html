@@ -962,7 +962,7 @@
 
     <div class="og-section">
       <h3>Concessions Menu</h3>
-      <p>What friends can order from the reservation page. Ships with the AMC menu already filled in -- edit, reprice, add or remove anything and save, and your version takes over. One list for every showtime; orders are attached to each reserved seat, and friends can change theirs until you close the cart on a showtime. Removing an item here doesn't disturb orders already placed -- those keep the name and price they were placed at.</p>
+      <p>What friends can order from the reservation page. Ships with the AMC menu already filled in -- edit, reprice, add or remove anything and save, and your version takes over. One list for every showtime; orders are attached to each reserved seat, and friends can change theirs until you finalize that showtime's order. Removing an item here doesn't disturb orders already placed -- those keep the name and price they were placed at.</p>
       <div id="menuRows"></div>
       <!-- Every section name already in use, so filing an item under one
            is a pick rather than a retype (sections match on exact text). -->
@@ -1072,12 +1072,13 @@
          the editor, so it reflects unsaved seat edits too. -->
     <div class="orders" id="orders"></div>
 
-    <!-- The switch that stops friends changing their orders. Sits under
-         the roll-up because that's the list you're reading when you
-         decide you're done and about to go buy it. Writes immediately --
-         it deliberately doesn't wait for Save Showtime. -->
+    <!-- Finalizing is the switch that stops friends changing their
+         orders. Sits under the roll-up because that's the list you're
+         reading when you decide you're done and about to go buy it.
+         Writes immediately -- it deliberately doesn't wait for Save
+         Showtime. -->
     <div class="orders-close hidden" id="ordersCloseBar">
-      <button type="button" id="ordersCloseBtn" onclick="toggleOrdersClosed()">Close cart</button>
+      <button type="button" id="ordersCloseBtn" onclick="toggleOrdersClosed()">Finalize Order</button>
       <span class="orders-close-note" id="ordersCloseNote"></span>
     </div>
 
@@ -1823,10 +1824,10 @@ function renderOrdersCloseBar(){
   if (!currentId) return;
 
   bar.classList.toggle('is-closed', ordersClosed);
-  document.getElementById('ordersCloseBtn').textContent = ordersClosed ? 'Reopen cart' : 'Close cart';
+  document.getElementById('ordersCloseBtn').textContent = ordersClosed ? 'Reopen Order' : 'Finalize Order';
   document.getElementById('ordersCloseNote').textContent = ordersClosed
-    ? 'Orders are closed. Friends can see their carts but not change them.'
-    : 'Friends can still add and remove items. Close it when you go to order.';
+    ? 'Order is final. Friends can see their carts but not change them.'
+    : 'Friends can still add and remove items. Finalize when you go to the counter.';
 }
 
 // Writes straight away rather than waiting for Save Showtime: this is the
@@ -1836,7 +1837,7 @@ function renderOrdersCloseBar(){
 async function toggleOrdersClosed(){
   if (!currentId) return;
   const next = !ordersClosed;
-  if (next && !confirm('Close the cart? Friends will not be able to change their orders until you reopen it.')) return;
+  if (next && !confirm('Finalize the order? Friends will not be able to change what they asked for until you reopen it.')) return;
 
   const btn = document.getElementById('ordersCloseBtn');
   btn.disabled = true;

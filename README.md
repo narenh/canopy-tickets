@@ -372,16 +372,16 @@ the host can overrule all of it from the editor.
 **The ticket and the food are two bills that come due at different
 times**, which is why they're tracked separately. A ticket costs what it
 costs the moment the seat is claimed, so it can be settled right away.
-A cart can't be, because it's a draft until the host closes it and goes
-to place the order: people decide what they want on the day — am I
+A cart can't be, because it's a draft until the host finalizes it and
+goes to place the order: people decide what they want on the day — am I
 hungry, do I have dinner plans — so carts typically get filled in hours
 before the show and change several times while they are. Paying against a draft
 means paying the wrong number.
 
 So while the cart is open it shows what you'll owe in total but the pay
 buttons and "I've paid" offer the **ticket alone**, with a line underneath
-saying why: *Concessions settle after order is placed.* Once you close
-the cart the food total is final, and both cover the lot. That gap is deliberate: if the buttons offered the draft total and
+saying why: *Concessions settle after order is placed.* Once you finalize
+the order the food total is final, and both cover the lot. That gap is deliberate: if the buttons offered the draft total and
 someone sent it, the app's record and the actual payment would disagree
 the moment the cart changed.
 
@@ -398,10 +398,10 @@ A few things worth knowing about how this actually works:
   deliberate, and it's the same trust model the rest of the friend side
   already runs on: it's what makes "I'm at the counter, add a popcorn to
   Jordan's too" something you can just do.
-- **Orders close when you close them**, from the **Close cart** button
-  under the roll-up in the editor. After that the cart still opens, but
-  read-only, with a note pointing people at you; **Reopen cart** puts it
-  back. It writes immediately rather than waiting for Save Showtime,
+- **Orders close when you finalize them**, from the **Finalize Order**
+  button under the roll-up in the editor. After that the cart still
+  opens, but read-only, with a note pointing people at you; **Reopen
+  Order** puts it back. It writes immediately rather than waiting for Save Showtime,
   because it's you saying "I'm at the counter now" and it must not ride
   along with a seats object the editor may have been holding since before
   somebody's last order.
@@ -413,9 +413,9 @@ A few things worth knowing about how this actually works:
   runs somewhere effectively UTC, so a server-side cutoff would have
   locked a San Francisco showtime's carts seven or eight hours early. A
   flag you set has neither problem, so **the server enforces this one**:
-  a page that was open when you closed the cart gets its next save
-  refused (409) and locks itself, instead of slipping an order in behind
-  you at the counter. The page still says orders usually close about two
+  a page that was open when you finalized gets its next save refused
+  (409) and locks itself, instead of slipping an order in behind you at
+  the counter. The page still says orders usually close about two
   hours before the show, since that's about when you'll press it.
 - **Editing the menu never rewrites an order that's already placed.** A
   cart line stores the item's name, price and picks as they were when it
