@@ -357,18 +357,29 @@ app.post('/api/payment-handles', adminAuth.requireAuth('/'), (req, res) => {
 // operation.
 
 app.get('/api/concession-menu', adminAuth.requireAuth('/'), (req, res) => {
-  res.json({ items: concessionMenuStore.get() });
+  res.json(concessionMenuStore.get());
 });
 
 app.post('/api/concession-menu', adminAuth.requireAuth('/'), (req, res) => {
-  const { items } = req.body || {};
+  const { items, optionGroups } = req.body || {};
   if (items !== undefined && !Array.isArray(items)) {
     return res.status(400).json({ error: 'items must be an array' });
+  }
+  if (optionGroups !== undefined && !Array.isArray(optionGroups)) {
+    return res.status(400).json({ error: 'optionGroups must be an array' });
   }
   // Echoing the saved list back matters: brand-new rows get their ids
   // assigned server-side, and the editor needs them to keep editing the
   // same row instead of creating a duplicate on the next save.
-  res.json({ ok: true, items: concessionMenuStore.set(items || []) });
+  res.json({ ok: true, ...concessionMenuStore.set(items || [], optionGroups || []) });
+});
+
+// Throws away the saved menu so the built-in AMC list takes over again
+// (see DEFAULT_ITEMS in lib/concessionMenu.js). Doesn't touch
+// anyone's existing orders -- those carry their own copy of whatever
+// they were placed against.
+app.post('/api/concession-menu/reset', adminAuth.requireAuth('/'), (req, res) => {
+  res.json({ ok: true, ...concessionMenuStore.reset() });
 });
 
 // ---------------- Showtimes API (admin auth required) ----------------
@@ -514,7 +525,8 @@ app.post('/api/public/showtimes/:id/claim', async (req, res) => {
 // The menu a friend picks from. Read-only on this side -- only the admin
 // editor changes it (see /api/concession-menu above).
 app.get('/api/public/concession-menu', (req, res) => {
-  res.json({ items: concessionMenuStore.get() });
+  const menu = concessionMenuStore.get();
+  res.json({ items: menu.items, optionGroups: menu.optionGroups });
 });
 
 // Replaces one reserved seat's concession cart.

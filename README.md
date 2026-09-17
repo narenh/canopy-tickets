@@ -14,7 +14,8 @@ claim seats. One URL, one login form, two possible passwords:
   price (whichever you've set up — see "Payment handles" below). You still
   confirm the payment actually landed manually on the admin side.
 - Friends can come back any time and tap their reserved seat to build a
-  **concession order** off a menu you set — see "Concessions" below. The
+  **concession order** off the AMC menu, which ships built in and is
+  editable from the editor — see "Concessions" below. The
   pay link then covers the ticket and the snacks together, and the editor
   gives you a summed shopping list to take to the counter.
 
@@ -54,9 +55,13 @@ Docker" below for making that survive restarts/redeploys).
 - `lib/sharedPassword.js` — persistence for the friend password (see
   below). No password saved means friend login is off.
 - `lib/concessionMenu.js` — persistence for the concession menu: one
-  global list of `{id, name, price}` (see "Concessions" below for why it
-  isn't per showtime). An item keeps its id across renames and reprices,
-  so carts referencing it stay lined up with the menu.
+  global list of `{id, name, price, note, optionGroup}` plus the option
+  groups items choose from (see "Concessions" below for why it isn't per
+  showtime). Ships with the AMC menu hardcoded in `DEFAULT_ITEMS` /
+  `DEFAULT_OPTION_GROUPS`, which apply while no menu has been saved; the
+  host's saved menu replaces them, and `reset()` deletes it to come back.
+  An item keeps its id across renames and reprices, so carts referencing
+  it stay lined up with the menu.
 - `lib/textSetting.js` — generic persistence for a single admin-settable
   string setting: `createTextSettingStore(name)` gives each named setting
   its own file in `DATA_DIR`. Used for the Venmo and Cash App handles
@@ -67,8 +72,9 @@ Docker" below for making that survive restarts/redeploys).
 - `lib/seats.js` — normalizes a stored seat entry into
   `{status: 'occupied'}` or `{status: 'assigned', name, paid, concessions}`,
   where `concessions` is that seat's cart (`{itemId, name, price, qty,
-  note?}` per line). A seat saved before concessions existed just
-  normalizes to an empty cart, so there's no migration step.
+  note?, options?}` per line, `options` holding one pick per unit
+  ordered). A seat saved before concessions existed just normalizes to an
+  empty cart, so there's no migration step.
 - `lib/uploadedImage.js` — persistence for admin-uploaded site images (the
   link-preview image, the logo): `createImageStore(name)` gives each one
   its own file in `DATA_DIR`, same durability story as `showtimes.json`.
@@ -133,27 +139,62 @@ access, not already-granted access.
 
 Friends can come back to the reservation page any time after reserving a
 seat and build a concession order for it. On the list, every reserved
-seat is its own tappable row showing what's on it so far ("🍿 Large
-Popcorn ×2, Icee — $25.97", or "No concessions yet"); tapping it opens
-that seat's cart, where every menu item has a −/+ stepper and an optional
-per-item note ("no ice", "extra butter"). The order is saved against the
-seat, so it's there when they come back on another device or another day.
+seat is its own tappable row showing what's on it so far ("🍿 Chicken
+Tenders ×2 (BBQ Sauce, Icing Cup), Skittles — $29.97", or "No concessions
+yet"); tapping it opens that seat's cart, where every menu item has a −/+
+stepper, a dropdown per unit for anything that comes with a choice, and
+an optional per-item note ("no ice", "extra butter"). The order is saved
+against the seat, so it's there when they come back on another device or
+another day.
 
-**Set the menu** from the "Concessions Menu" field in the admin editor,
-below the showtimes list: a name and a price per row, add and remove rows
-freely, save. It's one menu shared by every showtime, not one per
-showtime — this is one person's friend group at, in practice, one
-theater, and retyping "Large Popcorn — $9.49" for every movie would be
-the whole feature's worth of friction. Until you've set a menu, friends
-just see "The host hasn't put up a concessions menu yet."
+**The menu ships filled in.** AMC's own list — drinks, the food page, and
+candy as individual items — is hardcoded in `lib/concessionMenu.js` and
+is what friends see on a fresh install, so there's nothing to set up
+before the first order. It's fully editable from the "Concessions Menu"
+panel in the admin editor: rename, reprice, add or remove any row and
+save, and your version takes over from the built-ins (a "Restore AMC
+menu" button appears once it has, and puts them back). It's one menu
+shared by every showtime, not one per showtime — this is one person's
+friend group at, in practice, one theater.
+
+Prices are AMC's **base** prices, before the $1.99-per-order service fee
+its app adds on top. That fee isn't modelled: nothing in this app adds
+anything to a cart that isn't a line in it, so a friend is quoted exactly
+the sum of what they picked. Each item also has a free-text **note**
+shown under it — that's where "50¢ off" lives. It's a label, not a
+discount the app applies; `price` is what gets charged.
+
+**Option groups** are named lists of choices an item comes with —
+`Sauce`, `Pretzel Flavor`, `Pizza`. An item points at one group by id, so
+a group can be shared by several items (chicken tenders, popcorn chicken
+and IMPOSSIBLE nuggets all take the same sauce cups) or belong to exactly
+one (a pizza's toppings) — same mechanism either way, which is what makes
+"add Marinara to the sauce list" a single edit instead of one per
+fried-thing. The host adds, renames and fills groups from the same panel,
+and each one shows how many items use it so it's clear what a deletion
+would affect.
+
+Friends pick **one per unit ordered**: order two chicken tenders and you
+get two dropdowns, because that's two sauce cups and quite possibly two
+different ones. Candy is deliberately *not* an option group — it's a flat
+list of individual items, so two different candies are just two lines.
+
+The sauce list is transcribed from AMC's ordering screen. The pretzel and
+pizza groups ship **empty** on purpose: those items do have their own
+choices, but a made-up list of flavors and toppings that reads as
+authoritative and is wrong is worse than a group sitting ready to fill
+in. An item whose group has no options behaves exactly like an item with
+no group until someone fills it.
 
 **What the host sees.** Open a showtime in the editor and, under the seat
-summary, there's what everyone ordered: a line per seat (with their
-notes), then a summed roll-up — `Large Popcorn ×4 … $37.96` — and a
-total. That roll-up is the point: it's the list you read at the counter,
-already added up, instead of adding up six people's orders yourself. The
-seat editor overlay shows one seat's order too, read-only, so you can see
-what someone asked for while you're marking their seat paid.
+summary, there's what everyone ordered: a line per seat (with their picks
+and notes), then a summed roll-up — `Chicken Tenders ×4 … $45.96`, plus a
+separate tally of the choices (`BBQ Sauce ×3, Icing Cup ×1`, its own ask
+at the counter) — and a total. That roll-up is the point: it's the list
+you read at the counter, already added up, instead of adding up six
+people's orders yourself. The seat editor overlay shows one seat's order
+too, read-only, so you can see what someone asked for while you're
+marking their seat paid.
 
 **Paying.** The cart's pay button covers the whole bill — ticket plus
 concessions — unless you've already marked that seat paid, in which case
@@ -181,18 +222,22 @@ A few things worth knowing about how this actually works:
   only one that can read the cutoff correctly. As a friend-group nudge
   that's the right trade; don't mistake it for an access control.
 - **Editing the menu never rewrites an order that's already placed.** A
-  cart line stores the item's name and price as they were when it was
-  added, not a live lookup — so repricing a popcorn doesn't retroactively
-  change what someone owes, and removing an item doesn't make it vanish
-  from a cart that contains it (it stays, flagged "no longer on the
-  menu", and can still be edited down to zero).
+  cart line stores the item's name, price and picks as they were when it
+  was added, not a live lookup — so repricing a popcorn doesn't
+  retroactively change what someone owes, and removing an item doesn't
+  make it vanish from a cart that contains it (it stays, flagged "no
+  longer on the menu", and can still be edited down to zero). Same for
+  options: a sauce the host has since deleted still shows as the pick on
+  an order that chose it.
 - **Clearing a seat's name clears its order.** The order belonged to the
   person whose name was on the seat, so freeing the seat for someone else
   starts them from an empty cart. Fixing a typo in a name, or ticking
   "paid", keeps it.
-- Orders live on the seat inside `showtimes.json`, and the menu in
-  `concession-menu.json` — both in `DATA_DIR`, so they need the same
-  persistent volume as everything else (see below).
+- Orders live on the seat inside `showtimes.json`. The menu lives in
+  `concession-menu.json`, which only exists once the host has saved an
+  edit — no file means the built-in AMC menu is in effect. Both are in
+  `DATA_DIR`, so they need the same persistent volume as everything else
+  (see below).
 
 ## Payment handles
 

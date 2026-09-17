@@ -525,6 +525,34 @@
     font-weight:700;
   }
   .ci-qty.is-zero{color:var(--muted);font-weight:400;}
+  /* Same reasoning as the note below: only present once this item is
+     actually in the cart, so the menu reads as a list of things rather
+     than a wall of dropdowns. */
+  .ci-choices{margin-top:6px;}
+  .ci-choice{
+    display:flex;
+    align-items:center;
+    gap:7px;
+    margin-top:5px;
+  }
+  .ci-choice-num{
+    flex:0 0 auto;
+    font-size:11px;
+    color:var(--muted);
+    min-width:16px;
+  }
+  .ci-choice-select{
+    flex:1 1 auto;
+    min-width:0;
+    background:#0f0f10;
+    color:#fff;
+    border:1px solid #2f2f2f;
+    border-radius:8px;
+    padding:6px 8px;
+    font-size:12.5px;
+    font-family:inherit;
+  }
+  .ci-choice-select:disabled{opacity:.6;}
   /* Only shown once something's actually in the cart for this item --
      an empty note field against every one of 20 menu rows would bury
      the items themselves. */
@@ -1221,7 +1249,8 @@ const MAX_CART_QTY = 99;
 // people honest, and the host can still sort anything out by text.
 const CONCESSION_CUTOFF_HOURS = 2;
 
-let concessionMenu = [];   // [{id, name, price}] from /api/public/concession-menu
+let concessionMenu = [];   // [{id, name, price, note, optionGroup}] from /api/public/concession-menu
+let optionGroups = [];     // [{id, label, options[]}] -- the choice lists items point at
 let cartShowtimeId = null;
 let cartSeatId = null;
 let cartRows = [];         // [{itemId, name, price, qty, note, offMenu}]
@@ -1237,6 +1266,7 @@ async function loadConcessionMenu(){
     if (!res.ok) return;
     const data = await res.json();
     concessionMenu = Array.isArray(data.items) ? data.items : [];
+    optionGroups = Array.isArray(data.optionGroups) ? data.optionGroups : [];
   }catch(e){
     // Non-fatal -- an already-loaded menu stays usable, and a cart that
     // has never loaded one shows the "no menu yet" state.
@@ -1269,12 +1299,35 @@ function concessionsOpen(obj){
   return Date.now() < start.getTime() - CONCESSION_CUTOFF_HOURS * 3600 * 1000;
 }
 
+// "Chicken Tenders ×2 (BBQ Sauce, Icing Cup)" -- one cart line in words.
+// The picks are part of what was ordered, not a footnote, so they ride
+// along wherever the line is named.
+function concessionLineLabel(l){
+  const options = (l.options || []).filter(Boolean);
+  return l.name + (l.qty > 1 ? ' ×' + l.qty : '') + (options.length ? ' (' + options.join(', ') + ')' : '');
+}
+
 // One-line "what's in this cart" for the seat row on the list card.
 function concessionSummary(lines){
   if (!lines || !lines.length) return '';
-  const parts = lines.map(l => l.name + (l.qty > 1 ? ' ×' + l.qty : ''));
   const total = concessionsTotal(lines);
-  return parts.join(', ') + (total > 0 ? ' — ' + formatPrice(total) : '');
+  return lines.map(concessionLineLabel).join(', ') + (total > 0 ? ' — ' + formatPrice(total) : '');
+}
+
+// The choice list an item comes with, or [] for one that's just itself.
+// An item pointing at a group the host hasn't filled in yet reads as no
+// choices at all rather than an empty dropdown.
+function optionsForItem(itemId){
+  const item = concessionMenu.find(i => i.id === itemId);
+  if (!item || !item.optionGroup) return [];
+  const group = optionGroups.find(g => g.id === item.optionGroup);
+  return group && Array.isArray(group.options) ? group.options : [];
+}
+
+function optionLabelForItem(itemId){
+  const item = concessionMenu.find(i => i.id === itemId);
+  const group = item && optionGroups.find(g => g.id === item.optionGroup);
+  return group ? group.label : 'Choice';
 }
 
 // Merges the seat's saved cart onto the current menu: every menu item
@@ -1292,6 +1345,7 @@ function buildCartRows(lines){
       const prev = byItem.get(key);
       prev.qty += l.qty;
       if (!prev.note && l.note) prev.note = l.note;
+      if (!(prev.options || []).length && (l.options || []).length) prev.options = l.options;
       return;
     }
     if (key) byItem.set(key, { ...l });
@@ -1306,8 +1360,10 @@ function buildCartRows(lines){
       // now; the snapshot only protects orders already placed.
       name: item.name,
       price: item.price,
+      note: item.note || '',
       qty: existing ? existing.qty : 0,
-      note: existing && existing.note ? existing.note : '',
+      lineNote: existing && existing.note ? existing.note : '',
+      options: existing && Array.isArray(existing.options) ? existing.options.slice() : [],
       offMenu: false
     };
   });
@@ -1326,8 +1382,10 @@ function buildCartRows(lines){
       itemId: l.itemId || '',
       name: merged.name,
       price: merged.price,
+      note: '',
       qty: merged.qty,
-      note: merged.note || '',
+      lineNote: merged.note || '',
+      options: Array.isArray(merged.options) ? merged.options.slice() : [],
       offMenu: true
     });
   });
@@ -1338,7 +1396,16 @@ function buildCartRows(lines){
 function cartLines(){
   return cartRows
     .filter(r => r.qty > 0)
-    .map(r => ({ itemId: r.itemId, name: r.name, price: r.price, qty: r.qty, note: r.note || '' }));
+    .map(r => ({
+      itemId: r.itemId,
+      name: r.name,
+      price: r.price,
+      qty: r.qty,
+      note: r.lineNote || '',
+      // Trimmed to qty here as well as server-side, so what gets sent
+      // matches what the dropdowns on screen actually showed.
+      options: (r.options || []).slice(0, r.qty)
+    }));
 }
 
 function currentCartShowtime(){
@@ -1440,8 +1507,13 @@ function buildCartRowEl(row){
 
   const priceEl = document.createElement('div');
   priceEl.className = 'ci-price' + (row.offMenu ? ' ci-off-menu' : '');
-  priceEl.textContent = (row.price > 0 ? formatPrice(row.price) : 'No price set') +
-    (row.offMenu ? ' · no longer on the menu' : '');
+  priceEl.textContent = [
+    row.price > 0 ? formatPrice(row.price) : 'No price set',
+    // The host's own label for this item ("50c off"), not a discount the
+    // app applies -- the price to its left is what gets charged.
+    row.note || '',
+    row.offMenu ? 'no longer on the menu' : ''
+  ].filter(Boolean).join(' · ');
   main.appendChild(priceEl);
 
   const lineTotal = document.createElement('div');
@@ -1473,12 +1545,74 @@ function buildCartRowEl(row){
   rowEl.appendChild(stepper);
   el.appendChild(rowEl);
 
+  // One dropdown per unit ordered, rebuilt whenever the quantity changes:
+  // two orders of tenders are two sauce cups, and which two is exactly
+  // what the host reads off at the counter. Empty for an item with no
+  // choices, and for one whose group the host hasn't filled in yet.
+  const choices = optionsForItem(row.itemId);
+  const choiceLabel = optionLabelForItem(row.itemId);
+  const choiceWrap = document.createElement('div');
+  choiceWrap.className = 'ci-choices hidden';
+
+  function renderChoices(){
+    choiceWrap.innerHTML = '';
+    if (!choices.length || row.qty === 0){
+      choiceWrap.classList.add('hidden');
+      return;
+    }
+    choiceWrap.classList.remove('hidden');
+    for (let unit = 0; unit < row.qty; unit++){
+      const line = document.createElement('div');
+      line.className = 'ci-choice';
+
+      if (row.qty > 1){
+        const num = document.createElement('span');
+        num.className = 'ci-choice-num';
+        num.textContent = '#' + (unit + 1);
+        line.appendChild(num);
+      }
+
+      const select = document.createElement('select');
+      select.className = 'ci-choice-select';
+      select.disabled = cartLocked;
+      select.setAttribute('aria-label', choiceLabel + ' for ' + row.name + (row.qty > 1 ? ' #' + (unit + 1) : ''));
+
+      const blank = document.createElement('option');
+      blank.value = '';
+      blank.textContent = 'Choose ' + choiceLabel.toLowerCase() + '...';
+      select.appendChild(blank);
+
+      // A pick the host has since removed from the group still needs to
+      // show as the current value, or reopening the cart would silently
+      // reset it to unchosen.
+      const current = row.options[unit] || '';
+      const known = choices.slice();
+      if (current && !known.includes(current)) known.push(current);
+      known.forEach(name => {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        select.appendChild(opt);
+      });
+      select.value = current;
+
+      select.addEventListener('change', () => {
+        row.options[unit] = select.value;
+        markCartDirty();
+        renderCartFoot();
+      });
+
+      line.appendChild(select);
+      choiceWrap.appendChild(line);
+    }
+  }
+
   const note = document.createElement('input');
   note.type = 'text';
   note.className = 'ci-note hidden';
   note.placeholder = 'Note for this item (e.g. no ice)';
   note.maxLength = 200;
-  note.value = row.note || '';
+  note.value = row.lineNote || '';
 
   // Updates only this row plus the totals, rather than re-rendering the
   // whole list -- a full re-render on every tap would drop focus out of
@@ -1493,6 +1627,7 @@ function buildCartRowEl(row){
     const showTotal = row.qty > 0 && row.price > 0;
     lineTotal.classList.toggle('hidden', !showTotal);
     if (showTotal) lineTotal.textContent = row.qty + ' × ' + formatPrice(row.price) + ' = ' + formatPrice(row.price * row.qty);
+    renderChoices();
   }
 
   function bump(delta){
@@ -1504,9 +1639,14 @@ function buildCartRowEl(row){
     // order that no longer exists, and silently keeping it would make it
     // reappear if the item got added back later.
     if (row.qty === 0){
-      row.note = '';
+      row.lineNote = '';
       note.value = '';
+      row.options = [];
     }
+    // Picks past the new quantity go with the units they belonged to --
+    // dropping from 3 to 1 shouldn't leave two orphaned sauces to
+    // reappear if it goes back up.
+    if (row.options.length > row.qty) row.options.length = row.qty;
     markCartDirty();
     sync();
     renderCartFoot();
@@ -1515,7 +1655,7 @@ function buildCartRowEl(row){
   minus.addEventListener('click', () => bump(-1));
   plus.addEventListener('click', () => bump(1));
   note.addEventListener('input', () => {
-    row.note = note.value;
+    row.lineNote = note.value;
     // Only the first keystroke changes anything in the foot (Save goes
     // from disabled to enabled, pay links hide); redrawing it on every
     // subsequent one would be pure churn.
@@ -1524,6 +1664,7 @@ function buildCartRowEl(row){
     if (!wasDirty) renderCartFoot();
   });
 
+  el.appendChild(choiceWrap);
   el.appendChild(note);
   sync();
   return el;
