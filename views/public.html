@@ -758,10 +758,14 @@
      read as just another item row -- the headers were easy to scroll
      straight past. Now each one is a card of its own: its own border,
      its own darker ground, and clear air above and below. */
+  /* Square, not rounded. A rounded card whose header is a separately
+     rounded box never quite nests -- the two radii (12 and 11) left a
+     hairline halo in every corner -- and the header's rule and the rows'
+     rules were inset differently, so none of the lines agreed. Square
+     corners and one inset make every hairline span the same width. */
   .cart-section{
     margin:12px 0;
     border:1px solid #26262a;
-    border-radius:12px;
     background:#101012;
   }
   .cart-section summary{
@@ -783,7 +787,6 @@
     gap:9px;
     padding:11px 12px;
     background:#1a1a1e;
-    border-radius:11px;
     font-size:11.5px;
     font-weight:800;
     letter-spacing:.09em;
@@ -797,7 +800,6 @@
   }
   .cart-section summary::-webkit-details-marker{display:none;}
   .cart-section[open] summary{
-    border-radius:11px 11px 0 0;
     border-bottom:1px solid #26262a;
   }
   /* A real chevron rather than a 5px triangle, and in the accent colour
@@ -829,10 +831,13 @@
     color:var(--muted);
   }
   .cart-section-count.has-order{color:var(--gold);}
-  .cart-section-body{padding:2px 10px 6px;}
+  /* No padding on the wrapper: the rows carry their own, so each row's
+     rule runs the full width of the section the way the header's does,
+     instead of stopping 10px short at both ends. */
+  .cart-section-body{padding:0;}
   /* Indented so a row inside a section reads as belonging to the header
      above it rather than as another top-level item. */
-  .cart-section-body .cart-item{padding-left:4px;}
+  .cart-section-body .cart-item{padding:9px 12px;}
   .cart-section-body .cart-item:last-child{border-bottom:none;}
   .cart-empty-menu{
     color:var(--muted);
