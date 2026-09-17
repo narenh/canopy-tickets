@@ -113,14 +113,27 @@
     margin:0 0 4px;
     font-size:18px;
   }
+  /* Date + time get their own row directly under the title -- it's what
+     you actually scan a list of showtimes for, so it shouldn't be buried
+     mid-way through a pipe-separated run of theater/format/price.
+     Bigger and bolder than .meta, but deliberately the same secondary
+     #ccc: size and weight carry the emphasis, not brightness, so it
+     stays clearly below the white title in the hierarchy. */
+  .card .when{
+    color:#ccc;
+    font-size:15px;
+    font-weight:700;
+    line-height:1.3;
+    margin-bottom:5px;
+  }
   .card .meta{
     color:#ccc;
     font-size:13px;
     line-height:1.4;
-    /* Reserves 2 lines' worth of height even when the text only wraps to
-       one -- keeps the poster's fixed height from ever fighting a
-       shorter info column for the row's height. */
-    min-height:calc(13px * 1.4 * 2);
+    /* No min-height here anymore. It used to reserve 2 lines so a short
+       info column couldn't come out shorter than the poster's fixed
+       90px; the .when row above now supplies that height on its own, and
+       reserving it twice just left a blank gap under a one-line meta. */
     margin-bottom:6px;
   }
   .seats-avail-line{
@@ -627,6 +640,16 @@ function showtimeSubtitle(obj){
   return [obj.theater, formatDateDisplay(obj.date), formatTimeDisplay(obj.time), obj.format, formatPrice(obj.price)]
     .filter(Boolean).join(' | ');
 }
+// A list card splits that same information across two rows -- date/time
+// on its own prominent row, everything else on the .meta line under it.
+// showtimeSubtitle() above is left alone for the picker header, which is
+// a single line of its own and reads fine as one run.
+function showtimeWhen(obj){
+  return [formatDateDisplay(obj.date), formatTimeDisplay(obj.time)].filter(Boolean).join(' \u00b7 ');
+}
+function showtimeWhere(obj){
+  return [obj.theater, obj.format, formatPrice(obj.price)].filter(Boolean).join(' | ');
+}
 
 // Poster art, when this title has any (see server's posterUrlForTitle),
 // goes to the left of the title/info/open-seat-count column -- not the
@@ -663,9 +686,20 @@ function buildCard(obj){
   h3.textContent = obj.title || 'Untitled';
   info.appendChild(h3);
 
+  // Skipped entirely rather than left as an empty row when a showtime
+  // somehow has neither a date nor a time -- an empty div would still
+  // contribute its margin and open a gap under the title.
+  const whenText = showtimeWhen(obj);
+  if (whenText){
+    const when = document.createElement('div');
+    when.className = 'when';
+    when.textContent = whenText;
+    info.appendChild(when);
+  }
+
   const meta = document.createElement('div');
   meta.className = 'meta';
-  meta.textContent = showtimeSubtitle(obj);
+  meta.textContent = showtimeWhere(obj);
   info.appendChild(meta);
 
   const seats = obj.seats || {};
