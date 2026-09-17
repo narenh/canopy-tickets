@@ -54,6 +54,8 @@
     font-size:13px;
     text-align:center;
   }
+  /* 16px: iOS Safari zooms the page in when a smaller control takes focus,
+     and this one is autofocused, so it would zoom before a tap. */
   input{
     width:100%;
     background:#0f0f10;
@@ -61,7 +63,7 @@
     border:1px solid #3a3a3a;
     border-radius:10px;
     padding:12px 14px;
-    font-size:15px;
+    font-size:16px;
     margin-bottom:14px;
   }
   button{

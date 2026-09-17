@@ -271,12 +271,19 @@ and each one shows how many items use it so it's clear what a deletion
 would affect.
 
 The pick is made **on the catalog row, before the line exists** — an
-item with a group shows its dropdown under the **+**, and the **+** stays
+item with a group shows its picker under the **+**, and the **+** stays
 disabled until something is chosen. That's the other half of the order
 list being read-only: a line can't be created half-finished, so there's
-nothing to go back and fix. After each add the dropdown resets to blank,
+nothing to go back and fix. After each add the picker resets to blank,
 so two tenders with the same sauce are as explicit as two with different
 ones.
+
+That picker is a button and a list of buttons rather than a `<select>`,
+and every text field on the friend side is at least 16px, because iOS
+Safari zooms the whole page in when a form control with smaller text
+takes focus and never zooms back out. 16px on a control that sits under
+a 14px item name would dwarf it, so the control stopped being a form
+control instead.
 
 Orders saved before this existed can still be short a pick (a line from
 the old quantity UI, or an item that gained a group afterwards). Those

@@ -386,6 +386,8 @@
     font-size:12px;
     margin-bottom:14px;
   }
+  /* 16px: iOS Safari zooms the whole page in when a text field smaller
+     than that takes focus, and never zooms back out. */
   .claim-card input[type="text"]{
     width:100%;
     background:#0f0f10;
@@ -393,7 +395,7 @@
     border:1px solid #3a3a3a;
     border-radius:10px;
     padding:10px 12px;
-    font-size:15px;
+    font-size:16px;
     margin-bottom:14px;
   }
   .claim-actions{
@@ -641,23 +643,66 @@
     min-width:16px;
     text-align:right;
   }
-  .ci-choice-select{
+  /* A button and a list of buttons rather than a <select>, because iOS
+     Safari zooms the whole page in when a form control with text under
+     16px takes focus and never zooms back out -- and 16px here would
+     out-shout the item name above it. Buttons don't trigger that. */
+  .ci-choice{margin-top:7px;}
+  .ci-choice-btn{
     width:100%;
-    margin-top:7px;
+    display:flex;
+    align-items:center;
+    gap:8px;
     background:#0f0f10;
     color:#fff;
     border:1px solid #2f2f2f;
     border-radius:8px;
-    padding:6px 8px;
+    padding:7px 8px;
     font-size:12.5px;
     font-family:inherit;
+    text-align:left;
+    cursor:pointer;
   }
+  .ci-choice-btn span{flex:1;min-width:0;overflow-wrap:anywhere;}
+  .ci-choice-btn::after{
+    content:'';
+    flex:0 0 auto;
+    width:6px;
+    height:6px;
+    border-right:1.5px solid var(--muted);
+    border-bottom:1.5px solid var(--muted);
+    transform:rotate(45deg);
+    margin-top:-3px;
+  }
+  .ci-choice-btn[aria-expanded="true"]::after{transform:rotate(-135deg);margin-top:3px;}
   /* Amber, not red: nothing is wrong yet, there's just a pick to make
      before the "+" will do anything. */
-  .ci-choice-select.needs-choice{
+  .ci-choice-btn.needs-choice{
     border-color:var(--gold-dark);
     color:var(--gold);
   }
+  .ci-choice-btn.needs-choice::after{border-color:var(--gold);}
+  .ci-choice-btn:disabled{opacity:.5;cursor:not-allowed;}
+  .ci-choice-list{
+    margin-top:4px;
+    border:1px solid #2f2f2f;
+    border-radius:8px;
+    overflow:hidden;
+  }
+  .ci-choice-opt{
+    display:block;
+    width:100%;
+    background:#141416;
+    color:#fff;
+    border:none;
+    border-bottom:1px solid #202023;
+    padding:9px 10px;
+    font-size:12.5px;
+    font-family:inherit;
+    text-align:left;
+    cursor:pointer;
+  }
+  .ci-choice-opt:last-child{border-bottom:none;}
 
   /* ---------- ORDER LIST ---------- */
   .cart-order{
@@ -2133,41 +2178,25 @@ function buildMenuRowEl(row){
   // something to add: half an order of popcorn chicken with no sauce
   // named isn't a thing the host can go and buy.
   const choices = optionsForItem(row.itemId);
-  let select = null;
+  let picker = null;
   if (choices.length){
-    select = document.createElement('select');
-    select.className = 'ci-choice-select needs-choice';
     const label = optionLabelForItem(row.itemId);
-    select.setAttribute('aria-label', label + ' for ' + row.name);
-
-    const blank = document.createElement('option');
-    blank.value = '';
-    blank.textContent = 'Choose ' + label.toLowerCase() + '...';
-    select.appendChild(blank);
-    choices.forEach(name => {
-      const opt = document.createElement('option');
-      opt.value = name;
-      opt.textContent = name;
-      select.appendChild(opt);
+    picker = buildChoicePicker(label, row.name, choices, () => {
+      add.disabled = cartLocked || !picker.value;
     });
-
-    select.addEventListener('change', () => {
-      select.classList.toggle('needs-choice', !select.value);
-      add.disabled = cartLocked || !select.value;
-    });
-    el.appendChild(select);
+    picker.button.disabled = cartLocked;
+    el.appendChild(picker.el);
   }
 
-  add.disabled = cartLocked || !!(select && !select.value);
+  add.disabled = cartLocked || !!(picker && !picker.value);
   add.addEventListener('click', () => {
-    if (select && !select.value) return;
-    addOrderLine(row, select ? select.value : '');
-    if (select){
+    if (picker && !picker.value) return;
+    addOrderLine(row, picker ? picker.value : '');
+    if (picker){
       // Back to blank so the next one is a deliberate pick rather than a
       // silent repeat of the last -- two tenders with the same sauce
       // should be as explicit as two with different ones.
-      select.value = '';
-      select.classList.add('needs-choice');
+      picker.reset();
       add.disabled = true;
     }
   });
@@ -2175,6 +2204,72 @@ function buildMenuRowEl(row){
   menuRowEls.set(row.itemId, { count });
   syncMenuRowCount(row.itemId);
   return el;
+}
+
+// Stands in for a <select>: a button that names the current pick and a
+// list of buttons underneath it. Same two taps as the native picker, but
+// it can be styled to sit under a 14px item name without dwarfing it, and
+// without iOS zooming the page in on focus.
+let openChoicePicker = null;   // only one list open at a time
+
+function buildChoicePicker(label, itemName, choices, onChange){
+  const wrap = document.createElement('div');
+  wrap.className = 'ci-choice';
+
+  const placeholder = 'Choose ' + label.toLowerCase() + '...';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'ci-choice-btn needs-choice';
+  btn.setAttribute('aria-expanded', 'false');
+  btn.setAttribute('aria-label', label + ' for ' + itemName);
+  const text = document.createElement('span');
+  text.textContent = placeholder;
+  btn.appendChild(text);
+  wrap.appendChild(btn);
+
+  const list = document.createElement('div');
+  list.className = 'ci-choice-list';
+  list.hidden = true;
+  wrap.appendChild(list);
+
+  const api = { el: wrap, button: btn, value: '' };
+
+  api.close = function(){
+    list.hidden = true;
+    btn.setAttribute('aria-expanded', 'false');
+    if (openChoicePicker === api) openChoicePicker = null;
+  };
+  api.reset = function(){
+    api.value = '';
+    text.textContent = placeholder;
+    btn.classList.add('needs-choice');
+    api.close();
+  };
+
+  btn.addEventListener('click', () => {
+    if (!list.hidden){ api.close(); return; }
+    if (openChoicePicker) openChoicePicker.close();
+    list.hidden = false;
+    btn.setAttribute('aria-expanded', 'true');
+    openChoicePicker = api;
+  });
+
+  choices.forEach(name => {
+    const opt = document.createElement('button');
+    opt.type = 'button';
+    opt.className = 'ci-choice-opt';
+    opt.textContent = name;
+    opt.addEventListener('click', () => {
+      api.value = name;
+      text.textContent = name;
+      btn.classList.remove('needs-choice');
+      api.close();
+      onChange();
+    });
+    list.appendChild(opt);
+  });
+
+  return api;
 }
 
 function syncMenuRowCount(itemId){
