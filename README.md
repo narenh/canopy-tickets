@@ -285,12 +285,23 @@ whose group has no options behaves exactly like an item with no group
 until someone fills it.
 
 **Sections** keep the list readable. An item can carry a section name,
-and a named section is folded behind a collapsed, slightly indented
-header in the cart instead of sitting inline — that's what keeps 25 candy
-bars from burying the dozen things people usually want. Out of the box
-that's **Drinks** at the top, the food inline, then **Specialty Snacks**
-and **Candy** underneath. A section renders where its *first* item falls
-in the menu, so the order in `DEFAULT_ITEMS` is the order on screen.
+and a named section is folded behind a collapsed header in the cart
+instead of sitting inline — that's what keeps 25 candy bars from burying
+the two things nearly every order has. Out of the box the menu opens on
+**Large Popcorn** and **Large Soda** at the top level, where they cost no
+taps at all, then **More Drinks**, **Hot Food**, **Packaged Snacks** and
+**Candy** folded away underneath. A section renders where its *first*
+item falls in the menu, so the order in `DEFAULT_ITEMS` is the order on
+screen.
+
+A section header is its own card: a gold uppercase label (nothing else in
+the list is gold except the **+** buttons, so a header can't be mistaken
+for an item), a chevron, and the count as a badge that fills in gold when
+something in that section is already in the order. An open section's
+header sticks to the top of the scrolling menu, because the point where a
+25-row section is most confusing is the middle of it. The editor's menu
+panel uses the same treatment, so sections read the same way on both
+sides.
 
 It's presentation only; a section has no bearing on price, options or
 what lands in an order. A section opens itself when it holds something

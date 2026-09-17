@@ -693,44 +693,89 @@
     padding-top:7px;
   }
   .cart-total-row .paid-note{color:var(--green);}
+  /* A section used to be a hairline rule and some bold white text, which
+     read as just another item row -- the headers were easy to scroll
+     straight past. Now each one is a card of its own: its own border,
+     its own darker ground, and clear air above and below. */
   .cart-section{
-    border-top:1px solid #202023;
-    margin-top:4px;
+    margin:12px 0;
+    border:1px solid #26262a;
+    border-radius:12px;
+    background:#101012;
   }
   .cart-section summary{
+    /* Sticks to the top of the scrolling menu while its own section is
+       open, so "which list am I in" is answerable without scrolling back
+       up -- the point where a 25-row section is most confusing is in the
+       middle of it. */
+    position:sticky;
+    top:0;
+    z-index:2;
     display:flex;
-    justify-content:space-between;
     align-items:center;
-    gap:10px;
-    padding:11px 0;
-    font-size:14px;
-    font-weight:700;
-    color:#fff;
+    gap:9px;
+    padding:11px 12px;
+    background:#1a1a1e;
+    border-radius:11px;
+    font-size:11.5px;
+    font-weight:800;
+    letter-spacing:.09em;
+    text-transform:uppercase;
+    /* Gold, not white: nothing else in this list is gold except the "+"
+       buttons, so a header can't be mistaken for an item's name. */
+    color:var(--gold);
     cursor:pointer;
     list-style:none;
+    user-select:none;
   }
   .cart-section summary::-webkit-details-marker{display:none;}
+  .cart-section[open] summary{
+    border-radius:11px 11px 0 0;
+    border-bottom:1px solid #26262a;
+  }
+  /* A real chevron rather than a 5px triangle, and in the accent colour
+     so it reads as a control. */
   .cart-section summary::before{
-    content:'\25b8';
-    display:inline-block;
-    margin-right:2px;
-    color:var(--muted);
-    font-weight:400;
+    content:'';
+    flex:0 0 auto;
+    width:7px;
+    height:7px;
+    border-right:2px solid var(--gold);
+    border-bottom:2px solid var(--gold);
+    transform:rotate(-45deg);
+    margin-left:2px;
+    margin-right:1px;
     transition:transform .15s;
   }
-  .cart-section[open] summary::before{transform:rotate(90deg);}
-  /* The label sits between the caret and the count, so it gets the slack. */
+  .cart-section[open] summary::before{transform:rotate(45deg);margin-top:-3px;}
+  /* The label sits between the chevron and the count, so it gets the slack. */
   .cart-section summary span:first-of-type{flex:1;}
+  /* A pill, so the count reads as a badge on the header rather than as
+     more header text. */
   .cart-section-count{
     flex:0 0 auto;
-    font-size:11.5px;
-    font-weight:400;
+    font-size:10.5px;
+    font-weight:700;
+    letter-spacing:.02em;
+    text-transform:none;
     color:var(--muted);
+    background:#0b0b0d;
+    border:1px solid #2a2a2e;
+    border-radius:999px;
+    padding:2px 8px;
   }
-  .cart-section-body{padding-bottom:4px;}
+  /* Something in this section is in the order -- worth spotting from the
+     collapsed header alone. */
+  .cart-section-count.has-order{
+    color:#241c07;
+    background:var(--gold);
+    border-color:var(--gold);
+  }
+  .cart-section-body{padding:2px 10px 6px;}
   /* Indented so a row inside a section reads as belonging to the header
      above it rather than as another top-level item. */
-  .cart-section-body .cart-item{padding-left:14px;}
+  .cart-section-body .cart-item{padding-left:4px;}
+  .cart-section-body .cart-item:last-child{border-bottom:none;}
   .cart-empty-menu{
     color:var(--muted);
     font-size:13px;
@@ -1821,7 +1866,7 @@ function buildCartSectionEl(name, rows){
   summary.appendChild(label);
 
   const count = document.createElement('span');
-  count.className = 'cart-section-count';
+  count.className = 'cart-section-count' + (inOrder ? ' has-order' : '');
   count.textContent = inOrder ? inOrder + ' in order' : rows.length + ' item' + (rows.length === 1 ? '' : 's');
   count.dataset.total = String(rows.length);
   summary.appendChild(count);
@@ -1941,6 +1986,7 @@ function syncSectionCounts(){
     count.textContent = inOrder
       ? inOrder + ' in order'
       : count.dataset.total + ' item' + (count.dataset.total === '1' ? '' : 's');
+    count.classList.toggle('has-order', inOrder > 0);
   });
 }
 
