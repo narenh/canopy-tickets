@@ -611,6 +611,277 @@
     border:1px solid #5a2323;
     color:#e2857a;
   }
+
+  /* ---------- CONCESSIONS ---------- */
+  /* One editable row per menu item: name, price, remove. Wraps to two
+     lines on a phone rather than squeezing a $-field down to nothing. */
+  /* Two lines per item: name/price/remove on top, note and the option
+     group underneath. Five controls on one line is unreadable at phone
+     width, and the second line is the less-used half. */
+  .menu-row{
+    margin-bottom:12px;
+    padding-bottom:12px;
+    border-bottom:1px solid #202023;
+  }
+  .menu-row:last-child{border-bottom:none;}
+  .menu-row-top, .menu-row-bottom{
+    display:flex;
+    gap:8px;
+    align-items:center;
+    flex-wrap:wrap;
+  }
+  .menu-row-bottom{margin-top:7px;}
+  .menu-row input.menu-note{
+    flex:1 1 160px;
+    min-width:0;
+    background:#0f0f10;
+    color:#ccc;
+    border:1px solid #2f2f2f;
+    border-radius:10px;
+    padding:6px 10px;
+    font-size:12px;
+  }
+  .menu-row select.menu-group{
+    flex:0 0 auto;
+    background:#0f0f10;
+    color:#ccc;
+    border:1px solid #2f2f2f;
+    border-radius:10px;
+    padding:6px 8px;
+    font-size:12px;
+    font-family:inherit;
+    max-width:48%;
+  }
+  .menu-row input.menu-section-input{
+    flex:0 1 96px;
+    min-width:70px;
+    background:#0f0f10;
+    color:#ccc;
+    border:1px solid #2f2f2f;
+    border-radius:10px;
+    padding:6px 10px;
+    font-size:12px;
+  }
+  /* Same treatment as the reservation page's cart, so a section reads
+     the same way on both sides: its own card, a gold uppercase label
+     nothing else in the list uses, and the count as a badge. */
+  /* Square for the same reason as the cart's sections -- see the comment
+     on .cart-section in views/public.html. */
+  .menu-section{
+    border:1px solid #26262a;
+    background:#101012;
+    margin:12px 0;
+  }
+  .menu-section summary{
+    display:flex;
+    align-items:center;
+    gap:9px;
+    cursor:pointer;
+    background:#1a1a1e;
+    color:var(--gold);
+    font-size:11.5px;
+    font-weight:800;
+    letter-spacing:.09em;
+    text-transform:uppercase;
+    padding:10px 12px;
+    list-style:none;
+    user-select:none;
+  }
+  .menu-section summary::-webkit-details-marker{display:none;}
+  .menu-section[open] summary{
+    border-bottom:1px solid #26262a;
+  }
+  .menu-section summary::before{
+    content:'';
+    flex:0 0 auto;
+    width:7px;
+    height:7px;
+    border-right:2px solid var(--gold);
+    border-bottom:2px solid var(--gold);
+    transform:rotate(-45deg);
+    margin-left:2px;
+    transition:transform .15s;
+  }
+  .menu-section[open] summary::before{transform:rotate(45deg);margin-top:-3px;}
+  .menu-section summary span:first-of-type{flex:1;}
+  /* Plain text, matching the cart -- a bordered chip on every section
+     was more furniture than the number deserves. */
+  .menu-section-count{
+    flex:0 0 auto;
+    font-size:10.5px;
+    font-weight:700;
+    letter-spacing:.02em;
+    text-transform:none;
+    color:var(--muted);
+  }
+  /* Padding rather than margins, so each row's rule runs the full width
+     of the section the way the header's does instead of stopping short
+     at both ends. */
+  .menu-section > .menu-row{margin:0;padding:12px;}
+  .menu-section .menu-row:last-child{border-bottom:none;}
+  .group-row{
+    margin-bottom:12px;
+    padding-bottom:12px;
+    border-bottom:1px solid #202023;
+  }
+  .group-row:last-child{border-bottom:none;}
+  .group-row-top{
+    display:flex;
+    gap:8px;
+    align-items:center;
+    margin-bottom:7px;
+  }
+  .group-row input.group-label{
+    flex:1 1 140px;
+    min-width:0;
+    background:#0f0f10;
+    color:#fff;
+    border:1px solid #3a3a3a;
+    border-radius:10px;
+    padding:8px 10px;
+    font-size:13px;
+  }
+  .group-used{
+    flex:0 0 auto;
+    font-size:11px;
+    color:var(--muted);
+    white-space:nowrap;
+  }
+  .option-box{
+    width:100%;
+    background:#0f0f10;
+    color:#fff;
+    border:1px solid #2f2f2f;
+    border-radius:10px;
+    padding:8px 10px;
+    font-size:12.5px;
+    font-family:inherit;
+    line-height:1.5;
+    min-height:88px;
+    resize:vertical;
+  }
+  .menu-subhead{
+    margin:16px 0 4px;
+    font-size:13px;
+    color:#fff;
+    font-weight:700;
+  }
+  .menu-subnote{
+    color:var(--muted);
+    font-size:12px;
+    margin:0 0 8px;
+  }
+  .menu-row input.menu-name{
+    flex:1 1 160px;
+    min-width:0;
+    background:#0f0f10;
+    color:#fff;
+    border:1px solid #3a3a3a;
+    border-radius:10px;
+    padding:8px 10px;
+    font-size:13px;
+  }
+  .menu-price-wrap{
+    display:flex;
+    align-items:center;
+    gap:4px;
+    color:var(--muted);
+    font-size:13px;
+  }
+  .menu-row input.menu-price{
+    width:84px;
+    background:#0f0f10;
+    color:#fff;
+    border:1px solid #3a3a3a;
+    border-radius:10px;
+    padding:8px 10px;
+    font-size:13px;
+  }
+  .menu-remove-btn{
+    padding:6px 12px;
+    font-size:12px;
+    background:#2a1616;
+    border:1px solid #5a2323;
+    color:#e2857a;
+  }
+  .menu-empty{
+    color:var(--muted);
+    font-size:12px;
+    margin-bottom:10px;
+  }
+  /* Concession orders, on the list card and in the editor. */
+  .card .concession-line{
+    color:var(--muted);
+    font-size:11.5px;
+    margin:-1px 0 5px 0;
+    overflow-wrap:anywhere;
+  }
+  .orders{
+    padding:6px 20px 4px;
+    font-size:13px;
+    color:#ddd;
+  }
+  .orders h4{
+    margin:12px 0 6px;
+    font-size:13px;
+    color:#fff;
+  }
+  .orders-empty{color:var(--muted);font-size:12.5px;}
+  .order-line{
+    margin-bottom:5px;
+    line-height:1.4;
+  }
+  .order-line b{color:var(--gold);}
+  .order-line .order-items{color:var(--muted);overflow-wrap:anywhere;}
+  /* The roll-up the host actually reads at the counter: one line per
+     item, summed across every seat, so it's a shopping list rather than
+     a per-person receipt they'd have to add up themselves. */
+  .order-rollup{
+    margin-top:10px;
+    padding:10px 12px;
+    background:#151517;
+    border:1px solid #2a2a2a;
+    border-radius:12px;
+  }
+  .rollup-line{
+    display:flex;
+    justify-content:space-between;
+    gap:12px;
+    padding:2px 0;
+  }
+  /* Reads as an aside to the item list above it, not another priced
+     line -- there's no dollar figure on the right, just the picks. */
+  .rollup-line.is-options{
+    color:var(--muted);
+    font-size:12px;
+    border-top:1px solid #202023;
+    margin-top:5px;
+    padding-top:6px;
+  }
+  .rollup-line.is-options span:last-child{text-align:right;overflow-wrap:anywhere;}
+  .rollup-line.is-total{
+    border-top:1px solid #2a2a2a;
+    margin-top:6px;
+    padding-top:7px;
+    font-weight:700;
+    color:#fff;
+  }
+  .se-order{
+    background:#0f0f10;
+    border:1px solid #2a2a2a;
+    border-radius:10px;
+    padding:10px 12px;
+    margin-bottom:14px;
+    font-size:12.5px;
+    color:#ddd;
+  }
+  .se-order .se-order-head{
+    color:var(--muted);
+    font-size:11px;
+    margin-bottom:5px;
+  }
+  .se-order .se-order-line{margin-bottom:3px;overflow-wrap:anywhere;}
+  .se-order .se-order-total{color:var(--gold);margin-top:5px;font-weight:700;}
 </style>
 </head>
 <body>
@@ -661,6 +932,31 @@
         <button type="button" onclick="uploadOgImage()">Upload</button>
       </div>
       <div class="og-status" id="ogStatus"></div>
+    </div>
+
+    <div class="og-section">
+      <h3>Concessions Menu</h3>
+      <p>What friends can order from the reservation page. Ships with the AMC menu already filled in -- edit, reprice, add or remove anything and save, and your version takes over. One list for every showtime; orders are attached to each reserved seat, and friends can change theirs until 2 hours before showtime. Removing an item here doesn't disturb orders already placed -- those keep the name and price they were placed at.</p>
+      <div id="menuRows"></div>
+      <!-- Every section name already in use, so filing an item under one
+           is a pick rather than a retype (sections match on exact text). -->
+      <datalist id="sectionSuggestions"></datalist>
+      <div class="og-controls">
+        <button type="button" onclick="addMenuRow()">+ Add item</button>
+      </div>
+
+      <div class="menu-subhead">Option groups</div>
+      <p class="menu-subnote">Lists of choices an item comes with, one option per line. Friends pick one per unit ordered, so two chicken tenders get two picks. A group can be shared by several items (everything fried points at Sauce) or belong to just one (a pizza's toppings) -- assign it with the dropdown on each item above.</p>
+      <div id="groupRows"></div>
+      <div class="og-controls">
+        <button type="button" onclick="addOptionGroup()">+ Add group</button>
+      </div>
+
+      <div class="og-controls" style="margin-top:10px;">
+        <button type="button" onclick="saveConcessionMenu()">Save menu</button>
+        <button type="button" id="menuResetBtn" class="hidden" onclick="resetConcessionMenu()">Restore AMC menu</button>
+      </div>
+      <div class="og-status" id="menuStatus"></div>
     </div>
 
     <div class="og-section">
@@ -745,6 +1041,11 @@
 
     <div class="summary" id="summary">Your seats: <b>none</b></div>
 
+    <!-- What friends have ordered for this showtime, per seat plus a
+         summed shopping list. Built from the seats currently loaded in
+         the editor, so it reflects unsaved seat edits too. -->
+    <div class="orders" id="orders"></div>
+
     <div class="toolbar-note">Tap a yellow seat to add it to your block. Tap a green seat to assign it to a friend. Tap a red seat to edit, clear, or release it.</div>
 
     <div class="legend">
@@ -765,6 +1066,11 @@
   <div class="seat-editor-overlay hidden" id="seatEditorOverlay">
     <div class="seat-editor-card">
       <div class="seat-editor-title" id="seatEditorTitle">Seat</div>
+      <!-- Read-only on purpose: the friend who reserved this seat owns
+           their order and can change it themselves from the reservation
+           page right up to the cutoff. This is here so you can see what
+           they asked for while you're assigning/marking the seat. -->
+      <div class="se-order hidden" id="seatEditorOrder"></div>
       <label class="se-field">
         <span>Assigned to (leave blank = available for a friend to claim)</span>
         <input type="text" id="seatEditorName" placeholder="e.g. Jordan">
@@ -796,31 +1102,94 @@ const WHEELCHAIR_ICON_SVG =
   '<path d="M12.51 17.5c-.739 1.476-2.25 2.5-4.01 2.5A4.505 4.505 0 0 1 4 15.5a4.503 4.503 0 0 1 2.817-4.167l-.289-2.025C3.905 10.145 2 12.604 2 15.5 2 19.084 4.916 22 8.5 22a6.497 6.497 0 0 0 5.545-3.126l-.274-1.374H12.51z"/></svg>';
 
 let currentId = null;      // null = unsaved new showtime
-let seatStates = {};       // seatId -> { status: 'occupied' } | { status: 'assigned', name, paid }
+let seatStates = {};       // seatId -> { status: 'occupied' } | { status: 'assigned', name, paid, concessions }
 let seatEls = {};          // seatId -> DOM element, populated by buildSeatGrid
 let editingSeatId = null;
 
+// Today's date as the calendar on the wall has it, NOT as UTC has it.
+//
+// This used to be toISOString().slice(0,10), which is UTC -- so from 5pm
+// Pacific (midnight UTC) onwards it returned TOMORROW, and every showtime
+// dated today started comparing as past. Tonight's movie would drop off
+// the friend list and into the collapsed Past section exactly when people
+// were opening the page to use it. A showtime's `date` comes from an
+// <input type="date">, which is local, so the thing it's compared against
+// has to be local too.
 function todayISO(){
   const d = new Date();
-  return d.toISOString().slice(0,10);
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return d.getFullYear() + '-' + month + '-' + day;
 }
+
+// The host's name, hardcoded for now in both here and lib/seats.js (see
+// the comment on HOST_SEAT_NAME there). They buy every ticket and every
+// tray, so a seat with their name on it is settled by definition -- if
+// the editor showed those as unpaid it would be arguing with the server
+// about money that doesn't exist.
+const HOST_SEAT_NAME = /\bnaren\b/i;
 
 // Normalizes a raw seat entry -- handles the legacy string format
 // ('selected' / 'occupied') from before per-seat names/paid tracking
 // existed, alongside the current object format. Returns null for
-// "available" (i.e. no entry at all).
+// "available" (i.e. no entry at all). Mirrors lib/seats.js -- keep the
+// two in sync.
+//
+// The `concessions` passthrough matters more than it looks: this editor
+// saves the WHOLE seats object, so anything this function drops is
+// dropped from disk on the next save. Friends' orders live on the seat,
+// so losing them here would quietly delete every order the moment the
+// host touched a showtime.
 function normalizeSeatEntry(raw){
   if (!raw) return null;
   if (typeof raw === 'string'){
-    if (raw === 'selected') return { status: 'assigned', name: '', paid: true };
+    if (raw === 'selected') return { status: 'assigned', name: '', paid: true, concessions: [] };
     if (raw === 'occupied') return { status: 'occupied' };
     return null;
   }
   if (typeof raw === 'object'){
-    if (raw.status === 'assigned') return { status: 'assigned', name: raw.name || '', paid: !!raw.paid };
+    if (raw.status === 'assigned'){
+      const name = raw.name || '';
+      return {
+        status: 'assigned',
+        name,
+        paid: !!raw.paid || HOST_SEAT_NAME.test(name),
+        // A seat with nobody's name on it has nobody to order for it.
+        concessions: name && Array.isArray(raw.concessions) ? raw.concessions : []
+      };
+    }
     if (raw.status === 'occupied') return { status: 'occupied' };
   }
   return null;
+}
+
+function concessionsTotal(lines){
+  const total = (lines || []).reduce((sum, l) => sum + (l.price || 0) * (l.qty || 0), 0);
+  return Math.round(total * 100) / 100;
+}
+
+function concessionTax(subtotal){
+  if (!(subtotal > 0) || !(concessionTaxRate > 0)) return 0;
+  return Math.round(subtotal * concessionTaxRate * 100) / 100;
+}
+
+function formatTaxRate(rate){
+  return (rate * 100).toFixed(3).replace(/0+$/, '').replace(/\.$/, '') + '%';
+}
+
+// "Chicken Tenders x2 (BBQ, Ranch)" -- one cart line in words. The
+// the picks are part of the item's identity at the counter, not a
+// footnote, so they ride along everywhere the line is named.
+function concessionLineLabel(l){
+  const options = (l.options || []).filter(Boolean);
+  return l.name + (l.qty > 1 ? ' \u00d7' + l.qty : '') + (options.length ? ' (' + options.join(', ') + ')' : '');
+}
+
+// The compact form used on list cards and in the seat editor, where the
+// per-item prices would just be noise.
+function concessionSummary(lines){
+  if (!lines || !lines.length) return '';
+  return lines.map(concessionLineLabel).join(', ');
 }
 
 function normalizeSeats(rawSeats){
@@ -1014,7 +1383,14 @@ function buildCard(obj){
     const namedLines = namedIds.map(id => {
       const s = seats[id];
       const paidTag = '<span class="' + (s.paid ? 'paid-tag">&#10003; paid' : 'unpaid-tag">unpaid') + '</span>';
-      return '<div class="seat-line"><b>' + escapeHtml(s.name) + '</b> <span class="seat-id">(' + escapeHtml(id) + ')</span>' + paidTag + '</div>';
+      // One line under the name rather than a separate orders block:
+      // on the list you only want to know at a glance whether there's
+      // anything to buy. The full breakdown lives in the editor.
+      const order = (s.concessions || []).length
+        ? '<div class="concession-line">&#127871; ' + escapeHtml(concessionSummary(s.concessions)) +
+          ' &mdash; ' + escapeHtml(formatPrice(concessionsTotal(s.concessions))) + '</div>'
+        : '';
+      return '<div class="seat-line"><b>' + escapeHtml(s.name) + '</b> <span class="seat-id">(' + escapeHtml(id) + ')</span>' + paidTag + '</div>' + order;
     }).join('');
     const namedList = document.createElement('div');
     namedList.className = 'claimed-list';
@@ -1227,7 +1603,7 @@ function renderSeat(id){
 function seatTap(id){
   const cur = seatStates[id];
   if (!cur || cur.status !== 'assigned'){
-    seatStates[id] = { status: 'assigned', name: '', paid: false };
+    seatStates[id] = { status: 'assigned', name: '', paid: false, concessions: [] };
     renderSeat(id);
     updateSummary();
     return;
@@ -1240,11 +1616,33 @@ function openSeatEditor(id){
   const cur = seatStates[id];
   const hasName = !!(cur && cur.name);
   document.getElementById('seatEditorTitle').textContent = 'Seat ' + id;
+  renderSeatEditorOrder(cur);
   document.getElementById('seatEditorName').value = hasName ? cur.name : '';
   document.getElementById('seatEditorPaid').checked = !!(cur && cur.paid);
   document.getElementById('seatEditorClearBtn').classList.toggle('hidden', !hasName);
   document.getElementById('seatEditorOverlay').classList.remove('hidden');
   setTimeout(() => document.getElementById('seatEditorName').focus(), 0);
+}
+
+// The friend's own order for this seat, shown while you're editing the
+// seat. Read-only -- they own it and can change it from the reservation
+// page until the cutoff; this is just so "who ordered the large Icee"
+// is answerable without leaving the editor.
+function renderSeatEditorOrder(seat){
+  const el = document.getElementById('seatEditorOrder');
+  const lines = seat && seat.status === 'assigned' && seat.name ? (seat.concessions || []) : [];
+  if (!lines.length){
+    el.classList.add('hidden');
+    el.innerHTML = '';
+    return;
+  }
+  const rows = lines.map(l => {
+    const note = l.note ? ' <span class="seat-id">(' + escapeHtml(l.note) + ')</span>' : '';
+    return '<div class="se-order-line">' + escapeHtml(concessionLineLabel(l)) + note + '</div>';
+  }).join('');
+  el.innerHTML = '<div class="se-order-head">Ordered from the reservation page</div>' + rows +
+    '<div class="se-order-total">' + escapeHtml(formatPrice(concessionsTotal(lines))) + '</div>';
+  el.classList.remove('hidden');
 }
 
 function closeSeatEditor(){
@@ -1256,7 +1654,13 @@ function applySeatEdit(){
   if (!editingSeatId) return;
   const name = document.getElementById('seatEditorName').value.trim();
   const paid = document.getElementById('seatEditorPaid').checked;
-  seatStates[editingSeatId] = { status: 'assigned', name, paid };
+  const prior = seatStates[editingSeatId];
+  // Fixing a typo in a name or ticking "paid" must not throw away what
+  // that person ordered -- carry the cart through. Blanking the name is
+  // the one case that clears it (see clearNameFromEditor), and
+  // normalizeSeatEntry enforces that regardless of what's passed here.
+  const priorCart = prior && prior.status === 'assigned' ? (prior.concessions || []) : [];
+  seatStates[editingSeatId] = { status: 'assigned', name, paid, concessions: name ? priorCart : [] };
   renderSeat(editingSeatId);
   updateSummary();
   closeSeatEditor();
@@ -1266,7 +1670,13 @@ function applySeatEdit(){
 // (green, available) so someone else can grab it.
 function clearNameFromEditor(){
   if (!editingSeatId) return;
-  seatStates[editingSeatId] = { status: 'assigned', name: '', paid: false };
+  // The explicit empty cart isn't decoration: the server treats a seat
+  // arriving with NO concessions key as "an older client that doesn't
+  // know about carts" and keeps whatever's on disk (see
+  // preserveConcessions in server.js). Sending [] is how this says
+  // "actually clear it" -- which is right, since the order belonged to
+  // the person whose name is being removed.
+  seatStates[editingSeatId] = { status: 'assigned', name: '', paid: false, concessions: [] };
   renderSeat(editingSeatId);
   updateSummary();
   closeSeatEditor();
@@ -1285,6 +1695,7 @@ function releaseSeatFromEditor(){
 function updateSummary(){
   const blockIds = Object.keys(seatStates).filter(id => seatStates[id].status === 'assigned').sort(compareSeatIds);
   const summary = document.getElementById('summary');
+  renderOrders();
   if (blockIds.length === 0){
     summary.innerHTML = 'Your seats: <b>none</b>';
     return;
@@ -1296,6 +1707,93 @@ function updateSummary(){
     return '<div class="summary-line">' + escapeHtml(id) + ': <b>' + label + '</b>' + paidTag + '</div>';
   });
   summary.innerHTML = 'Your seats (' + blockIds.length + '):' + lines.join('');
+}
+
+// Per-seat orders plus the summed shopping list, rebuilt whenever the
+// seat summary is. Reads seatStates (not the server's copy) so it stays
+// correct against edits that haven't been saved yet.
+function renderOrders(){
+  const el = document.getElementById('orders');
+  const ordered = Object.keys(seatStates)
+    .filter(id => seatStates[id].status === 'assigned' && seatStates[id].name && (seatStates[id].concessions || []).length)
+    .sort(compareSeatIds);
+
+  if (ordered.length === 0){
+    el.innerHTML = '<h4>Concessions</h4><div class="orders-empty">Nothing ordered yet. Friends add items from the reservation page; what they pick shows up here.</div>';
+    return;
+  }
+
+  const perSeat = ordered.map(id => {
+    const seat = seatStates[id];
+    const lines = seat.concessions || [];
+    const detail = lines.map(l => {
+      const note = l.note ? ' \u2014 ' + escapeHtml(l.note) : '';
+      return escapeHtml(concessionLineLabel(l)) + note;
+    }).join(', ');
+    // Tax included, because this is the figure that person was quoted and
+    // so the figure they'll hand over. (Rounding each seat separately can
+    // leave the seats summing a cent or two from the tax on the whole
+    // order below -- which is real, not a bug: the counter taxes one
+    // receipt, four friends each round their own.)
+    const seatSubtotal = concessionsTotal(lines);
+    return '<div class="order-line"><b>' + escapeHtml(seat.name) + '</b> <span class="seat-id">(' + escapeHtml(id) + ')</span>' +
+      ' &mdash; ' + formatPrice(Math.round((seatSubtotal + concessionTax(seatSubtotal)) * 100) / 100) +
+      '<div class="order-items">' + detail + '</div></div>';
+  }).join('');
+
+  // Summed by item NAME, not id: two lines for the same snack placed
+  // before and after the host renamed it are still the same thing to
+  // buy, and the counter doesn't care what the id was.
+  const totals = new Map();
+  ordered.forEach(id => {
+    (seatStates[id].concessions || []).forEach(l => {
+      const prev = totals.get(l.name) || { qty: 0, total: 0 };
+      prev.qty += l.qty;
+      prev.total += (l.price || 0) * l.qty;
+      totals.set(l.name, prev);
+    });
+  });
+
+  let grand = 0;
+  const rollupLines = Array.from(totals.entries()).map(([name, t]) => {
+    grand += t.total;
+    return '<div class="rollup-line"><span>' + escapeHtml(name) + ' \u00d7' + t.qty + '</span><span>' +
+      escapeHtml(formatPrice(Math.round(t.total * 100) / 100)) + '</span></div>';
+  }).join('');
+
+  // Picks get their own tally: at the counter "and three BBQ, one icing"
+  // is a separate ask, and reading it back off six individual orders is
+  // exactly the counting this panel exists to save.
+  const optionCounts = new Map();
+  ordered.forEach(id => {
+    (seatStates[id].concessions || []).forEach(l => {
+      (l.options || []).filter(Boolean).forEach(name => {
+        optionCounts.set(name, (optionCounts.get(name) || 0) + 1);
+      });
+    });
+  });
+  const optionRollup = optionCounts.size
+    ? '<div class="rollup-line is-options"><span>Choices</span><span>' +
+      escapeHtml(Array.from(optionCounts.entries()).map(([n, c]) => n + ' \u00d7' + c).join(', ')) +
+      '</span></div>'
+    : '';
+
+  // The roll-up is what gets handed over at the counter, so it carries
+  // tax -- a shopping list that adds up to less than the receipt is the
+  // one way this panel could mislead.
+  const subtotal = Math.round(grand * 100) / 100;
+  const tax = concessionTax(subtotal);
+  const taxRow = tax > 0
+    ? '<div class="rollup-line"><span>Tax (' + escapeHtml(formatTaxRate(concessionTaxRate)) + ')</span><span>' +
+      escapeHtml(formatPrice(tax)) + '</span></div>'
+    : '';
+
+  el.innerHTML =
+    '<h4>Concessions (' + ordered.length + ' seat' + (ordered.length === 1 ? '' : 's') + ')</h4>' +
+    perSeat +
+    '<div class="order-rollup">' + rollupLines + optionRollup + taxRow +
+    '<div class="rollup-line is-total"><span>Total to buy</span><span>' +
+    escapeHtml(formatPrice(Math.round((subtotal + tax) * 100) / 100)) + '</span></div></div>';
 }
 
 // ---------------- SAVE / DELETE ----------------
@@ -1498,6 +1996,342 @@ async function saveSharedPassword(){
 }
 
 // ---------------- PAYMENT HANDLES ----------------
+// ---------------- CONCESSIONS MENU ----------------
+//
+// One global menu shared by every showtime (see lib/concessionMenu.js).
+// Edited as a plain list of rows and saved whole -- reordering, renaming
+// and deleting are then all the same operation, and a row keeps its id
+// across saves so editing an item is an edit rather than a delete plus a
+// re-add (which would orphan it from carts that reference it).
+
+let menuItems = [];     // [{id, name, price, note, section, optionGroup}] -- id is '' for a row added here and not yet saved
+let optionGroups = [];  // [{id, label, options[]}] -- the choice lists items point at
+let menuIsDefault = true;  // true while the built-in AMC menu is what's in effect
+// Served alongside the menu so this panel and the reservation page can't
+// drift apart on it. Applies to concessions only -- the tickets aren't
+// taxed, and they're already paid for by the time this matters.
+let concessionTaxRate = 0;
+
+function renderMenuRows(){
+  const container = document.getElementById('menuRows');
+  container.innerHTML = '';
+  refreshSectionSuggestions();
+  if (menuItems.length === 0){
+    const empty = document.createElement('div');
+    empty.className = 'menu-empty';
+    empty.textContent = "No items -- friends can't order anything until you add one, or restore the AMC menu below.";
+    container.appendChild(empty);
+    return;
+  }
+
+  // Same split the reservation page makes: unsectioned rows inline,
+  // named sections folded away. 25 candy bars between the food and the
+  // option groups is a lot of scrolling past on the way to anything else.
+  //
+  // Rows are filed by whatever the section field said at render time and
+  // do NOT jump between sections as it's typed -- re-rendering on every
+  // keystroke would yank focus out of the field mid-word. A row lands in
+  // its new section on the next save.
+  const sections = new Map();
+  menuItems.forEach((item, idx) => {
+    if (!item.section){
+      container.appendChild(buildMenuRow(item, idx));
+      return;
+    }
+    if (!sections.has(item.section)) sections.set(item.section, []);
+    sections.get(item.section).push({ item, idx });
+  });
+  sections.forEach((entries, name) => {
+    const wrap = document.createElement('details');
+    wrap.className = 'menu-section';
+    const summary = document.createElement('summary');
+    const label = document.createElement('span');
+    label.textContent = name;
+    summary.appendChild(label);
+    const count = document.createElement('span');
+    count.className = 'menu-section-count';
+    count.textContent = entries.length + ' item' + (entries.length === 1 ? '' : 's');
+    summary.appendChild(count);
+    wrap.appendChild(summary);
+    entries.forEach(({ item, idx }) => wrap.appendChild(buildMenuRow(item, idx)));
+    container.appendChild(wrap);
+  });
+}
+
+// Feeds the datalist behind each row's section field, so filing an item
+// under an existing section is a pick rather than a retype it can only
+// get subtly wrong (a section is matched by its exact text).
+function refreshSectionSuggestions(){
+  const list = document.getElementById('sectionSuggestions');
+  const names = Array.from(new Set(menuItems.map(i => i.section).filter(Boolean))).sort();
+  list.innerHTML = names.map(n => '<option value="' + escapeHtml(n) + '"></option>').join('');
+}
+
+function buildMenuRow(item, idx){
+  const row = document.createElement('div');
+  row.className = 'menu-row';
+
+  const top = document.createElement('div');
+  top.className = 'menu-row-top';
+
+  const name = document.createElement('input');
+  name.type = 'text';
+  name.className = 'menu-name';
+  name.placeholder = 'Item name (e.g. Large Popcorn)';
+  name.maxLength = 120;
+  name.value = item.name || '';
+  name.addEventListener('input', () => { menuItems[idx].name = name.value; });
+  top.appendChild(name);
+
+  const priceWrap = document.createElement('div');
+  priceWrap.className = 'menu-price-wrap';
+  priceWrap.appendChild(document.createTextNode('$'));
+  const price = document.createElement('input');
+  price.type = 'number';
+  price.className = 'menu-price';
+  price.step = '0.01';
+  price.min = '0';
+  price.placeholder = '0.00';
+  price.value = (typeof item.price === 'number' && item.price > 0) ? item.price.toFixed(2) : '';
+  price.addEventListener('input', () => { menuItems[idx].price = price.value; });
+  priceWrap.appendChild(price);
+  top.appendChild(priceWrap);
+
+  const remove = document.createElement('button');
+  remove.type = 'button';
+  remove.className = 'menu-remove-btn';
+  remove.textContent = 'Remove';
+  // Removing here only drops it off the menu -- orders already placed
+  // keep their own copy of the name and price (see lib/seats.js), so
+  // nobody's cart empties out because the host tidied the list.
+  remove.onclick = () => {
+    menuItems.splice(idx, 1);
+    renderMenuRows();
+    document.getElementById('menuStatus').textContent = 'Removed -- save the menu to apply it.';
+  };
+  top.appendChild(remove);
+  row.appendChild(top);
+
+  const bottom = document.createElement('div');
+  bottom.className = 'menu-row-bottom';
+
+  // Free text shown under the item on the reservation page. Nothing
+  // computes off it -- "50c off" is a label explaining why the price
+  // isn't the price on the board, not a discount the app applies.
+  const note = document.createElement('input');
+  note.type = 'text';
+  note.className = 'menu-note';
+  note.placeholder = 'Note shown to friends (e.g. 50\u00a2 off)';
+  note.maxLength = 120;
+  note.value = item.note || '';
+  note.addEventListener('input', () => { menuItems[idx].note = note.value; });
+  bottom.appendChild(note);
+
+  // Presentation only: a named section is collapsed behind a header both
+  // here and in the friend's cart. Blank keeps the item in the main list.
+  const section = document.createElement('input');
+  section.type = 'text';
+  section.className = 'menu-section-input';
+  section.setAttribute('list', 'sectionSuggestions');
+  section.placeholder = 'Section';
+  section.maxLength = 60;
+  section.value = item.section || '';
+  section.addEventListener('input', () => { menuItems[idx].section = section.value; });
+  bottom.appendChild(section);
+
+  // Which list of choices this item comes with, if any. Rebuilt from
+  // optionGroups every render, so adding a group makes it selectable on
+  // every item without a reload.
+  const group = document.createElement('select');
+  group.className = 'menu-group';
+  const none = document.createElement('option');
+  none.value = '';
+  none.textContent = 'No choices';
+  group.appendChild(none);
+  optionGroups.forEach(g => {
+    const opt = document.createElement('option');
+    opt.value = g.id;
+    opt.textContent = g.label || 'Untitled group';
+    group.appendChild(opt);
+  });
+  // A brand-new group has no id until it's saved, so an item can't point
+  // at one yet -- selecting it falls back to "No choices" here and the
+  // host reassigns after saving. Keeps ids the single source of truth
+  // rather than matching groups by their (editable) label.
+  group.value = optionGroups.some(g => g.id && g.id === item.optionGroup) ? item.optionGroup : '';
+  menuItems[idx].optionGroup = group.value;
+  group.addEventListener('change', () => { menuItems[idx].optionGroup = group.value; });
+  bottom.appendChild(group);
+
+  row.appendChild(bottom);
+  return row;
+}
+
+// ---------- option groups ----------
+
+function renderGroupRows(){
+  const container = document.getElementById('groupRows');
+  container.innerHTML = '';
+  if (optionGroups.length === 0){
+    const empty = document.createElement('div');
+    empty.className = 'menu-empty';
+    empty.textContent = 'No option groups. Add one if an item comes with a choice (a sauce, a flavor, a topping).';
+    container.appendChild(empty);
+    return;
+  }
+  optionGroups.forEach((g, idx) => container.appendChild(buildGroupRow(g, idx)));
+}
+
+function buildGroupRow(group, idx){
+  const row = document.createElement('div');
+  row.className = 'group-row';
+
+  const top = document.createElement('div');
+  top.className = 'group-row-top';
+
+  const label = document.createElement('input');
+  label.type = 'text';
+  label.className = 'group-label';
+  label.placeholder = 'Group name (e.g. Sauce)';
+  label.maxLength = 60;
+  label.value = group.label || '';
+  // Updates the matching <option> text in place rather than re-rendering
+  // the item rows, which would yank focus out of this field mid-word.
+  label.addEventListener('input', () => {
+    optionGroups[idx].label = label.value;
+    document.querySelectorAll('#menuRows select.menu-group option').forEach(opt => {
+      if (opt.value && opt.value === optionGroups[idx].id) opt.textContent = label.value || 'Untitled group';
+    });
+    used.textContent = groupUsageLabel(optionGroups[idx].id);
+  });
+  top.appendChild(label);
+
+  const used = document.createElement('div');
+  used.className = 'group-used';
+  used.textContent = groupUsageLabel(group.id);
+  top.appendChild(used);
+
+  const remove = document.createElement('button');
+  remove.type = 'button';
+  remove.className = 'menu-remove-btn';
+  remove.textContent = 'Remove';
+  // Items pointing at it fall back to "No choices" -- the server drops
+  // dangling references on save too, so the two can't disagree.
+  remove.onclick = () => {
+    const goneId = optionGroups[idx].id;
+    optionGroups.splice(idx, 1);
+    menuItems.forEach(it => { if (it.optionGroup === goneId) it.optionGroup = ''; });
+    renderGroupRows();
+    renderMenuRows();
+    document.getElementById('menuStatus').textContent = 'Removed -- save the menu to apply it.';
+  };
+  top.appendChild(remove);
+  row.appendChild(top);
+
+  const box = document.createElement('textarea');
+  box.className = 'option-box';
+  box.placeholder = 'One option per line';
+  box.value = (group.options || []).join('\n');
+  box.addEventListener('input', () => {
+    optionGroups[idx].options = box.value.split('\n').map(v => v.trim()).filter(Boolean);
+  });
+  row.appendChild(box);
+
+  return row;
+}
+
+// "used by 3 items" / "not used yet" -- the answer to "can I delete this",
+// which is otherwise a scroll back up through 39 dropdowns.
+function groupUsageLabel(id){
+  if (!id) return 'new';
+  const n = menuItems.filter(it => it.optionGroup === id).length;
+  return n === 0 ? 'not used yet' : ('used by ' + n + ' item' + (n === 1 ? '' : 's'));
+}
+
+function addOptionGroup(){
+  optionGroups.push({ id: '', label: '', options: [] });
+  renderGroupRows();
+  const labels = document.querySelectorAll('#groupRows input.group-label');
+  if (labels.length) labels[labels.length - 1].focus();
+}
+
+function addMenuRow(){
+  menuItems.push({ id: '', name: '', price: '', note: '', section: '', optionGroup: '' });
+  renderMenuRows();
+  const inputs = document.querySelectorAll('#menuRows input.menu-name');
+  if (inputs.length) inputs[inputs.length - 1].focus();
+}
+
+// Applies a {items, optionGroups, isDefault} payload from either endpoint to
+// the whole panel, so load, save and reset all land the same way.
+function applyMenuPayload(data){
+  menuItems = Array.isArray(data.items) ? data.items : [];
+  if (typeof data.taxRate === 'number') concessionTaxRate = data.taxRate;
+  optionGroups = Array.isArray(data.optionGroups) ? data.optionGroups : [];
+  menuIsDefault = !!data.isDefault;
+  // Nothing to restore to while the built-ins are already what's showing.
+  document.getElementById('menuResetBtn').classList.toggle('hidden', menuIsDefault);
+  // Groups first: the item rows build their dropdowns from them.
+  renderGroupRows();
+  renderMenuRows();
+}
+
+// What the panel says when it isn't reporting the result of an action.
+function menuRestingStatus(){
+  return menuIsDefault
+    ? 'Showing the built-in AMC menu. Edit anything and save to make it your own list.'
+    : '';
+}
+
+async function loadConcessionMenu(){
+  try{
+    const res = await fetch('/api/concession-menu');
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok) return;
+    applyMenuPayload(await res.json());
+    document.getElementById('menuStatus').textContent = menuRestingStatus();
+  }catch(e){
+    document.getElementById('menuStatus').textContent = 'Could not load the menu.';
+  }
+}
+
+async function resetConcessionMenu(){
+  if (!confirm('Replace the menu with the built-in AMC list? Orders friends have already placed are not affected.')) return;
+  const statusEl = document.getElementById('menuStatus');
+  statusEl.textContent = 'Restoring...';
+  try{
+    const res = await fetch('/api/concession-menu/reset', { method: 'POST' });
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok){ statusEl.textContent = 'Could not restore the AMC menu. Try again.'; return; }
+    applyMenuPayload(await res.json());
+    statusEl.textContent = 'Restored the AMC menu.';
+  }catch(e){
+    statusEl.textContent = 'Could not restore the AMC menu. Try again.';
+  }
+}
+
+async function saveConcessionMenu(){
+  const statusEl = document.getElementById('menuStatus');
+  statusEl.textContent = 'Saving...';
+  try{
+    const res = await fetch('/api/concession-menu', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: menuItems, optionGroups })
+    });
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok){ statusEl.textContent = 'Save failed. Try again.'; return; }
+    // Re-render from what the server actually stored: blank rows are
+    // dropped there, duplicate options collapsed, and new rows come back
+    // with the id they were given, which is what keeps the next save an
+    // edit instead of a duplicate.
+    applyMenuPayload(await res.json());
+    statusEl.textContent = 'Saved.';
+  }catch(e){
+    statusEl.textContent = 'Save failed. Try again.';
+  }
+}
+
 async function loadPaymentHandles(){
   try{
     const res = await fetch('/api/payment-handles');
@@ -1573,6 +2407,7 @@ loadSharedPassword();
 loadOgPreview();
 loadLogoPreview();
 loadPaymentHandles();
+loadConcessionMenu();
 </script>
 
 </body>

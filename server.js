@@ -7,9 +7,10 @@ const store = require('./lib/store');
 const { createImageStore } = require('./lib/uploadedImage');
 const posterStore = require('./lib/posterStore');
 const sharedPasswordStore = require('./lib/sharedPassword');
+const concessionMenuStore = require('./lib/concessionMenu');
 const { createTextSettingStore } = require('./lib/textSetting');
 const { createPasswordAuth } = require('./lib/auth');
-const { normalizeSeats } = require('./lib/seats');
+const { normalizeSeats, normalizeSeatEntry, isHostSeat } = require('./lib/seats');
 
 const ogImageStore = createImageStore('og');
 const logoImageStore = createImageStore('logo');
@@ -128,6 +129,23 @@ function parsePrice(raw) {
   if (!Number.isFinite(n) || n < 0) return null;
   return Math.round(n * 100) / 100;
 }
+
+// California normally exempts cold food to go -- a candy bar or a bottled
+// drink from a shop isn't taxed. Concessions at a cinema are the
+// exception: food sold where admission is charged is taxable regardless
+// of what it is or whether it's hot (Reg. 1603). So this applies to the
+// whole concessions subtotal rather than trying to sort popcorn from
+// candy, which is both simpler and closer to what the receipt says.
+//
+// The ticket itself isn't in it -- California doesn't tax admissions, and
+// the price on a showtime is what the host already paid AMC anyway.
+//
+// APPROXIMATE, and meant to be: it's San Francisco's combined state,
+// county and district rate, which moves every few years and is one number
+// to edit here when it does. It exists so nobody is surprised at the
+// counter by a bill a few dollars over what the app quoted, not to be an
+// accounting system.
+const CONCESSION_TAX_RATE = 0.08625; // San Francisco, CA
 
 // Every showtime needs an auditorium/seat-map now, keyed by a
 // theater+auditorium id (see public/seat-layout.js -- SEAT_LAYOUTS keys
@@ -249,7 +267,19 @@ function publicShowtimeView(s) {
   const blockSeats = {};
   Object.keys(seats).forEach((id) => {
     if (seats[id].status === 'assigned') {
-      blockSeats[id] = { name: seats[id].name, paid: seats[id].paid };
+      // Carts ride along with the seat list rather than sitting behind
+      // their own endpoint: the reservation page shows every reserved
+      // seat's order inline on the list, so a separate fetch per seat
+      // would just be the same data in N round-trips.
+      blockSeats[id] = {
+        name: seats[id].name,
+        paid: seats[id].paid,
+        // The host's own seat owes nothing at all -- not the ticket and
+        // not the concessions -- because they're the one paying for the
+        // lot. `paid` alone only covers the ticket.
+        host: isHostSeat(seats[id].name),
+        concessions: seats[id].concessions
+      };
     }
   });
   return {
@@ -342,6 +372,44 @@ app.post('/api/payment-handles', adminAuth.requireAuth('/'), (req, res) => {
   res.json({ ok: true, venmo: savedVenmo, cashapp: savedCashapp });
 });
 
+// ---------------- Concession menu (admin auth required to change) ----------------
+//
+// One global menu (see lib/concessionMenu.js for why it isn't per
+// showtime). The admin editor posts the whole list back every save --
+// there's no add/rename/delete-one endpoint, because the editor is a
+// handful of rows on screen at once and a whole-list PUT is the only
+// shape where reordering, renaming and deleting are all the same
+// operation.
+
+app.get('/api/concession-menu', adminAuth.requireAuth('/'), (req, res) => {
+  // The rate rides along with the menu rather than getting an endpoint of
+  // its own: the editor already fetches this at load, and the only thing
+  // it needs the rate for is the order roll-up's total.
+  res.json({ ...concessionMenuStore.get(), taxRate: CONCESSION_TAX_RATE });
+});
+
+app.post('/api/concession-menu', adminAuth.requireAuth('/'), (req, res) => {
+  const { items, optionGroups } = req.body || {};
+  if (items !== undefined && !Array.isArray(items)) {
+    return res.status(400).json({ error: 'items must be an array' });
+  }
+  if (optionGroups !== undefined && !Array.isArray(optionGroups)) {
+    return res.status(400).json({ error: 'optionGroups must be an array' });
+  }
+  // Echoing the saved list back matters: brand-new rows get their ids
+  // assigned server-side, and the editor needs them to keep editing the
+  // same row instead of creating a duplicate on the next save.
+  res.json({ ok: true, ...concessionMenuStore.set(items || [], optionGroups || []), taxRate: CONCESSION_TAX_RATE });
+});
+
+// Throws away the saved menu so the built-in AMC list takes over again
+// (see DEFAULT_ITEMS in lib/concessionMenu.js). Doesn't touch
+// anyone's existing orders -- those carry their own copy of whatever
+// they were placed against.
+app.post('/api/concession-menu/reset', adminAuth.requireAuth('/'), (req, res) => {
+  res.json({ ok: true, ...concessionMenuStore.reset(), taxRate: CONCESSION_TAX_RATE });
+});
+
 // ---------------- Showtimes API (admin auth required) ----------------
 
 app.use('/api/showtimes', adminAuth.requireAuth('/'));
@@ -352,6 +420,41 @@ app.use('/api/showtimes', adminAuth.requireAuth('/'));
 // public one.
 function withScreenFallback(item) {
   return { ...item, screen: item.screen || DEFAULT_SCREEN, posterUrl: posterUrlForTitle(item.title) };
+}
+
+// A friend's cart lives on the seat, and the admin editor saves the WHOLE
+// seats object -- so an editor page loaded before an order was placed
+// would write that order right back off the record on its next save.
+//
+// The editor does round-trip carts it knows about (see normalizeSeatEntry
+// in views/admin.html), so an incoming seat entry with no `concessions`
+// key at all means one of two things: a stale/older client that never
+// saw the cart, or a deliberate clear. The editor makes the deliberate
+// case explicit by sending `concessions: []`, which leaves "key absent"
+// meaning only "this client doesn't know", and that's the case we keep
+// the stored cart for.
+//
+// This narrows the window but doesn't close it: an editor that loaded
+// AFTER a cart existed and then saves stale contents still wins. Same
+// last-write-wins story the seat names already have here, and the same
+// reason it's acceptable -- one host, editing their own showtimes.
+function preserveConcessions(incomingSeats, existingSeats) {
+  const out = {};
+  Object.keys(incomingSeats || {}).forEach((id) => {
+    const incoming = incomingSeats[id];
+    if (!incoming || typeof incoming !== 'object' || incoming.status !== 'assigned') {
+      out[id] = incoming;
+      return;
+    }
+    if (Array.isArray(incoming.concessions)) {
+      out[id] = incoming;
+      return;
+    }
+    const prior = normalizeSeatEntry(existingSeats && existingSeats[id]);
+    const priorCart = prior && prior.status === 'assigned' ? prior.concessions : [];
+    out[id] = priorCart.length ? { ...incoming, concessions: priorCart } : incoming;
+  });
+  return out;
 }
 
 app.get('/api/showtimes', (req, res) => {
@@ -393,8 +496,9 @@ app.put('/api/showtimes/:id', async (req, res) => {
   const existing = store.getShowtime(req.params.id);
   if (!existing) return res.status(404).json({ error: 'not found' });
   const body = req.body || {};
-  const seats =
+  const rawSeats =
     body.seats && typeof body.seats === 'object' && !Array.isArray(body.seats) ? body.seats : existing.seats;
+  const seats = preserveConcessions(rawSeats, existing.seats);
   const obj = {
     ...existing,
     title: String(body.title ?? existing.title).slice(0, 200),
@@ -422,7 +526,11 @@ app.delete('/api/showtimes/:id', async (req, res) => {
 app.use('/api/public', sharedAuth.requireAuth('/'));
 
 app.get('/api/public/config', (req, res) => {
-  res.json({ venmoHandle: venmoHandleStore.get(), cashappHandle: cashappHandleStore.get() });
+  res.json({
+    venmoHandle: venmoHandleStore.get(),
+    cashappHandle: cashappHandleStore.get(),
+    concessionTaxRate: CONCESSION_TAX_RATE
+  });
 });
 
 app.get('/api/public/showtimes', (req, res) => {
@@ -442,6 +550,211 @@ app.post('/api/public/showtimes/:id/claim', async (req, res) => {
   if (!result.ok) {
     if (result.reason === 'not_found') return res.status(404).json({ error: 'not found' });
     return res.status(409).json({ error: 'that seat is no longer available' });
+  }
+  res.json({ showtime: publicShowtimeView(result.showtime) });
+});
+
+// ---------------- Calendar invite ----------------
+//
+// Handed out as a real .ics file from a real URL rather than a data: URI
+// or a Google Calendar link: a served text/calendar file is the one thing
+// every phone knows what to do with (iOS offers "Add to Calendar", Android
+// hands it to whichever calendar app is installed), and it doesn't assume
+// anyone's calendar lives at a particular provider.
+//
+// Times are resolved against San Francisco's own clock, so a January
+// showtime lands on PST and a July one on PDT with nobody picking which
+// -- see showtimeInstantMs below.
+
+// Three hours: long enough for trailers, the film and getting out, which
+// is what the block on someone's calendar is actually for. Nothing here
+// knows a film's real runtime.
+const CALENDAR_EVENT_MINUTES = 180;
+
+// RFC 5545 escaping for a text value: backslash first, or it would escape
+// the escapes it just added.
+function icsEscape(value) {
+  return String(value == null ? '' : value)
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\r?\n/g, '\\n');
+}
+
+// Content lines are capped at 75 octets, continued with CRLF + a space.
+// Measured in bytes, not characters -- a movie title with an accent or an
+// emoji in it would otherwise fold a line one byte too late.
+function icsFold(line) {
+  const out = [];
+  let current = '';
+  let bytes = 0;
+  for (const ch of line) {
+    const size = Buffer.byteLength(ch, 'utf8');
+    if (bytes + size > 73) {
+      out.push(current);
+      current = ' ';
+      bytes = 1;
+    }
+    current += ch;
+    bytes += size;
+  }
+  out.push(current);
+  return out.join('\r\n');
+}
+
+// Every screen this app knows about is at AMC Metreon in San Francisco
+// (see SEAT_LAYOUTS in public/seat-layout.js). When that stops being
+// true, a showtime will need to carry its own timezone and this becomes
+// a per-showtime lookup rather than a constant.
+const SHOWTIME_TIMEZONE = 'America/Los_Angeles';
+
+// How far the named zone was from UTC at a given instant, in ms.
+// Formatting the instant AS that zone and reading the wall-clock fields
+// back is the one way to get this without shipping a timezone database:
+// Intl already has one.
+function zoneOffsetMs(instantMs, timeZone) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  }).formatToParts(new Date(instantMs));
+  const get = (type) => Number(parts.find((p) => p.type === type).value);
+  // hour comes back as 24 rather than 0 at midnight under hour12:false.
+  return Date.UTC(get('year'), get('month') - 1, get('day'), get('hour') % 24, get('minute'), get('second')) - instantMs;
+}
+
+// A showtime's date and time are a wall clock in San Francisco. Resolve
+// them to the actual instant, so the file says 7pm PST in January and 7pm
+// PDT in July without anyone choosing which -- the zone's own rules pick.
+//
+// Two passes, because the offset needed to do the conversion is itself a
+// function of the result: guess using the offset at the wall time read as
+// UTC, then re-read the offset at the instant that produced and correct
+// if the guess landed on the other side of a DST change.
+function showtimeInstantMs(date, time) {
+  const d = String(date || '').split('-').map(Number);
+  const t = String(time || '').split(':').map(Number);
+  if (d.length < 3 || t.length < 2 || d.some((n) => !Number.isFinite(n)) || t.some((n) => !Number.isFinite(n))) {
+    return null;
+  }
+  const wallAsUtc = Date.UTC(d[0], d[1] - 1, d[2], t[0], t[1], 0, 0);
+  if (!Number.isFinite(wallAsUtc)) return null;
+  try {
+    const firstGuess = wallAsUtc - zoneOffsetMs(wallAsUtc, SHOWTIME_TIMEZONE);
+    const corrected = wallAsUtc - zoneOffsetMs(firstGuess, SHOWTIME_TIMEZONE);
+    return corrected;
+  } catch (e) {
+    // No usable timezone data in this runtime. Better a calendar entry an
+    // hour out than no calendar entry at all -- the caller falls back to
+    // writing the wall time as UTC, which is right for anyone in UTC and
+    // wrong by the offset for everyone else.
+    return wallAsUtc;
+  }
+}
+
+// UTC form, with the trailing Z that tells a calendar this is a real
+// instant rather than "whatever 7pm means where you're standing".
+function icsUtcStamp(instantMs, addMinutes) {
+  const dt = new Date(instantMs + (addMinutes || 0) * 60000);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${dt.getUTCFullYear()}${p(dt.getUTCMonth() + 1)}${p(dt.getUTCDate())}T${p(dt.getUTCHours())}${p(
+    dt.getUTCMinutes()
+  )}00Z`;
+}
+
+app.get('/api/public/showtimes/:id/calendar.ics', (req, res) => {
+  const show = store.getShowtime(req.params.id);
+  if (!show) return res.status(404).json({ error: 'not found' });
+
+  const instant = showtimeInstantMs(show.date, show.time);
+  if (instant === null) return res.status(400).json({ error: 'this showtime has no usable date and time' });
+  const start = icsUtcStamp(instant);
+  const end = icsUtcStamp(instant, CALENDAR_EVENT_MINUTES);
+
+  const seatId = typeof req.query.seat === 'string' ? req.query.seat.trim().slice(0, 12) : '';
+  const title = show.title || 'Movie';
+  const details = [seatId ? `Seat ${seatId}` : '', show.format, typeof show.price === 'number' ? `$${show.price.toFixed(2)}` : '']
+    .filter(Boolean)
+    .join(' \u00b7 ');
+
+  // Stable per seat, so re-adding replaces the event someone already has
+  // rather than leaving them with two.
+  const uid = `${show.id}${seatId ? '-' + seatId.toLowerCase() : ''}@canopy-tickets`;
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//canopy-tickets//EN',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    'BEGIN:VEVENT',
+    `UID:${uid}`,
+    `DTSTAMP:${stamp}`,
+    `DTSTART:${start}`,
+    `DTEND:${end}`,
+    `SUMMARY:${icsEscape(title)}`
+  ];
+  if (show.theater) lines.push(`LOCATION:${icsEscape(show.theater)}`);
+  if (details) lines.push(`DESCRIPTION:${icsEscape(details)}`);
+  lines.push('END:VEVENT', 'END:VCALENDAR');
+
+  const body = lines.map(icsFold).join('\r\n') + '\r\n';
+  const filename = (title.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '') || 'showtime').toLowerCase();
+
+  // attachment, not inline: it's what gets iOS to offer "Add to Calendar"
+  // instead of rendering the file as text in the browser.
+  res.set('Content-Type', 'text/calendar; charset=utf-8');
+  res.set('Content-Disposition', `attachment; filename="${filename}.ics"`);
+  res.set('Cache-Control', 'no-store');
+  res.send(body);
+});
+
+// The menu a friend picks from. Read-only on this side -- only the admin
+// editor changes it (see /api/concession-menu above).
+app.get('/api/public/concession-menu', (req, res) => {
+  const menu = concessionMenuStore.get();
+  // openSections is presentation config rather than menu data -- it isn't
+  // part of what the host saves, so it comes straight off the constant
+  // whether or not they've edited the menu.
+  res.json({
+    items: menu.items,
+    optionGroups: menu.optionGroups,
+    openSections: concessionMenuStore.DEFAULT_OPEN_SECTIONS
+  });
+});
+
+// Replaces one reserved seat's concession cart.
+//
+// Deliberately NOT tied to "the person who claimed this seat": there's no
+// per-friend identity in this app (one shared password, names typed in
+// free-text at claim time), so anyone who can see the reservation page
+// can edit any cart on it. That's the same trust model the rest of the
+// friend side already runs on, and it's what makes "add mine to Jordan's
+// while I'm at it" work at all.
+//
+// The 2-hour-before-showtime cutoff the page shows is enforced in the
+// page, not here. The server can't evaluate it honestly: a showtime's
+// date/time are stored as bare local strings with no timezone, and this
+// process runs in a container that's almost certainly UTC -- so a
+// server-side cutoff would lock a San Francisco showtime's carts seven
+// or eight hours early. A client-side cutoff at least uses the friend's
+// own clock, which is the same wall clock the showtime is written in.
+app.put('/api/public/showtimes/:id/seats/:seatId/concessions', async (req, res) => {
+  const { items } = req.body || {};
+  if (items !== undefined && !Array.isArray(items)) {
+    return res.status(400).json({ error: 'items must be an array' });
+  }
+
+  const result = await store.setSeatConcessions(req.params.id, req.params.seatId, items || []);
+  if (!result.ok) {
+    if (result.reason === 'not_found') return res.status(404).json({ error: 'not found' });
+    return res.status(409).json({ error: 'that seat is not reserved yet' });
   }
   res.json({ showtime: publicShowtimeView(result.showtime) });
 });

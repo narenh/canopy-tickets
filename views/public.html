@@ -25,6 +25,8 @@
     padding-bottom:40px;
   }
   .hidden{display:none !important;}
+  /* Set while the concessions sheet is open -- see closeCartOverlay. */
+  body.cart-open{overflow:hidden;}
 
   /* Everything here is laid out mobile-first (full-bleed, no width cap),
      which on a desktop window stretches every card, header and form row
@@ -154,7 +156,14 @@
     margin-bottom:3px;
   }
   .seat-line b{color:var(--gold);}
-  .seat-line .seat-id{color:var(--muted);font-size:11px;}
+  /* Same size and weight as the name beside it -- only the colour sets
+     it back, so the two read as one label rather than a name with a
+     footnote. The margin is the breathing room between them. */
+  .seat-line .seat-id{
+    color:var(--muted);
+    font-weight:700;
+    margin-right:9px;
+  }
   .seat-line .unpaid-tag{color:#e2857a;font-size:11px;margin-left:6px;}
   .claimed-list{margin-bottom:10px;}
   .claim-btn{
@@ -385,16 +394,46 @@
     border:none;
     font-weight:700;
   }
+  /* The first thing on this card and the one that stops being possible
+     once it's dismissed, so it gets a solid fill rather than the plain
+     dark of the secondary buttons. Gold, not a blue of its own: it's the
+     page's own accent, and it keeps the two blue-ish fills below it
+     reading as the pay buttons rather than as a set of three. */
+  .claim-actions .cal-btn{
+    background:var(--gold);
+    color:#241c07;
+    border:none;
+    font-weight:700;
+  }
   .claim-actions .cashapp-btn{
     background:var(--cashapp);
     color:#04240f;
     border:none;
     font-weight:700;
   }
+  /* The cart's Save button sits right above the pay buttons and shares
+     their shape -- without this it keeps its bright "press me" blue in
+     the nothing-to-save state, one button away from two that really are
+     pressable. */
+  .claim-actions button:disabled{
+    background:#1e1e1e;
+    color:var(--muted);
+    border:1px solid #3a3a3a;
+    font-weight:400;
+    cursor:default;
+  }
   .success-sub{
     color:#e8e8e8;
     font-size:14px;
-    margin-bottom:16px;
+    margin-bottom:10px;
+  }
+  .success-step{
+    color:var(--muted);
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    min-height:14px;
+    margin-bottom:10px;
   }
   .claim-error{
     color:#e2857a;
@@ -402,6 +441,434 @@
     min-height:16px;
     margin-bottom:6px;
   }
+
+  /* ---------- CONCESSIONS (list card) ---------- */
+  /* A reserved seat's line is the entry point to its cart, so the whole
+     line is the tap target rather than a separate small button hanging
+     off the end of it -- there's one of these per claimed seat and a row
+     of 12 tiny buttons would be both uglier and harder to hit on a
+     phone. It's a <button> (not a div with onclick) so keyboard and
+     screen-reader users get it for free. */
+  button.seat-line{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    width:100%;
+    text-align:left;
+    background:#101012;
+    border:1px solid #232326;
+    border-radius:10px;
+    padding:8px 10px;
+    margin-bottom:6px;
+    color:#ddd;
+    font-family:inherit;
+    font-size:13px;
+    cursor:pointer;
+  }
+  button.seat-line:hover{border-color:#3a3a3a;}
+  .seat-line-main{flex:1;min-width:0;}
+  .seat-line-who{margin-bottom:2px;}
+  .concession-summary{
+    color:var(--muted);
+    font-size:11.5px;
+    line-height:1.35;
+    /* Long orders wrap instead of stretching the card -- the full cart
+       is one tap away, this line is only ever a glance. */
+    overflow-wrap:anywhere;
+  }
+  .concession-summary.has-items{color:#cbbf9a;}
+  .concession-cta{
+    flex:0 0 auto;
+    color:var(--gold);
+    font-size:11px;
+    font-weight:700;
+    white-space:nowrap;
+  }
+
+  /* ---------- CART OVERLAY ---------- */
+  /* Wider and taller than the claim/success cards: this one is a list of
+     every menu item, not a single field. The head and foot stay put and
+     only the item list scrolls, so the running total and the Save button
+     never scroll out of reach mid-order. */
+  /* A phone gets the whole screen rather than a card floating on a
+     dimmed page: at this size the margins were costing rows of menu, and
+     a sheet that fills the display makes the menu the only thing on
+     screen that scrolls. */
+  @media (max-width: 600px){
+    #cartOverlay{padding:0;}
+    #cartOverlay .cart-card{
+      width:100%;
+      max-width:none;
+      height:100%;
+      border-radius:0;
+      border:none;
+    }
+  }
+  .cart-card{
+    max-width:420px;
+    /* height, not max-height: the menu below is sized flex-basis 0, so it
+       contributes no natural height of its own and the card would
+       otherwise shrink-wrap the order panel and footer, leaving the menu
+       pinned at its minimum even on a tall screen. Fixing the sheet's
+       height lets the menu take everything the order panel doesn't. */
+    height:min(88vh, 760px);
+    display:flex;
+    flex-direction:column;
+    padding:0;
+  }
+  .cart-head{
+    position:relative;
+    padding:16px 20px 6px;
+    flex:0 0 auto;
+  }
+  .cart-close-x{
+    position:absolute;
+    top:8px;
+    right:10px;
+    width:34px;
+    height:34px;
+    border-radius:50%;
+    border:none;
+    background:none;
+    color:var(--muted);
+    font-size:26px;
+    line-height:1;
+    padding:0;
+    cursor:pointer;
+  }
+  .cart-close-x:hover{color:#fff;}
+  /* Leaves room for the X so a long movie title can't run under it. */
+  .cart-head .claim-title{padding-right:34px;}
+  .cart-subrow{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    gap:10px;
+  }
+  .cart-subrow .claim-sub{margin-bottom:0;}
+  .cart-body{
+    /* basis 0, not auto: with `auto` the menu's natural height (40-odd
+       rows) dominated the shrink weighting, so the order panel below
+       absorbed almost all of it and collapsed to two rows. At basis 0 the
+       menu takes the space that's left over instead, and min-height is
+       the floor a long order can't push it through. */
+    flex:1 1 0;
+    min-height:132px;
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+    /* Tighter at the sides than the head and foot: every row now sits
+       inside a section, which brings its own border and padding, so the
+       old 20px stacked into a deep gutter. At 10px the section labels
+       still line up with the title above them.
+       No padding at the TOP, because a sticky header's `top: 0` is inset
+       by the scroller's padding -- 4px here was 4px of band above the
+       pinned header with item rows sliding visibly through it. The first
+       section's own margin supplies the spacing instead. */
+    padding:0 10px 4px;
+  }
+  .cart-foot{
+    flex:0 0 auto;
+    padding:12px 20px 18px;
+    border-top:1px solid #2a2a2a;
+  }
+  .cart-item{
+    padding:9px 0;
+    border-bottom:1px solid #202023;
+  }
+  .cart-item:last-child{border-bottom:none;}
+  /* The item and its stepper sit on one row; the note field (when there
+     is one) drops to a full-width line underneath, which is the only way
+     it's usable at phone width. */
+  .ci-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .ci-main{flex:1;min-width:0;}
+  .ci-name{font-size:14px;color:#fff;overflow-wrap:anywhere;}
+  .ci-price{font-size:12px;color:var(--muted);margin-top:1px;}
+  .ci-off-menu{color:#e2857a;}
+  /* One tap, one line. No quantity control: a quantity can only carry
+     one idea of what the order is, and two popcorn chickens may well
+     want two different sauces. */
+  .ci-add{
+    flex:0 0 auto;
+    width:30px;
+    height:30px;
+    border-radius:50%;
+    border:none;
+    background:var(--gold);
+    color:#241c07;
+    font-size:18px;
+    font-weight:700;
+    line-height:1;
+    padding:0;
+    cursor:pointer;
+  }
+  .ci-add:disabled{opacity:.35;cursor:not-allowed;}
+  .ci-count{
+    flex:0 0 auto;
+    font-size:12px;
+    font-weight:700;
+    color:var(--gold);
+    min-width:16px;
+    text-align:right;
+  }
+  .ci-choice-select{
+    width:100%;
+    margin-top:7px;
+    background:#0f0f10;
+    color:#fff;
+    border:1px solid #2f2f2f;
+    border-radius:8px;
+    padding:6px 8px;
+    font-size:12.5px;
+    font-family:inherit;
+  }
+  /* Amber, not red: nothing is wrong yet, there's just a pick to make
+     before the "+" will do anything. */
+  .ci-choice-select.needs-choice{
+    border-color:var(--gold-dark);
+    color:var(--gold);
+  }
+
+  /* ---------- ORDER LIST ---------- */
+  .cart-order{
+    /* Shrink, don't grow: this is the item that gives up room when the
+       card runs short, which is why its min-height is 0 and the menu's
+       isn't. */
+    flex:0 1 auto;
+    min-height:0;
+    display:flex;
+    flex-direction:column;
+    max-height:min(168px, 24vh);
+    /* Belt and braces with the inner list's own scroll: whatever the
+       list does, nothing from this panel paints over the totals. */
+    overflow:hidden;
+    padding:0 20px;
+    border-top:1px solid #2a2a2a;
+  }
+  .cart-order-toggle{
+    flex:0 0 auto;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:10px;
+    width:100%;
+    cursor:pointer;
+    background:none;
+    border:none;
+    font-family:inherit;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:1px;
+    color:var(--muted);
+    padding:6px 0 5px;
+    text-align:left;
+  }
+  .cart-order-toggle::before{
+    content:'\25b8';
+    display:inline-block;
+    margin-right:5px;
+    transition:transform .15s;
+  }
+  .cart-order:not(.is-collapsed) .cart-order-toggle::before{transform:rotate(90deg);}
+  .cart-order-toggle span:first-of-type{flex:1;}
+  .cart-order.is-collapsed .cart-order-list{display:none;}
+  .cart-order-count{
+    flex:0 0 auto;
+    text-transform:none;
+    letter-spacing:0;
+    font-size:11.5px;
+    color:var(--gold);
+  }
+  /* Capped in px as well as vh so the footer's height is predictable on a
+     short phone, where vh alone still left the menu with a few rows. Past
+     the cap this list scrolls inside itself; collapsing it gives the whole
+     card back to the menu. */
+  .cart-order-list{
+    flex:1 1 auto;
+    min-height:0;
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+    padding-bottom:6px;
+  }
+  .cart-pay-row{display:flex;gap:8px;}
+  .cart-pay-row a{flex:1 1 0;min-width:0;font-size:13px;}
+  .order-row{
+    display:flex;
+    align-items:baseline;
+    gap:8px;
+    padding:4px 0;
+    font-size:13px;
+  }
+  .order-main{flex:1;min-width:0;overflow-wrap:anywhere;}
+  .order-name{color:#fff;}
+  .order-option{color:var(--gold);}
+  .order-option.is-missing{color:#e2857a;}
+  .order-line-note{color:var(--muted);font-size:11.5px;}
+  .order-price{flex:0 0 auto;color:var(--muted);font-size:12px;}
+  .order-remove{
+    flex:0 0 auto;
+    width:22px;
+    height:22px;
+    border-radius:50%;
+    border:1px solid #3a3a3a;
+    background:#1e1e1e;
+    color:var(--muted);
+    font-size:14px;
+    line-height:1;
+    padding:0;
+    cursor:pointer;
+  }
+  .order-remove:disabled{opacity:.35;cursor:not-allowed;}
+  /* Amber rather than red: nothing is broken, there's just a pick still
+     owed before this will save. */
+  .cart-hint{
+    background:#241c07;
+    border:1px solid var(--gold-dark);
+    color:#f0dda9;
+    border-radius:8px;
+    padding:7px 10px;
+    font-size:11.5px;
+    margin-bottom:10px;
+    overflow-wrap:anywhere;
+  }
+  .cart-totals{
+    font-size:13px;
+    color:#ddd;
+    margin-bottom:12px;
+  }
+  .cart-total-row{
+    display:flex;
+    justify-content:space-between;
+    gap:12px;
+    padding:2px 0;
+  }
+  .cart-total-row.is-owed{
+    font-size:15px;
+    font-weight:700;
+    color:#fff;
+    border-top:1px solid #2a2a2a;
+    margin-top:6px;
+    padding-top:7px;
+  }
+  .cart-total-row .paid-note{color:var(--green);}
+  /* A section used to be a hairline rule and some bold white text, which
+     read as just another item row -- the headers were easy to scroll
+     straight past. Now each one is a card of its own: its own border,
+     its own darker ground, and clear air above and below. */
+  /* Square, not rounded. A rounded card whose header is a separately
+     rounded box never quite nests -- the two radii (12 and 11) left a
+     hairline halo in every corner -- and the header's rule and the rows'
+     rules were inset differently, so none of the lines agreed. Square
+     corners and one inset make every hairline span the same width. */
+  .cart-section{
+    margin:12px 0;
+    border:1px solid #26262a;
+    background:#101012;
+  }
+  .cart-section summary{
+    /* Sticks to the top of the scrolling menu while its own section is
+       open, so "which list am I in" is answerable without scrolling back
+       up -- the point where a 25-row section is most confusing is in the
+       middle of it. */
+    position:sticky;
+    top:0;
+    z-index:2;
+    /* Paints its own colour upward past the pin point. The scroller clips
+       it at the top edge, so this costs nothing visually but guarantees
+       no strip of item row can show above the header -- browsers don't
+       agree on exactly where `top: 0` lands, and on iOS the gap was wider
+       than the padding alone accounts for. */
+    box-shadow:0 -14px 0 0 #1a1a1e;
+    display:flex;
+    align-items:center;
+    gap:9px;
+    padding:11px 12px;
+    background:#1a1a1e;
+    font-size:11.5px;
+    font-weight:800;
+    letter-spacing:.09em;
+    text-transform:uppercase;
+    /* Gold, not white: nothing else in this list is gold except the "+"
+       buttons, so a header can't be mistaken for an item's name. */
+    color:var(--gold);
+    cursor:pointer;
+    list-style:none;
+    user-select:none;
+  }
+  .cart-section summary::-webkit-details-marker{display:none;}
+  .cart-section[open] summary{
+    border-bottom:1px solid #26262a;
+  }
+  /* A real chevron rather than a 5px triangle, and in the accent colour
+     so it reads as a control. */
+  .cart-section summary::before{
+    content:'';
+    flex:0 0 auto;
+    width:7px;
+    height:7px;
+    border-right:2px solid var(--gold);
+    border-bottom:2px solid var(--gold);
+    transform:rotate(-45deg);
+    margin-left:2px;
+    margin-right:1px;
+    transition:transform .15s;
+  }
+  .cart-section[open] summary::before{transform:rotate(45deg);margin-top:-3px;}
+  /* The label sits between the chevron and the count, so it gets the slack. */
+  .cart-section summary span:first-of-type{flex:1;}
+  /* Plain text, not a chip: it's a footnote on the header, and a bordered
+     pill on every section was more furniture than the number deserves.
+     Colour alone carries the "something in here is ordered" state. */
+  .cart-section-count{
+    flex:0 0 auto;
+    font-size:10.5px;
+    font-weight:700;
+    letter-spacing:.02em;
+    text-transform:none;
+    color:var(--muted);
+  }
+  .cart-section-count.has-order{color:var(--gold);}
+  /* No padding on the wrapper: the rows carry their own, so each row's
+     rule runs the full width of the section the way the header's does,
+     instead of stopping 10px short at both ends. */
+  .cart-section-body{padding:0;}
+  /* Indented so a row inside a section reads as belonging to the header
+     above it rather than as another top-level item. */
+  .cart-section-body .cart-item{padding:9px 12px;}
+  .cart-section-body .cart-item:last-child{border-bottom:none;}
+  .cart-empty-menu{
+    color:var(--muted);
+    font-size:13px;
+    padding:18px 0;
+    text-align:center;
+  }
+  .cart-locked{
+    background:#241c07;
+    border:1px solid var(--gold-dark);
+    color:#f0dda9;
+    border-radius:8px;
+    padding:8px 10px;
+    font-size:12px;
+    margin-bottom:10px;
+  }
+  /* Unlike the claim overlay's error line, this one doesn't reserve a
+     blank row: the cart head already carries a title, a subtitle and
+     (sometimes) the closed-orders banner, and two more empty reserved
+     lines under them push the first item off a short screen. Errors here
+     are rare enough that the shift when one appears is the better trade. */
+  .cart-head .claim-error{min-height:0;}
+  /* No reserved height any more -- it shares the seat's line, so an empty
+     status costs nothing instead of holding a gap open above the menu. */
+  .cart-status{
+    flex:0 0 auto;
+    color:var(--muted);
+    font-size:11.5px;
+    white-space:nowrap;
+  }
+  .cart-status.is-error{color:#e2857a;cursor:pointer;text-decoration:underline;}
 </style>
 </head>
 <body>
@@ -412,7 +879,7 @@
       <div>
         <!-- LOGO_IMG -->
         <h1>Upcoming Showtimes</h1>
-        <p>Reserve a spot below. Choose your concessions until 2 hours before showtime (coming soon).</p>
+        <p>Reserve a spot below. Tap any reserved seat to add concessions, up to 2 hours before showtime.</p>
       </div>
       <div class="logout-link" onclick="logout()">Log out</div>
     </div>
@@ -458,12 +925,69 @@
   <!-- ===================== SUCCESS / PAY OVERLAY ===================== -->
   <div class="claim-overlay hidden" id="successOverlay">
     <div class="claim-card">
-      <div class="claim-title">You're in! 🎬</div>
+      <div class="claim-title">You're in! &#127916;</div>
       <div class="success-sub" id="successSub"></div>
-      <div class="claim-actions">
-        <a class="venmo-btn hidden" id="venmoLink" href="#" target="_blank" rel="noopener">Pay via Venmo</a>
-        <a class="cashapp-btn hidden" id="cashappLink" href="#" target="_blank" rel="noopener">Pay via Cash App</a>
-        <button type="button" onclick="closeSuccessOverlay()">Skip</button>
+      <div class="success-step" id="successStep"></div>
+      <!-- Built a step at a time by renderSuccessStep(): one decision on
+           screen, its skip underneath, then the next one. A column of
+           five buttons made every one of them look optional. -->
+      <div class="claim-actions" id="successActions"></div>
+    </div>
+  </div>
+
+  <!-- ===================== CONCESSION CART OVERLAY ===================== -->
+  <div class="claim-overlay hidden" id="cartOverlay">
+    <div class="claim-card cart-card">
+      <div class="cart-head">
+        <!-- Close in the corner as well as at the foot: on a full-screen
+             sheet the bottom button is a scroll away from wherever
+             someone's thumb is, and the corner X is where anyone
+             dismissing a full-screen thing reaches first. -->
+        <button type="button" class="cart-close-x" id="cartCloseX" onclick="closeCartOverlay()" aria-label="Close">&#215;</button>
+        <div class="claim-title" id="cartTitle">Concessions</div>
+        <!-- The seat and the save state share a line. On its own row the
+             status reserved height between the seat and the first item
+             whether or not it had anything to say. -->
+        <div class="cart-subrow">
+          <div class="claim-sub" id="cartSub"></div>
+          <!-- Doubles as the retry affordance: with no Save button, a
+               failed write has nothing else to offer. -->
+          <div class="cart-status" id="cartStatus" onclick="retrySave()"></div>
+        </div>
+        <div class="cart-locked hidden" id="cartLocked"></div>
+        <div class="claim-error" id="cartError"></div>
+      </div>
+      <div class="cart-body" id="cartBody"></div>
+      <!-- Its own flex item between the menu and the footer, not part of
+           either. That is what stops a long order squeezing the menu: the
+           menu has a min-height the flex algorithm will not go below, and
+           this panel gives up space instead, scrolling inside whatever it
+           gets. Collapsing it hands the rest back. -->
+      <div class="cart-order hidden" id="cartOrderWrap">
+        <!-- A button and a div rather than <details>: Chrome puts a
+             details element's content in its own internal box, which
+             ignores the flex height cap around it -- the list rendered
+             straight over the totals and the buttons below instead of
+             scrolling inside its panel. -->
+        <button type="button" class="cart-order-toggle" id="cartOrderToggle" aria-expanded="true" onclick="toggleOrderPanel()">
+          <span>Your order</span>
+          <span class="cart-order-count" id="cartOrderCount"></span>
+        </button>
+        <div class="cart-order-list" id="cartOrderList"></div>
+      </div>
+      <div class="cart-foot">
+        <div class="cart-hint hidden" id="cartHint"></div>
+        <div class="cart-totals" id="cartTotals"></div>
+        <div class="claim-actions">
+          <!-- Side by side rather than stacked: stacking every button
+               made this footer most of the card's height, and on a short
+               phone that came straight out of the menu above. -->
+          <div class="cart-pay-row">
+            <a class="venmo-btn hidden" id="cartVenmoLink" href="#" target="_blank" rel="noopener">Venmo</a>
+            <a class="cashapp-btn hidden" id="cartCashappLink" href="#" target="_blank" rel="noopener">Cash App</a>
+          </div>
+          <button type="button" id="cartCloseBtn" onclick="closeCartOverlay()">Close</button>
+        </div>
       </div>
     </div>
   </div>
@@ -486,6 +1010,12 @@ let allShowtimes = [];     // last-loaded list from /api/public/showtimes
 let currentShowtimeId = null;
 let claimingSeatId = null;
 let seatEls = {};          // seatId -> DOM element, populated by buildSeatmap
+// Applied to the concessions subtotal only -- California doesn't tax
+// admissions, and cinema food is taxable even where the same item bought
+// in a shop wouldn't be. Served by the server so this page and the
+// editor can't drift apart on it; 0 until config loads, so a cart drawn
+// before then quotes the untaxed total rather than a wrong one.
+let concessionTaxRate = 0;
 let venmoHandle = null;    // loaded once from /api/public/config
 let cashappHandle = null;  // loaded once from /api/public/config
 
@@ -523,6 +1053,7 @@ async function loadConfig(){
     const data = await res.json();
     venmoHandle = data.venmoHandle || null;
     cashappHandle = data.cashappHandle || null;
+    concessionTaxRate = typeof data.concessionTaxRate === 'number' ? data.concessionTaxRate : 0;
   }catch(e){
     // Non-fatal -- the claim flow just skips both pay links.
   }
@@ -601,9 +1132,20 @@ function backToList(){
   loadList();
 }
 
+// Today's date as the calendar on the wall has it, NOT as UTC has it.
+//
+// This used to be toISOString().slice(0,10), which is UTC -- so from 5pm
+// Pacific (midnight UTC) onwards it returned TOMORROW, and every showtime
+// dated today started comparing as past. Tonight's movie would drop off
+// the friend list and into the collapsed Past section exactly when people
+// were opening the page to use it. A showtime's `date` comes from an
+// <input type="date">, which is local, so the thing it's compared against
+// has to be local too.
 function todayISO(){
   const d = new Date();
-  return d.toISOString().slice(0,10);
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return d.getFullYear() + '-' + month + '-' + day;
 }
 
 // A showtime disappears from the friend-facing list starting the day
@@ -625,15 +1167,24 @@ async function loadList(){
     if (!res.ok) throw new Error('failed to load');
     const data = await res.json();
     allShowtimes = (data.showtimes || []).filter(obj => !isPastShowtime(obj));
-    if (allShowtimes.length === 0){
-      container.innerHTML = '<div class="empty-state">No showtimes posted yet. Check back soon.</div>';
-      return;
-    }
-    container.innerHTML = '';
-    allShowtimes.forEach(obj => container.appendChild(buildCard(obj)));
+    renderCards();
   }catch(e){
     container.innerHTML = '<div class="empty-state">Could not load showtimes. Try again.</div>';
   }
+}
+
+// Redraws the list from whatever's already in allShowtimes -- split out
+// of loadList so saving a concession cart can refresh the seat lines it
+// just changed without a second trip to the server for a list it already
+// got back from the save.
+function renderCards(){
+  const container = document.getElementById('cardsContainer');
+  if (allShowtimes.length === 0){
+    container.innerHTML = '<div class="empty-state">No showtimes posted yet. Check back soon.</div>';
+    return;
+  }
+  container.innerHTML = '';
+  allShowtimes.forEach(obj => container.appendChild(buildCard(obj)));
 }
 
 function showtimeSubtitle(obj){
@@ -726,13 +1277,8 @@ function buildCard(obj){
     if (claimed.length > 0){
       const claimedList = document.createElement('div');
       claimedList.className = 'claimed-list';
-      claimedList.innerHTML = claimed.map(id => {
-        const s = seats[id];
-        // Paid seats show just the name -- only unpaid ones get a tag, so
-        // this list reads as "who still owes" rather than a payment log.
-        const unpaidTag = s.paid ? '' : '<span class="unpaid-tag">unpaid</span>';
-        return '<div class="seat-line"><b>' + escapeHtml(s.name) + '</b> <span class="seat-id">(' + escapeHtml(id) + ')</span>' + unpaidTag + '</div>';
-      }).join('');
+      const ordersOpen = concessionsOpen(obj);
+      claimed.forEach(id => claimedList.appendChild(buildClaimedSeatLine(obj, id, ordersOpen)));
       card.appendChild(claimedList);
     }
 
@@ -749,6 +1295,52 @@ function buildCard(obj){
   }
 
   return card;
+}
+
+// One claimed seat on a list card. The whole row is the way into that
+// seat's concession cart -- see the CONCESSIONS block below for why any
+// friend can open any seat's, not just their own.
+function buildClaimedSeatLine(obj, seatId, ordersOpen){
+  const seat = (obj.seats || {})[seatId] || {};
+  const lines = seat.concessions || [];
+
+  const row = document.createElement('button');
+  row.type = 'button';
+  row.className = 'seat-line';
+  row.addEventListener('click', () => openCart(obj.id, seatId));
+
+  const main = document.createElement('div');
+  main.className = 'seat-line-main';
+
+  const who = document.createElement('div');
+  who.className = 'seat-line-who';
+  // Paid seats show just the name -- only unpaid ones get a tag, so this
+  // list reads as "who still owes" rather than a payment log.
+  // Seat first, then who's in it: the seat is what you're scanning for
+  // when you're looking down a row, and it's the shorter of the two so
+  // the names line up.
+  who.innerHTML = '<span class="seat-id">' + escapeHtml(seatId) + '</span><b>' + escapeHtml(seat.name || '') + '</b>' +
+    (seat.paid ? '' : '<span class="unpaid-tag">unpaid</span>');
+  main.appendChild(who);
+
+  // A count, not the contents. Spelling out four people's orders in full
+  // turns the showtime list into a wall of sauces; whoever cares about
+  // the detail is one tap from it, and the host has the itemised copy.
+  const summary = document.createElement('div');
+  summary.className = 'concession-summary' + (lines.length ? ' has-items' : '');
+  summary.textContent = lines.length
+    ? '\uD83C\uDF7F ' + lines.length + ' item' + (lines.length === 1 ? '' : 's')
+    : 'No concessions';
+  main.appendChild(summary);
+
+  row.appendChild(main);
+
+  const cta = document.createElement('div');
+  cta.className = 'concession-cta';
+  cta.textContent = ordersOpen ? (lines.length ? 'Edit' : '+ Add') : 'View';
+  row.appendChild(cta);
+
+  return row;
 }
 
 // ---------------- SEAT PICKER VIEW ----------------
@@ -853,32 +1445,121 @@ function closeClaimOverlay(){
 }
 
 // ---------------- SUCCESS / PAY OVERLAY ----------------
+// The card after a seat is claimed asks one thing at a time: settle up,
+// then put it in the calendar, then order something. Each has its own way
+// out, and skipping one moves to the next rather than dismissing the lot.
+//
+// A step that can't do anything is never offered -- no payment handles
+// set, no usable date to build an event from, no menu to order off.
+let successSteps = [];
+let successStepTotal = 0;  // fixed at open, so "2 of 3" doesn't renumber as steps are consumed
+let successShowtime = null;
+let successSeatId = null;
+
 function openSuccessOverlay(showtime, seatId){
+  successShowtime = showtime;
+  successSeatId = seatId;
+
   document.getElementById('successSub').textContent =
     'Seat ' + seatId + ' for ' + (showtime.title || 'this showtime') + (typeof showtime.price === 'number' ? ' -- ' + formatPrice(showtime.price) : '') + '.';
 
-  const venmoLink = document.getElementById('venmoLink');
-  const venmoNote = (showtime.title || 'Movie') + ' (' + formatDateShort(showtime.date) + ', ' + seatId + ')';
-  const link = buildVenmoLink(showtime.price, venmoNote);
-  if (link){
-    venmoLink.href = link;
-    venmoLink.textContent = typeof showtime.price === 'number' ? ('Pay ' + formatPrice(showtime.price) + ' via Venmo') : 'Pay via Venmo';
-    venmoLink.classList.remove('hidden');
-  } else {
-    venmoLink.classList.add('hidden');
-  }
+  const seat = (showtime.seats || {})[seatId];
+  // Nobody for the host to pay, so don't offer to send them money.
+  const isHost = !!(seat && seat.host);
+  const canPay = !isHost && !!(buildVenmoLink(showtime.price, '') || buildCashAppLink(showtime.price));
 
-  const cashappLink = document.getElementById('cashappLink');
-  const cashLink = buildCashAppLink(showtime.price);
-  if (cashLink){
-    cashappLink.href = cashLink;
-    cashappLink.textContent = typeof showtime.price === 'number' ? ('Pay ' + formatPrice(showtime.price) + ' via Cash App') : 'Pay via Cash App';
-    cashappLink.classList.remove('hidden');
-  } else {
-    cashappLink.classList.add('hidden');
-  }
+  successSteps = [];
+  if (canPay) successSteps.push('pay');
+  if (showtimeStart(showtime)) successSteps.push('calendar');
+  if (concessionMenu.length) successSteps.push('concessions');
+  successStepTotal = successSteps.length;
 
+  renderSuccessStep();
   document.getElementById('successOverlay').classList.remove('hidden');
+}
+
+function successButton(label, className, onClick){
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  if (className) btn.className = className;
+  btn.textContent = label;
+  btn.addEventListener('click', onClick);
+  return btn;
+}
+
+function renderSuccessStep(){
+  const actions = document.getElementById('successActions');
+  const stepEl = document.getElementById('successStep');
+  actions.innerHTML = '';
+  stepEl.textContent = '';
+
+  const step = successSteps[0];
+  if (!step){
+    // Nothing this showtime can offer -- one way out rather than an
+    // empty card.
+    actions.appendChild(successButton('Done', '', closeSuccessOverlay));
+    return;
+  }
+
+  // Only worth saying when there's more than one, and it's what tells
+  // someone that "Skip" moves on rather than closing the card.
+  if (successStepTotal > 1){
+    stepEl.textContent = 'Step ' + (successStepTotal - successSteps.length + 1) + ' of ' + successStepTotal;
+  }
+
+  if (step === 'pay'){
+    const price = successShowtime.price;
+    const note = (successShowtime.title || 'Movie') + ' (' + formatDateShort(successShowtime.date) + ', ' + successSeatId + ')';
+    const venmo = buildVenmoLink(price, note);
+    const cash = buildCashAppLink(price);
+    // Both open in a new tab, so advancing straight away leaves the next
+    // step waiting when they come back rather than the one they just did.
+    if (venmo) actions.appendChild(successLink(
+      typeof price === 'number' ? ('Pay ' + formatPrice(price) + ' via Venmo') : 'Pay via Venmo', 'venmo-btn', venmo, true));
+    if (cash) actions.appendChild(successLink(
+      typeof price === 'number' ? ('Pay ' + formatPrice(price) + ' via Cash App') : 'Pay via Cash App', 'cashapp-btn', cash, true));
+    actions.appendChild(successButton('Skip', '', advanceSuccessStep));
+    return;
+  }
+
+  if (step === 'calendar'){
+    const href = '/api/public/showtimes/' + encodeURIComponent(successShowtime.id) +
+      '/calendar.ics?seat=' + encodeURIComponent(successSeatId);
+    // No target: iOS shows the Add to Calendar sheet over the page, and a
+    // blank tab is what you get if you fight it.
+    actions.appendChild(successLink('\uD83D\uDCC5 Add to calendar', 'cal-btn', href, false));
+    actions.appendChild(successButton('Skip', '', advanceSuccessStep));
+    return;
+  }
+
+  // concessions
+  actions.appendChild(successButton('\uD83C\uDF7F Add concessions', '', openCartFromSuccess));
+  actions.appendChild(successButton('Later', '', advanceSuccessStep));
+}
+
+function successLink(label, className, href, newTab){
+  const a = document.createElement('a');
+  a.className = className;
+  a.href = href;
+  a.textContent = label;
+  if (newTab){
+    a.target = '_blank';
+    a.rel = 'noopener';
+  }
+  a.addEventListener('click', () => {
+    // Doing the thing counts as finishing the step.
+    setTimeout(advanceSuccessStep, 0);
+  });
+  return a;
+}
+
+function advanceSuccessStep(){
+  successSteps.shift();
+  if (!successSteps.length){
+    closeSuccessOverlay();
+    return;
+  }
+  renderSuccessStep();
 }
 
 function closeSuccessOverlay(){
@@ -910,6 +1591,7 @@ async function submitClaim(){
     }
     const data = await res.json();
     const claimedSeatId = claimingSeatId;
+    lastClaim = { showtimeId: currentShowtimeId, seatId: claimedSeatId };
     closeClaimOverlay();
     // Refresh the in-memory copy for this showtime and redraw the map so
     // the newly-claimed seat shows red immediately.
@@ -922,9 +1604,862 @@ async function submitClaim(){
   }
 }
 
+// ---------------- CONCESSIONS ----------------
+//
+// There's no per-friend identity anywhere in this app -- one shared
+// password, and a name typed free-text at claim time -- so a cart belongs
+// to a SEAT, not to a login, and anyone on the reservation page can open
+// and edit any reserved seat's cart. That's deliberate (and matches how
+// the rest of the friend side already works): it's what makes "I'm at the
+// counter, add a popcorn to Jordan's too" a thing you can just do.
+//
+// Menu items are the host's list (admin editor). A cart line snapshots
+// the item's name and price at the moment it was added, so the host
+// repricing or removing a menu item never silently rewrites an order
+// someone already placed -- a line whose item has since left the menu
+// still shows, flagged, and can still be edited down to zero.
+
+// Matches MAX_QTY in lib/seats.js -- a cart line over this gets clamped
+// server-side, so stopping the stepper here keeps the number on screen
+// honest instead of letting it disagree with what got saved.
+const MAX_CART_QTY = 99;
+
+// The reservation page promises orders close 2 hours before showtime, so
+// the host has a point at which the list stops moving and they can
+// actually go buy it all.
+//
+// This is enforced here and NOT on the server, on purpose. A showtime's
+// date/time are stored as bare local strings with no timezone, and the
+// server runs in a container that's effectively UTC -- a server-side
+// cutoff would lock a San Francisco showtime's carts seven or eight hours
+// early. The friend's own clock is the same wall clock the showtime was
+// written in, so it's the only one that can read this correctly. It's a
+// cutoff in the same spirit as everything else here: it keeps honest
+// people honest, and the host can still sort anything out by text.
+const CONCESSION_CUTOFF_HOURS = 2;
+
+// Nobody sitting next to Naren gets offered peanut candy. Played for a
+// laugh, but it's an allergy, so it's built to fail safe rather than to
+// be cute: see hidePeanutRows() for what it deliberately does NOT do.
+//
+// Matched on a word boundary so "Naren", "naren" and "Naren H" all count
+// while a "Karen" two seats over doesn't.
+const PEANUT_NEIGHBOR = /\bnaren\b/i;
+// Name-matched rather than by a list of ids, so it keeps working after
+// the host renames an item or adds one of their own. Reese's is on here
+// by brand: the word "peanut" isn't in the name, the peanut butter is.
+const PEANUT_ITEM = /peanut|reese/i;
+
+let concessionMenu = [];   // [{id, name, price, note, section, optionGroup}] from /api/public/concession-menu
+let optionGroups = [];     // [{id, label, options[]}] -- the choice lists items point at
+let openSections = [];     // section names that start expanded rather than folded away
+let cartShowtimeId = null;
+let cartSeatId = null;
+// The order, one entry per unit ordered -- NOT one per menu item with a
+// quantity. That's what lets popcorn chicken with ranch and another with
+// bbq be two separate things rather than one row that can only hold one
+// answer.
+let cartOrder = [];        // [{uid, itemId, name, price, option, note}]
+let cartUid = 0;           // per-line handle, so a row can be removed without index maths
+const menuRowEls = new Map();   // itemId -> { count } in the catalog
+const orderRowEls = new Map();  // uid -> { el } in the order list
+let sectionEls = [];            // collapsed catalog sections, for live counts
+let cartLocked = false;    // past the cutoff -- read-only
+// There's no Save button: every add and remove writes straight through.
+// With the pick made before a line exists, every state the cart can be in
+// is already a valid order, so asking someone to confirm it was ceremony
+// -- and a fourth full-width button in a footer that was crowding the
+// menu out.
+let saveTimer = null;      // debounce handle, so a burst of taps is one request
+let saveInFlight = false;  // only ever one PUT at a time, so writes can't land out of order
+let savePending = false;   // a change arrived mid-flight; save again when it lands
+let saveState = 'idle';    // 'idle' | 'saving' | 'error'
+let lastClaim = null;      // {showtimeId, seatId} -- for the success overlay's "Add concessions"
+
+async function loadConcessionMenu(){
+  try{
+    const res = await fetch('/api/public/concession-menu');
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok) return;
+    const data = await res.json();
+    concessionMenu = Array.isArray(data.items) ? data.items : [];
+    optionGroups = Array.isArray(data.optionGroups) ? data.optionGroups : [];
+    openSections = Array.isArray(data.openSections) ? data.openSections : [];
+  }catch(e){
+    // Non-fatal -- an already-loaded menu stays usable, and a cart that
+    // has never loaded one shows the "no menu yet" state.
+  }
+}
+
+function concessionsTotal(lines){
+  const total = (lines || []).reduce((sum, l) => sum + (l.price || 0) * (l.qty || 0), 0);
+  return Math.round(total * 100) / 100;
+}
+
+function concessionTax(subtotal){
+  if (!(subtotal > 0) || !(concessionTaxRate > 0)) return 0;
+  return Math.round(subtotal * concessionTaxRate * 100) / 100;
+}
+
+// "8.625%" rather than "8.62%" -- the rate really does carry a third
+// decimal, and rounding the label makes the arithmetic look wrong.
+function formatTaxRate(rate){
+  return (rate * 100).toFixed(3).replace(/0+$/, '').replace(/\.$/, '') + '%';
+}
+
+// Local Date for a showtime's start, or null if it hasn't got a usable
+// date/time. Built field-by-field rather than by parsing "2026-02-12T19:00"
+// as a string, which some browsers read as UTC and some as local.
+function showtimeStart(obj){
+  if (typeof obj.date !== 'string' || typeof obj.time !== 'string') return null;
+  const d = obj.date.split('-').map(Number);
+  const t = obj.time.split(':').map(Number);
+  if (d.length < 3 || t.length < 2 || d.some(n => !Number.isFinite(n)) || t.some(n => !Number.isFinite(n))) return null;
+  const dt = new Date(d[0], d[1] - 1, d[2], t[0], t[1], 0, 0);
+  return Number.isFinite(dt.getTime()) ? dt : null;
+}
+
+// Open unless we can actually establish the cutoff has passed -- a
+// showtime with a missing or unparseable date/time stays editable rather
+// than locking everyone out of a cart for no visible reason.
+function concessionsOpen(obj){
+  const start = showtimeStart(obj);
+  if (!start) return true;
+  return Date.now() < start.getTime() - CONCESSION_CUTOFF_HOURS * 3600 * 1000;
+}
+
+// "Chicken Tenders ×2 (BBQ Sauce, Icing Cup)" -- one cart line in words.
+// The picks are part of what was ordered, not a footnote, so they ride
+// along wherever the line is named.
+function concessionLineLabel(l){
+  const options = (l.options || []).filter(Boolean);
+  return l.name + (l.qty > 1 ? ' ×' + l.qty : '') + (options.length ? ' (' + options.join(', ') + ')' : '');
+}
+
+// One-line "what's in this cart" for the seat row on the list card.
+function concessionSummary(lines){
+  if (!lines || !lines.length) return '';
+  const total = concessionsTotal(lines);
+  return lines.map(concessionLineLabel).join(', ') + (total > 0 ? ' — ' + formatPrice(total) : '');
+}
+
+// The choice list an item comes with, or [] for one that's just itself.
+// An item pointing at a group the host hasn't filled in yet reads as no
+// choices at all rather than an empty dropdown.
+function optionsForItem(itemId){
+  const item = concessionMenu.find(i => i.id === itemId);
+  if (!item || !item.optionGroup) return [];
+  const group = optionGroups.find(g => g.id === item.optionGroup);
+  return group && Array.isArray(group.options) ? group.options : [];
+}
+
+function optionLabelForItem(itemId){
+  const item = concessionMenu.find(i => i.id === itemId);
+  const group = item && optionGroups.find(g => g.id === item.optionGroup);
+  return group ? group.label : 'Choice';
+}
+
+// The menu body is a catalog: one row per item, a single "+" and nothing
+// else. Everything a friend has actually chosen lives in its own list
+// above the totals, one row per unit.
+//
+// It reads as a small thing but it's the difference between being able to
+// express "popcorn chicken with ranch AND another with bbq" and not: a
+// quantity of 2 on a single row can only carry one idea of what that
+// order is. One line per unit means each one carries its own choice.
+function buildMenuRows(){
+  return concessionMenu.map(item => ({
+    itemId: item.id,
+    name: item.name,
+    price: item.price,
+    note: item.note || '',
+    section: item.section || ''
+  }));
+}
+
+// Expands the seat's saved cart into one order line per unit, taking that
+// unit's pick off the stored options array.
+//
+// This is also the migration path for carts saved by the old quantity UI:
+// a stored { qty: 2, options: ['BBQ', 'Ranch'] } becomes two lines, which
+// is what it always meant. Lines whose item has since left the menu come
+// through as ordinary order lines -- still visible, still removable, just
+// with nothing in the catalog to add another from.
+function buildCartOrder(lines){
+  const out = [];
+  (lines || []).forEach(l => {
+    const options = l.options || [];
+    const qty = Math.max(1, l.qty || 0);
+    for (let unit = 0; unit < qty; unit++){
+      out.push({
+        uid: ++cartUid,
+        itemId: l.itemId || '',
+        name: l.name,
+        price: l.price,
+        option: options[unit] || '',
+        note: l.note || ''
+      });
+    }
+  });
+  return out;
+}
+
+// One wire line per order line. Coalescing identical ones back into a
+// quantity would just have to be undone on the next open, and 50 lines
+// (MAX_CART_LINES server-side) is a lot of concessions for one seat.
+function cartLines(){
+  return cartOrder.map(l => ({
+    itemId: l.itemId,
+    name: l.name,
+    price: l.price,
+    qty: 1,
+    note: l.note || '',
+    options: l.option ? [l.option] : []
+  }));
+}
+
+// Every order line for an item that comes with a choice has to have one
+// picked before the cart will save. An order reaching the host as
+// "Popcorn Chicken" with no sauce named is one they can't actually place.
+//
+// Only items whose group actually has options count: an item whose group
+// the host hasn't filled in yet can't be picked from, so it would
+// otherwise block saving forever. Lines whose item has left the menu are
+// exempt for the same reason -- there's no group left to pick from.
+function missingChoices(){
+  const byName = new Map();
+  cartOrder.forEach(l => {
+    if (l.option) return;
+    if (!optionsForItem(l.itemId).length) return;
+    const prev = byName.get(l.name) || { name: l.name, label: optionLabelForItem(l.itemId).toLowerCase(), missing: 0 };
+    prev.missing++;
+    byName.set(l.name, prev);
+  });
+  return Array.from(byName.values());
+}
+
+function orderCountFor(itemId){
+  return cartOrder.filter(l => l.itemId === itemId).length;
+}
+
+function currentCartShowtime(){
+  return allShowtimes.find(s => s.id === cartShowtimeId) || null;
+}
+
+// Seats either side of this one in the same row. Deliberately NOT the
+// rows in front or behind: seat numbers don't line up across rows (row A
+// is offset -- see padStart in seat-layout.js), so "same number, next
+// row" is not the seat behind you, and guessing wrong here would be
+// worse than the narrower answer.
+function neighborSeatIds(seatId){
+  const m = /^([A-Za-z]+)(\d+)$/.exec(seatId || '');
+  if (!m) return [];
+  const n = Number(m[2]);
+  return [m[1] + (n - 1), m[1] + (n + 1)];
+}
+
+function hasPeanutNeighbor(showtime, seatId){
+  const seats = (showtime && showtime.seats) || {};
+  return neighborSeatIds(seatId).some(id => seats[id] && PEANUT_NEIGHBOR.test(seats[id].name || ''));
+}
+
+// Menu items to leave out of the catalog. Silent by design: the people
+// this applies to are in on the joke, and a banner explaining the bit is
+// worse than the bit.
+//
+// It deliberately does not touch the order list. A peanut item already
+// ordered stays visible and removable there -- hiding a line someone is
+// being charged for would be worse than showing it -- and only its "+"
+// in the catalog goes away. Nor is any of this enforcement: the host sees
+// every order in full, which is the copy that matters at the counter.
+function hiddenPeanutItemIds(){
+  if (!hasPeanutNeighbor(currentCartShowtime(), cartSeatId)) return new Set();
+  const ordered = new Set(cartOrder.map(l => l.itemId));
+  return new Set(
+    concessionMenu.filter(i => PEANUT_ITEM.test(i.name || '') && !ordered.has(i.id)).map(i => i.id)
+  );
+}
+
+// ---------------- CART OVERLAY ----------------
+async function openCart(showtimeId, seatId){
+  const obj = allShowtimes.find(s => s.id === showtimeId);
+  if (!obj) return;
+  const seat = (obj.seats || {})[seatId];
+  if (!seat || !seat.name) return;
+
+  cartShowtimeId = showtimeId;
+  cartSeatId = seatId;
+  cartLocked = !concessionsOpen(obj);
+  saveState = 'idle';
+  saveInFlight = false;
+  savePending = false;
+  if (saveTimer){ clearTimeout(saveTimer); saveTimer = null; }
+
+  document.getElementById('cartTitle').textContent = 'Concessions';
+  document.getElementById('cartSub').textContent = 'Seat ' + seatId + ' · ' + seat.name;
+  document.getElementById('cartError').textContent = '';
+  document.getElementById('cartStatus').textContent = '';
+
+  const locked = document.getElementById('cartLocked');
+  locked.classList.toggle('hidden', !cartLocked);
+  locked.textContent =
+    'Orders for this showtime closed ' + CONCESSION_CUTOFF_HOURS + ' hours before it starts. ' +
+    'Message the host if you still need to change something.';
+
+  const body = document.getElementById('cartBody');
+  body.innerHTML = '<div class="cart-empty-menu">Loading menu...</div>';
+  document.getElementById('cartOverlay').classList.remove('hidden');
+  // Pins the showtime list behind the sheet. Without it a phone will
+  // happily scroll the page underneath once the menu hits its end, which
+  // is the one thing a full-screen sheet shouldn't do.
+  document.body.classList.add('cart-open');
+
+  // Refetched on every open rather than once at page load: the host adds
+  // menu items from their own device, and a friend who left this page
+  // sitting open all afternoon shouldn't be ordering off yesterday's menu.
+  await loadConcessionMenu();
+
+  // Bail out if the overlay got closed (or switched to another seat)
+  // while that request was in flight.
+  if (cartShowtimeId !== showtimeId || cartSeatId !== seatId) return;
+
+  // Re-read rather than reusing the `seat` captured before the await --
+  // a save on another seat replaces the whole showtime object in
+  // allShowtimes, so the one from before the fetch can be detached.
+  const current = allShowtimes.find(s => s.id === showtimeId);
+  const freshSeat = current && (current.seats || {})[seatId];
+  if (!freshSeat || !freshSeat.name){ closeCartOverlay(); return; }
+
+  cartOrder = buildCartOrder(freshSeat.concessions);
+  renderCart();
+}
+
+function openCartFromSuccess(){
+  if (!lastClaim) return;
+  closeSuccessOverlay();
+  openCart(lastClaim.showtimeId, lastClaim.seatId);
+}
+
+function closeCartOverlay(){
+  // Flush first: closing a second after a tap must not drop that tap.
+  // runSave() reads the cart state, so it has to run before it's cleared.
+  if (saveTimer){
+    clearTimeout(saveTimer);
+    saveTimer = null;
+    runSave();
+  }
+  cartShowtimeId = null;
+  cartSeatId = null;
+  cartOrder = [];
+  orderRowEls.clear();
+  document.getElementById('cartOverlay').classList.add('hidden');
+  document.body.classList.remove('cart-open');
+}
+
+function renderCart(){
+  const body = document.getElementById('cartBody');
+  body.innerHTML = '';
+  menuRowEls.clear();
+  sectionEls = [];
+
+  const menuRows = buildMenuRows();
+  if (menuRows.length === 0){
+    const empty = document.createElement('div');
+    empty.className = 'cart-empty-menu';
+    empty.textContent = "The host hasn't put up a concessions menu yet. Check back later.";
+    body.appendChild(empty);
+  } else {
+    const hidden = hiddenPeanutItemIds();
+    const visible = menuRows.filter(row => !hidden.has(row.itemId));
+
+    // Unsectioned items inline; a named section folded away behind a
+    // header, rendered at the position of its FIRST item rather than
+    // always at the end -- that's what lets drinks sit collapsed at the
+    // top and snacks and candy sit collapsed underneath the food, in
+    // whatever order the menu itself is in.
+    const emitted = new Set();
+    visible.forEach(row => {
+      if (!row.section){
+        body.appendChild(buildMenuRowEl(row));
+        return;
+      }
+      if (emitted.has(row.section)) return;
+      emitted.add(row.section);
+      body.appendChild(buildCartSectionEl(row.section, visible.filter(r => r.section === row.section)));
+    });
+  }
+
+  renderOrderList();
+  renderCartFoot();
+}
+
+// A collapsed section. Native <details>, so the open/closed state is the
+// browser's to keep and there's nothing to wire up for the keyboard.
+function buildCartSectionEl(name, rows){
+  const wrap = document.createElement('details');
+  wrap.className = 'cart-section';
+
+  const inOrder = rows.reduce((n, r) => n + orderCountFor(r.itemId), 0);
+  // Open when the menu says this is one of the sections worth having on
+  // screen from the start, or when something in it is already ordered --
+  // a friend reopening their cart should see where their Skittles came
+  // from without hunting for it.
+  wrap.open = inOrder > 0 || openSections.indexOf(name) !== -1;
+
+  const summary = document.createElement('summary');
+  const label = document.createElement('span');
+  label.textContent = name;
+  summary.appendChild(label);
+
+  const count = document.createElement('span');
+  count.className = 'cart-section-count' + (inOrder ? ' has-order' : '');
+  count.textContent = inOrder ? inOrder + ' in order' : rows.length + ' item' + (rows.length === 1 ? '' : 's');
+  count.dataset.total = String(rows.length);
+  summary.appendChild(count);
+  wrap.appendChild(summary);
+
+  const inner = document.createElement('div');
+  inner.className = 'cart-section-body';
+  rows.forEach(row => inner.appendChild(buildMenuRowEl(row)));
+  wrap.appendChild(inner);
+
+  sectionEls.push({ el: wrap, count, rows });
+  return wrap;
+}
+
+// One catalog row: what it is, what it costs, and a "+".
+function buildMenuRowEl(row){
+  const el = document.createElement('div');
+  el.className = 'cart-item';
+
+  const rowEl = document.createElement('div');
+  rowEl.className = 'ci-row';
+
+  const main = document.createElement('div');
+  main.className = 'ci-main';
+
+  const nameEl = document.createElement('div');
+  nameEl.className = 'ci-name';
+  nameEl.textContent = row.name;
+  main.appendChild(nameEl);
+
+  const priceEl = document.createElement('div');
+  priceEl.className = 'ci-price';
+  priceEl.textContent = [
+    row.price > 0 ? formatPrice(row.price) : 'No price set',
+    // The host's own label for this item ("50c off"), not a discount the
+    // app applies -- the price to its left is what gets charged.
+    row.note || ''
+  ].filter(Boolean).join(' · ');
+  main.appendChild(priceEl);
+
+  rowEl.appendChild(main);
+
+  // How many of this are already down in the order below. Without it,
+  // tapping "+" on a row 30 items up the list gives no sign it landed.
+  const count = document.createElement('span');
+  count.className = 'ci-count';
+  rowEl.appendChild(count);
+
+  const add = document.createElement('button');
+  add.type = 'button';
+  add.className = 'ci-add';
+  add.textContent = '+';
+  add.setAttribute('aria-label', 'Add ' + row.name);
+  rowEl.appendChild(add);
+  el.appendChild(rowEl);
+
+  // The choice is made HERE, before the line exists, because the order
+  // list below is deliberately not editable -- changing your mind is
+  // remove and re-add. That also means "+" can't be pressed until there's
+  // something to add: half an order of popcorn chicken with no sauce
+  // named isn't a thing the host can go and buy.
+  const choices = optionsForItem(row.itemId);
+  let select = null;
+  if (choices.length){
+    select = document.createElement('select');
+    select.className = 'ci-choice-select needs-choice';
+    const label = optionLabelForItem(row.itemId);
+    select.setAttribute('aria-label', label + ' for ' + row.name);
+
+    const blank = document.createElement('option');
+    blank.value = '';
+    blank.textContent = 'Choose ' + label.toLowerCase() + '...';
+    select.appendChild(blank);
+    choices.forEach(name => {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      select.appendChild(opt);
+    });
+
+    select.addEventListener('change', () => {
+      select.classList.toggle('needs-choice', !select.value);
+      add.disabled = cartLocked || !select.value;
+    });
+    el.appendChild(select);
+  }
+
+  add.disabled = cartLocked || !!(select && !select.value);
+  add.addEventListener('click', () => {
+    if (select && !select.value) return;
+    addOrderLine(row, select ? select.value : '');
+    if (select){
+      // Back to blank so the next one is a deliberate pick rather than a
+      // silent repeat of the last -- two tenders with the same sauce
+      // should be as explicit as two with different ones.
+      select.value = '';
+      select.classList.add('needs-choice');
+      add.disabled = true;
+    }
+  });
+
+  menuRowEls.set(row.itemId, { count });
+  syncMenuRowCount(row.itemId);
+  return el;
+}
+
+function syncMenuRowCount(itemId){
+  const refs = menuRowEls.get(itemId);
+  if (!refs) return;
+  const n = orderCountFor(itemId);
+  refs.count.textContent = n ? '×' + n : '';
+}
+
+function syncSectionCounts(){
+  sectionEls.forEach(({ count, rows }) => {
+    const inOrder = rows.reduce((n, r) => n + orderCountFor(r.itemId), 0);
+    count.textContent = inOrder
+      ? inOrder + ' in order'
+      : count.dataset.total + ' item' + (count.dataset.total === '1' ? '' : 's');
+    count.classList.toggle('has-order', inOrder > 0);
+  });
+}
+
+// ---------------- ORDER LIST ----------------
+function renderOrderList(){
+  const list = document.getElementById('cartOrderList');
+  list.innerHTML = '';
+  orderRowEls.clear();
+
+  document.getElementById('cartOrderWrap').classList.toggle('hidden', cartOrder.length === 0);
+  cartOrder.forEach(line => list.appendChild(buildOrderRowEl(line)));
+  syncOrderCount();
+  syncSectionCounts();
+}
+
+function setOrderPanelCollapsed(collapsed){
+  const wrap = document.getElementById('cartOrderWrap');
+  wrap.classList.toggle('is-collapsed', collapsed);
+  document.getElementById('cartOrderToggle').setAttribute('aria-expanded', String(!collapsed));
+}
+
+// Collapsing hands the whole card back to the menu. The count in the
+// header is what makes that safe to do -- see syncOrderCount below.
+function toggleOrderPanel(){
+  setOrderPanelCollapsed(!document.getElementById('cartOrderWrap').classList.contains('is-collapsed'));
+}
+
+// The count on the panel header, which is the whole of what's readable
+// when it's collapsed -- so it has to stay right whether or not the list
+// itself is on screen.
+function syncOrderCount(){
+  const n = cartOrder.length;
+  document.getElementById('cartOrderCount').textContent = n ? n + ' item' + (n === 1 ? '' : 's') : '';
+}
+
+function addOrderLine(row, option){
+  if (cartLocked) return;
+  const line = {
+    uid: ++cartUid,
+    itemId: row.itemId,
+    name: row.name,
+    price: row.price,
+    option: option || '',
+    note: ''
+  };
+  cartOrder.push(line);
+
+  // Appended rather than re-rendering the whole list, so a note someone
+  // is part-way through typing on another line keeps its focus.
+  const wrap = document.getElementById('cartOrderWrap');
+  wrap.classList.remove('hidden');
+  document.getElementById('cartOrderList').appendChild(buildOrderRowEl(line));
+  syncOrderCount();
+
+  markCartChanged();
+  syncMenuRowCount(row.itemId);
+  syncSectionCounts();
+  renderCartFoot();
+
+  // Adding into a collapsed panel would put the line somewhere nobody
+  // can see; open it so "+" visibly does something, then scroll the new
+  // line into view within it.
+  setOrderPanelCollapsed(false);
+  const refs = orderRowEls.get(line.uid);
+  if (refs) refs.el.scrollIntoView({ block: 'nearest' });
+}
+
+function removeOrderLine(uid){
+  if (cartLocked) return;
+  const idx = cartOrder.findIndex(l => l.uid === uid);
+  if (idx === -1) return;
+  const [gone] = cartOrder.splice(idx, 1);
+
+  const refs = orderRowEls.get(uid);
+  if (refs) refs.el.remove();
+  orderRowEls.delete(uid);
+
+  document.getElementById('cartOrderWrap').classList.toggle('hidden', cartOrder.length === 0);
+  syncOrderCount();
+  markCartChanged();
+  syncMenuRowCount(gone.itemId);
+  syncSectionCounts();
+  renderCartFoot();
+}
+
+// One line, read-only. Changing a pick is remove-and-re-add, which keeps
+// the list scannable -- a dozen rows each carrying a dropdown and a text
+// box is a form, not an order.
+function buildOrderRowEl(line){
+  const el = document.createElement('div');
+  el.className = 'order-row';
+
+  const main = document.createElement('div');
+  main.className = 'order-main';
+
+  const nameEl = document.createElement('span');
+  nameEl.className = 'order-name';
+  nameEl.textContent = line.name;
+  main.appendChild(nameEl);
+
+  const choices = optionsForItem(line.itemId);
+  if (line.option){
+    const opt = document.createElement('span');
+    opt.className = 'order-option';
+    opt.textContent = ' · ' + line.option;
+    main.appendChild(opt);
+  } else if (choices.length){
+    // Only reachable for a line saved before this item had a choice (or
+    // before this UI asked for one up front). It can't be fixed in place,
+    // so it says what to do about it.
+    const opt = document.createElement('span');
+    opt.className = 'order-option is-missing';
+    opt.textContent = ' · no ' + optionLabelForItem(line.itemId).toLowerCase();
+    main.appendChild(opt);
+  }
+
+  // Notes aren't editable here any more, but one saved earlier is still
+  // part of the order and still has to reach the host.
+  if (line.note){
+    const note = document.createElement('span');
+    note.className = 'order-line-note';
+    note.textContent = ' · ' + line.note;
+    main.appendChild(note);
+  }
+
+  el.appendChild(main);
+
+  const priceEl = document.createElement('span');
+  priceEl.className = 'order-price';
+  priceEl.textContent = line.price > 0 ? formatPrice(line.price) : '';
+  el.appendChild(priceEl);
+
+  const remove = document.createElement('button');
+  remove.type = 'button';
+  remove.className = 'order-remove';
+  remove.textContent = '×';
+  remove.disabled = cartLocked;
+  remove.setAttribute('aria-label', 'Remove ' + line.name);
+  remove.addEventListener('click', () => removeOrderLine(line.uid));
+  el.appendChild(remove);
+
+  orderRowEls.set(line.uid, { el });
+  return el;
+}
+
+function markCartChanged(){
+  saveState = 'saving';
+  renderSaveStatus();
+  if (saveTimer) clearTimeout(saveTimer);
+  // Short debounce so adding three things in a row is one write, not
+  // three; long enough to coalesce taps, short enough that closing the
+  // card straight afterwards still flushes something tiny.
+  saveTimer = setTimeout(runSave, 350);
+}
+
+function renderSaveStatus(){
+  const el = document.getElementById('cartStatus');
+  el.classList.toggle('is-error', saveState === 'error');
+  if (saveState === 'saving'){
+    el.textContent = 'Saving\u2026';
+  } else if (saveState === 'error'){
+    // The only affordance left for a failed write, now that there's no
+    // Save button to press again -- silent loss is the one thing autosave
+    // must not do.
+    el.textContent = "Couldn't save \u2014 tap to retry";
+  } else {
+    el.textContent = 'Saved';
+  }
+}
+
+async function runSave(){
+  saveTimer = null;
+  if (!cartShowtimeId || !cartSeatId || cartLocked) return;
+  // One write at a time. A second change mid-flight doesn't start a
+  // racing request that might land first -- it queues, and the state that
+  // finally gets written is the latest one.
+  if (saveInFlight){ savePending = true; return; }
+  saveInFlight = true;
+
+  const showtimeId = cartShowtimeId;
+  const seatId = cartSeatId;
+  const items = cartLines();
+
+  try{
+    const res = await fetch(
+      '/api/public/showtimes/' + encodeURIComponent(showtimeId) +
+      '/seats/' + encodeURIComponent(seatId) + '/concessions',
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items })
+      }
+    );
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok){
+      saveState = 'error';
+      document.getElementById('cartError').textContent = res.status === 409
+        ? 'That seat is no longer reserved, so there is nothing to order for it.'
+        : '';
+      renderSaveStatus();
+      return;
+    }
+    const data = await res.json();
+    const idx = allShowtimes.findIndex(s => s.id === showtimeId);
+    if (idx !== -1) allShowtimes[idx] = data.showtime;
+    saveState = 'idle';
+    document.getElementById('cartError').textContent = '';
+    // Only touch the cart's own chrome if it's still this cart on screen
+    // -- the close path fires a last save on the way out.
+    if (cartShowtimeId === showtimeId && cartSeatId === seatId){
+      renderSaveStatus();
+      renderCartFoot();
+    }
+    // The list underneath is showing this seat's old order -- redraw it
+    // (and the seat map, if the picker is what's open behind this).
+    renderCards();
+    if (currentShowtimeId === showtimeId) buildSeatmap(data.showtime);
+  }catch(e){
+    saveState = 'error';
+    renderSaveStatus();
+  }finally{
+    saveInFlight = false;
+    if (savePending){
+      savePending = false;
+      runSave();
+    }
+  }
+}
+
+function retrySave(){
+  if (saveState !== 'error') return;
+  markCartChanged();
+}
+
+// Totals + the pay row. Pay links are shown only when what's on screen
+// matches what's been saved -- offering a pre-filled "pay $43.46" button
+// for an order the host hasn't actually received yet is the one way this
+// screen could genuinely cost someone money.
+function renderCartFoot(){
+  const obj = currentCartShowtime();
+  const seat = obj && (obj.seats || {})[cartSeatId];
+  const totals = document.getElementById('cartTotals');
+  const lines = cartLines();
+  const concessions = concessionsTotal(lines);
+  const tax = concessionTax(concessions);
+  const ticketPrice = obj && typeof obj.price === 'number' ? obj.price : 0;
+  const ticketPaid = !!(seat && seat.paid);
+  // The host's seat settles itself: they bought the tickets and they're
+  // buying the concessions, so there's nobody for them to pay.
+  const isHost = !!(seat && seat.host);
+  const owed = isHost ? 0 : Math.round(((ticketPaid ? 0 : ticketPrice) + concessions + tax) * 100) / 100;
+
+  totals.innerHTML = '';
+  if (ticketPrice > 0){
+    totals.appendChild(cartTotalRow(
+      'Ticket',
+      ticketPaid ? '<span class="paid-note">&#10003; paid</span>' : escapeHtml(formatPrice(ticketPrice))
+    ));
+  }
+  totals.appendChild(cartTotalRow('Concessions', escapeHtml(concessions > 0 ? formatPrice(concessions) : '--')));
+  // Only when there's something to tax -- a row of "Tax $0.00" above an
+  // empty order is noise.
+  if (tax > 0){
+    totals.appendChild(cartTotalRow('Tax (' + formatTaxRate(concessionTaxRate) + ')', escapeHtml(formatPrice(tax))));
+  }
+  // No owed row at all on the host's own seat -- there's nothing for them
+  // to pay, so the line has nothing to say. The costs above still show,
+  // since what the order comes to is worth knowing either way.
+  if (!isHost){
+    const owedRow = cartTotalRow('You owe', escapeHtml(formatPrice(owed)));
+    owedRow.classList.add('is-owed');
+    totals.appendChild(owedRow);
+  }
+
+  // A locked cart has no save button, so there's nothing to hold back.
+  const missing = cartLocked ? [] : missingChoices();
+  const hint = document.getElementById('cartHint');
+  hint.classList.toggle('hidden', missing.length === 0);
+  if (missing.length){
+    // Names them and says what to do: these lines can't be edited in
+    // place, so "still to choose" on its own would be a dead end.
+    hint.textContent = 'Remove and re-add to pick ' +
+      missing.map(m => 'a ' + m.label + ' for ' + m.name + (m.missing > 1 ? ' (×' + m.missing + ')' : '')).join(', ') + '.';
+  }
+
+  // Nothing to confirm and nothing to discard -- every change is already
+  // written -- so Close is just Close.
+
+  // Note carries the seat so the host can tell two friends' payments
+  // apart in a Venmo feed; Cash App has no note param at all (see
+  // buildCashAppLink).
+  const payNote = (obj && obj.title ? obj.title : 'Movie') +
+    ' (' + formatDateShort(obj ? obj.date : '') + ', ' + cartSeatId + ')' +
+    (concessions > 0 ? ' + concessions' : '');
+  // Withheld while a write is in flight or has failed (the figure on the
+  // button would be one the host hasn't got), and while a line is short
+  // its pick, because that order isn't one they can actually place.
+  const showPay = saveState === 'idle' && missing.length === 0 && owed > 0;
+
+  const venmoEl = document.getElementById('cartVenmoLink');
+  const venmoUrl = showPay ? buildVenmoLink(owed, payNote) : null;
+  venmoEl.classList.toggle('hidden', !venmoUrl);
+  if (venmoUrl){
+    venmoEl.href = venmoUrl;
+    venmoEl.textContent = 'Venmo ' + formatPrice(owed);
+  }
+
+  const cashEl = document.getElementById('cartCashappLink');
+  const cashUrl = showPay ? buildCashAppLink(owed) : null;
+  cashEl.classList.toggle('hidden', !cashUrl);
+  if (cashUrl){
+    cashEl.href = cashUrl;
+    cashEl.textContent = 'Cash App ' + formatPrice(owed);
+  }
+}
+
+function cartTotalRow(label, valueHtml){
+  const row = document.createElement('div');
+  row.className = 'cart-total-row';
+  row.innerHTML = '<span>' + escapeHtml(label) + '</span><span>' + valueHtml + '</span>';
+  return row;
+}
+
 // ---------------- INIT ----------------
 loadList();
 loadConfig(); // populates venmoHandle for the post-claim pay link
+loadConcessionMenu(); // so the post-claim overlay knows whether to offer concessions
 </script>
 
 </body>
