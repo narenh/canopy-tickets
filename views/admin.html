@@ -918,7 +918,7 @@
       <div>
         <!-- LOGO_IMG -->
         <h1>My Showtimes</h1>
-        <p>Seat blocks for your crew</p>
+        <p data-copy="admin.listSubtitle"></p>
       </div>
       <div class="logout-link" onclick="logout()">Log out</div>
     </div>
@@ -941,7 +941,7 @@
 
     <div class="og-section">
       <h3>Friend Password</h3>
-      <p>What friends enter at login to reach the reservation page. Change it any time -- e.g. a fresh password per movie. Leave it blank and save to turn off friend access entirely.</p>
+      <p data-copy="admin.passwordBlurb"></p>
       <div class="og-controls">
         <input type="text" id="sharedPasswordInput" placeholder="No password set -- friend login is off">
         <button type="button" onclick="saveSharedPassword()">Save</button>
@@ -951,7 +951,7 @@
 
     <div class="og-section">
       <h3>Link Preview Image</h3>
-      <p>Shown when this site's link is shared in iMessage, Facebook, Instagram, etc.</p>
+      <p data-copy="admin.ogBlurb"></p>
       <img id="ogPreview" class="og-preview hidden" alt="Current link preview image">
       <div class="og-controls">
         <input type="file" id="ogFileInput" accept="image/png,image/jpeg,image/webp,image/gif">
@@ -962,7 +962,7 @@
 
     <div class="og-section">
       <h3>Concessions Menu</h3>
-      <p>What friends can order from the reservation page. Ships with the AMC menu already filled in -- edit, reprice, add or remove anything and save, and your version takes over. One list for every showtime; orders are attached to each reserved seat, and friends can change theirs until you finalize that showtime's order. Removing an item here doesn't disturb orders already placed -- those keep the name and price they were placed at.</p>
+      <p data-copy="admin.menuEditor.blurb"></p>
       <div id="menuRows"></div>
       <!-- Every section name already in use, so filing an item under one
            is a pick rather than a retype (sections match on exact text). -->
@@ -972,7 +972,7 @@
       </div>
 
       <div class="menu-subhead">Option groups</div>
-      <p class="menu-subnote">Lists of choices an item comes with, one option per line. Friends pick one per unit ordered, so two chicken tenders get two picks. A group can be shared by several items (everything fried points at Sauce) or belong to just one (a pizza's toppings) -- assign it with the dropdown on each item above.</p>
+      <p class="menu-subnote" data-copy="admin.menuEditor.groupsBlurb"></p>
       <div id="groupRows"></div>
       <div class="og-controls">
         <button type="button" onclick="addOptionGroup()">+ Add group</button>
@@ -987,7 +987,7 @@
 
     <div class="og-section">
       <h3>Payment Handles</h3>
-      <p>Shown as pay buttons to friends right after they claim a seat. Fill in either, both, or neither -- a button only shows up for the one(s) you've set.</p>
+      <p data-copy="admin.payBlurb"></p>
       <div class="og-controls">
         <input type="text" id="venmoInput" placeholder="Venmo username (no @)">
       </div>
@@ -1002,7 +1002,7 @@
 
     <div class="og-section">
       <h3>Site Logo</h3>
-      <p>Shown on the login screen and at the top of this and the reservation page. PNG with a transparent background works best.</p>
+      <p data-copy="admin.logoBlurb"></p>
       <img id="logoPreview" class="og-preview hidden" alt="Current site logo">
       <div class="og-controls">
         <input type="file" id="logoFileInput" accept="image/png">
@@ -1060,7 +1060,7 @@
         <button type="button" class="quick-price-btn" onclick="setPrice(17.49)">$17.49</button>
         <button type="button" class="quick-price-btn" onclick="setPrice(28.99)">$28.99</button>
       </div>
-      <div class="edit-hint">Tap title/theater to rename; use pickers for date/time and the dropdowns for format and screen.</div>
+      <div class="edit-hint" data-copy="admin.seatGrid.fieldsHelp"></div>
     </div>
 
     <div class="seatmap" id="seatmap"></div>
@@ -1082,13 +1082,13 @@
       <span class="orders-close-note" id="ordersCloseNote"></span>
     </div>
 
-    <div class="toolbar-note">Tap a yellow seat to add it to your block. Tap a green seat to assign it to a friend. Tap a red seat to edit, clear, or release it.</div>
+    <div class="toolbar-note" data-copy="admin.seatGrid.help"></div>
 
     <div class="legend">
-      <div class="legend-item"><span class="legend-swatch sw-avail"></span> Not in your block</div>
-      <div class="legend-item"><span class="legend-swatch sw-inblock"></span> Your block, available</div>
-      <div class="legend-item"><span class="legend-swatch sw-claimed"></span> Reserved by a friend</div>
-      <div class="legend-item"><span class="legend-swatch sw-claimed"><span class="sw-paid-dot"></span></span> Reserved &amp; paid</div>
+      <div class="legend-item"><span class="legend-swatch sw-avail"></span> <span data-copy="admin.seatGrid.legendNotOurs"></span></div>
+      <div class="legend-item"><span class="legend-swatch sw-inblock"></span> <span data-copy="admin.seatGrid.legendAvailable"></span></div>
+      <div class="legend-item"><span class="legend-swatch sw-claimed"></span> <span data-copy="admin.seatGrid.legendClaimed"></span></div>
+      <div class="legend-item"><span class="legend-swatch sw-claimed"><span class="sw-paid-dot"></span></span> <span data-copy="admin.seatGrid.legendPaid" data-copy-html></span></div>
     </div>
 
     <div class="save-status" id="saveStatus"></div>
@@ -1108,7 +1108,7 @@
            they asked for while you're assigning/marking the seat. -->
       <div class="se-order hidden" id="seatEditorOrder"></div>
       <label class="se-field">
-        <span>Assigned to (leave blank = available for a friend to claim)</span>
+        <span data-copy="admin.seatEditor.nameLabel"></span>
         <input type="text" id="seatEditorName" placeholder="e.g. Jordan">
       </label>
       <label class="se-checkbox">
@@ -1131,8 +1131,14 @@
     </div>
   </div>
 
+<script src="/copy.js"></script>
 <script src="/seat-layout.js"></script>
 <script>
+
+// Fills the [data-copy] elements in the markup above from public/copy.js.
+// Everything built in JS asks for its lines with t() at the point of use.
+applyCopy();
+
 // Inline (not an emoji -- at seat-icon size, the wheelchair emoji renders
 // as a tiny broken-looking glyph on several platforms, easily mistaken
 // for a failed image load). Path data from svgrepo.com/svg/333986/handicap
@@ -1278,7 +1284,7 @@ function handleAuthFailure(res){
   if (Date.now() - last < 4000){
     document.body.innerHTML =
       '<div style="padding:60px 20px;text-align:center;color:#9a9a9a;font-family:-apple-system,sans-serif;">' +
-      'Session trouble &mdash; <a href="/" style="color:#c9a24b;">click here to sign in again</a>.</div>';
+      t('sessionTrouble') + '</div>';
     return true;
   }
   sessionStorage.setItem(key, String(Date.now()));
@@ -1341,7 +1347,7 @@ async function loadList(){
     const items = data.showtimes || [];
     refreshTitleSuggestions(items);
     if (items.length === 0){
-      container.innerHTML = '<div class="empty-state">No showtimes yet. Tap "+ New Showtime" to create your first seat block.</div>';
+      container.innerHTML = '<div class="empty-state">' + escapeHtml(t('admin.listEmptyAll')) + '</div>';
       return;
     }
     const upcoming = items.filter(obj => !isPastShowtime(obj));
@@ -1350,7 +1356,7 @@ async function loadList(){
     upcoming.sort((a,b) => (a.date+'T'+a.time).localeCompare(b.date+'T'+b.time));
     container.innerHTML = '';
     if (upcoming.length === 0){
-      container.innerHTML = '<div class="empty-state">No upcoming showtimes. Tap "+ New Showtime" to create one.</div>';
+      container.innerHTML = '<div class="empty-state">' + escapeHtml(t('admin.listEmptyUpcoming')) + '</div>';
     } else {
       upcoming.forEach(obj => container.appendChild(buildCard(obj)));
     }
@@ -1365,7 +1371,7 @@ async function loadList(){
       pastSection.classList.remove('hidden');
     }
   }catch(e){
-    container.innerHTML = '<div class="empty-state">Could not load showtimes. Try again.</div>';
+    container.innerHTML = '<div class="empty-state">' + escapeHtml(t('admin.listLoadFailed')) + '</div>';
   }
 }
 
@@ -1432,7 +1438,7 @@ function buildCard(obj){
   const availLine = document.createElement('div');
   if (blockIds.length === 0){
     availLine.className = 'seats-empty';
-    availLine.textContent = 'No seats in your block yet';
+    availLine.textContent = t('admin.seatSummary.empty');
   } else {
     const availCount = blockIds.length - namedIds.length;
     availLine.className = 'seats-avail-line ' + (availCount > 0 ? 'seats-avail-green' : 'seats-avail-red');
@@ -1533,7 +1539,7 @@ async function openExisting(id){
   try{
     const res = await fetch('/api/showtimes/' + id);
     if (await handleAuthFailure(res)) return;
-    if (!res.ok){ alert('Could not find that showtime.'); return; }
+    if (!res.ok){ alert(t('admin.notFound')); return; }
     const data = await res.json();
     const obj = data.showtime;
     currentId = id;
@@ -1563,7 +1569,7 @@ async function openExisting(id){
     showEditor();
     buildSeatGrid();
   }catch(e){
-    alert('Could not open that showtime.');
+    alert(t('admin.openFailed'));
   }
 }
 
@@ -1657,16 +1663,16 @@ function renderSeat(id){
   // legacy 'occupied' entry from before that state was retired -- just
   // renders as "not in your block."
   if (!s || s.status !== 'assigned'){
-    el.dataset.tooltip = id + ' — not in your block';
+    el.dataset.tooltip = t('admin.seatGrid.tipNotOurs', { seat: id });
     return;
   }
   if (s.name){
     el.classList.add('claimed');
     if (s.paid) el.classList.add('paid');
-    el.dataset.tooltip = id + ' — ' + s.name + (s.paid ? ' (paid)' : ' (unpaid)');
+    el.dataset.tooltip = t('admin.seatGrid.tipClaimed', { seat: id, name: s.name, state: s.paid ? 'paid' : 'unpaid' });
   } else {
     el.classList.add('in-block');
-    el.dataset.tooltip = id + ' — available';
+    el.dataset.tooltip = t('admin.seatGrid.tipAvailable', { seat: id });
   }
 }
 
@@ -1687,7 +1693,7 @@ function openSeatEditor(id){
   editingSeatId = id;
   const cur = seatStates[id];
   const hasName = !!(cur && cur.name);
-  document.getElementById('seatEditorTitle').textContent = 'Seat ' + id;
+  document.getElementById('seatEditorTitle').textContent = t('admin.seatEditor.title', { seat: id });
   renderSeatEditorOrder(cur);
   document.getElementById('seatEditorName').value = hasName ? cur.name : '';
   document.getElementById('seatEditorPaid').checked = !!(cur && cur.paid);
@@ -1711,7 +1717,7 @@ function renderSeatEditorConcessionsPaid(seat){
 
   wrap.classList.toggle('hidden', cost <= 0 || isHost);
   box.checked = cost > 0 && !!seat.concessionsPaid;
-  label.textContent = 'Concessions paid (' + formatPrice(cost) + ' with tax)';
+  label.textContent = t('admin.seatEditor.concessionsPaid', { amount: formatPrice(cost) });
 }
 
 // The friend's own order for this seat, shown while you're editing the
@@ -1730,7 +1736,7 @@ function renderSeatEditorOrder(seat){
     const note = l.note ? ' <span class="seat-id">(' + escapeHtml(l.note) + ')</span>' : '';
     return '<div class="se-order-line">' + escapeHtml(concessionLineLabel(l)) + note + '</div>';
   }).join('');
-  el.innerHTML = '<div class="se-order-head">Ordered from the reservation page</div>' + rows +
+  el.innerHTML = '<div class="se-order-head">' + escapeHtml(t('admin.seatEditor.orderHead')) + '</div>' + rows +
     '<div class="se-order-total">' + escapeHtml(formatPrice(concessionsTotal(lines))) + '</div>';
   el.classList.remove('hidden');
 }
@@ -1795,17 +1801,19 @@ function updateSummary(){
   const summary = document.getElementById('summary');
   renderOrders();
   if (blockIds.length === 0){
-    summary.innerHTML = 'Your seats: <b>none</b>';
+    summary.innerHTML = t('admin.seatSummary.none');
     return;
   }
   const lines = blockIds.map(id => {
     const s = seatStates[id];
-    const label = s.name ? escapeHtml(s.name) : 'AVAILABLE';
+    const label = s.name ? escapeHtml(s.name) : escapeHtml(t('admin.seatSummary.available'));
     const outstanding = seatOutstanding(s, currentShowtimePrice());
-    const paidTag = s.name ? (outstanding > 0 ? ' owes ' + formatPrice(outstanding) : ' ✓paid') : '';
+    const paidTag = s.name
+      ? (outstanding > 0 ? t('admin.seatSummary.owes', { amount: formatPrice(outstanding) }) : t('admin.seatSummary.paid'))
+      : '';
     return '<div class="summary-line">' + escapeHtml(id) + ': <b>' + label + '</b>' + paidTag + '</div>';
   });
-  summary.innerHTML = 'Your seats (' + blockIds.length + '):' + lines.join('');
+  summary.innerHTML = escapeHtml(t('admin.seatSummary.heading', { count: blockIds.length })) + lines.join('');
 }
 
 // Per-seat orders plus the summed shopping list, rebuilt whenever the
@@ -1824,10 +1832,8 @@ function renderOrdersCloseBar(){
   if (!currentId) return;
 
   bar.classList.toggle('is-closed', ordersClosed);
-  document.getElementById('ordersCloseBtn').textContent = ordersClosed ? 'Reopen Order' : 'Finalize Order';
-  document.getElementById('ordersCloseNote').textContent = ordersClosed
-    ? 'Order is final. Friends can see their carts but not change them.'
-    : 'Friends can still add and remove items. Finalize when you go to the counter.';
+  document.getElementById('ordersCloseBtn').textContent = t(ordersClosed ? 'admin.orders.reopen' : 'admin.orders.finalize');
+  document.getElementById('ordersCloseNote').textContent = t(ordersClosed ? 'admin.orders.noteClosed' : 'admin.orders.noteOpen');
 }
 
 // Writes straight away rather than waiting for Save Showtime: this is the
@@ -1837,7 +1843,7 @@ function renderOrdersCloseBar(){
 async function toggleOrdersClosed(){
   if (!currentId) return;
   const next = !ordersClosed;
-  if (next && !confirm('Finalize the order? Friends will not be able to change what they asked for until you reopen it.')) return;
+  if (next && !confirm(t('admin.orders.finalizeConfirm'))) return;
 
   const btn = document.getElementById('ordersCloseBtn');
   btn.disabled = true;
@@ -1848,11 +1854,11 @@ async function toggleOrdersClosed(){
       body: JSON.stringify({ closed: next })
     });
     if (await handleAuthFailure(res)) return;
-    if (!res.ok){ alert('Could not change that. Try again.'); return; }
+    if (!res.ok){ alert(t('admin.orders.finalizeFailed')); return; }
     ordersClosed = next;
     renderOrdersCloseBar();
   }catch(e){
-    alert('Could not change that. Try again.');
+    alert(t('admin.orders.finalizeFailed'));
   }finally{
     btn.disabled = false;
   }
@@ -1874,7 +1880,8 @@ function renderOrders(){
     .sort(compareSeatIds);
 
   if (ordered.length === 0){
-    el.innerHTML = '<h4>Concessions</h4><div class="orders-empty">Nothing ordered yet. Friends add items from the reservation page; what they pick shows up here.</div>';
+    el.innerHTML = '<h4>' + escapeHtml(t('admin.orders.heading')) + '</h4><div class="orders-empty">' +
+      escapeHtml(t('admin.orders.empty')) + '</div>';
     return;
   }
 
@@ -1910,10 +1917,11 @@ function renderOrders(){
   });
 
   let grand = 0;
-  const rollupLines = Array.from(totals.entries()).map(([name, t]) => {
-    grand += t.total;
-    return '<div class="rollup-line"><span>' + escapeHtml(name) + ' \u00d7' + t.qty + '</span><span>' +
-      escapeHtml(formatPrice(Math.round(t.total * 100) / 100)) + '</span></div>';
+  // `sum`, not `t`: t() is the copy lookup from public/copy.js.
+  const rollupLines = Array.from(totals.entries()).map(([name, sum]) => {
+    grand += sum.total;
+    return '<div class="rollup-line"><span>' + escapeHtml(name) + ' \u00d7' + sum.qty + '</span><span>' +
+      escapeHtml(formatPrice(Math.round(sum.total * 100) / 100)) + '</span></div>';
   }).join('');
 
   // Picks get their own tally: at the counter "and three BBQ, one icing"
@@ -1928,7 +1936,7 @@ function renderOrders(){
     });
   });
   const optionRollup = optionCounts.size
-    ? '<div class="rollup-line is-options"><span>Choices</span><span>' +
+    ? '<div class="rollup-line is-options"><span>' + escapeHtml(t('admin.orders.choices')) + '</span><span>' +
       escapeHtml(Array.from(optionCounts.entries()).map(([n, c]) => n + ' \u00d7' + c).join(', ')) +
       '</span></div>'
     : '';
@@ -1939,22 +1947,22 @@ function renderOrders(){
   const subtotal = Math.round(grand * 100) / 100;
   const tax = concessionTax(subtotal);
   const taxRow = tax > 0
-    ? '<div class="rollup-line"><span>Tax (' + escapeHtml(formatTaxRate(concessionTaxRate)) + ')</span><span>' +
+    ? '<div class="rollup-line"><span>' + escapeHtml(t('admin.orders.tax', { rate: formatTaxRate(concessionTaxRate) })) + '</span><span>' +
       escapeHtml(formatPrice(tax)) + '</span></div>'
     : '';
 
   el.innerHTML =
-    '<h4>Concessions (' + ordered.length + ' seat' + (ordered.length === 1 ? '' : 's') + ')</h4>' +
+    '<h4>' + escapeHtml(t(ordered.length === 1 ? 'admin.orders.seatHeadingOne' : 'admin.orders.seatHeadingMany', { count: ordered.length })) + '</h4>' +
     perSeat +
     '<div class="order-rollup">' + rollupLines + optionRollup + taxRow +
-    '<div class="rollup-line is-total"><span>Total to buy</span><span>' +
+    '<div class="rollup-line is-total"><span>' + escapeHtml(t('admin.orders.total')) + '</span><span>' +
     escapeHtml(formatPrice(Math.round((subtotal + tax) * 100) / 100)) + '</span></div></div>';
 }
 
 // ---------------- SAVE / DELETE ----------------
 async function saveCurrent(){
   const statusEl = document.getElementById('saveStatus');
-  statusEl.textContent = 'Saving...';
+  statusEl.textContent = t('admin.status.saving');
   const payload = {
     title: document.getElementById('titleField').value.trim() || 'Untitled',
     theater: document.getElementById('theaterField').textContent.trim() || '',
@@ -1974,27 +1982,27 @@ async function saveCurrent(){
       body: JSON.stringify(payload)
     });
     if (await handleAuthFailure(res)) return;
-    if (!res.ok){ statusEl.textContent = 'Save failed. Try again.'; return; }
+    if (!res.ok){ statusEl.textContent = t('admin.status.saveFailed'); return; }
     const data = await res.json();
     currentId = data.showtime.id;
     document.getElementById('deleteBtn').classList.remove('hidden');
-    statusEl.textContent = 'Saved.';
-    setTimeout(() => { if (statusEl.textContent === 'Saved.') statusEl.textContent=''; }, 1500);
+    statusEl.textContent = t('admin.status.saved');
+    setTimeout(() => { if (statusEl.textContent === t('admin.status.saved')) statusEl.textContent=''; }, 1500);
   }catch(e){
-    statusEl.textContent = 'Save failed. Try again.';
+    statusEl.textContent = t('admin.status.saveFailed');
   }
 }
 
 async function deleteCurrent(){
   if (!currentId) return;
-  if (!confirm('Delete this showtime? This cannot be undone.')) return;
+  if (!confirm(t('admin.deleteConfirm'))) return;
   try{
     const res = await fetch('/api/showtimes/' + currentId, { method: 'DELETE' });
     if (await handleAuthFailure(res)) return;
     if (!res.ok) throw new Error('failed to delete');
     backToList();
   }catch(e){
-    alert('Could not delete. Try again.');
+    alert(t('admin.deleteFailed'));
   }
 }
 
@@ -2023,10 +2031,10 @@ async function uploadImage(apiPath, fileInputId, statusId, onDone){
   const input = document.getElementById(fileInputId);
   const statusEl = document.getElementById(statusId);
   if (!input.files || !input.files[0]){
-    statusEl.textContent = 'Choose an image first.';
+    statusEl.textContent = t('admin.status.chooseImage');
     return;
   }
-  statusEl.textContent = 'Uploading...';
+  statusEl.textContent = t('admin.status.uploading');
   const formData = new FormData();
   formData.append('image', input.files[0]);
   try{
@@ -2034,15 +2042,15 @@ async function uploadImage(apiPath, fileInputId, statusId, onDone){
     if (await handleAuthFailure(res)) return;
     if (!res.ok){
       const data = await res.json().catch(() => ({}));
-      statusEl.textContent = data.error || 'Upload failed. Try again.';
+      statusEl.textContent = data.error || t('admin.status.uploadFailed');
       return;
     }
     input.value = '';
-    statusEl.textContent = 'Uploaded.';
+    statusEl.textContent = t('admin.status.uploaded');
     onDone();
-    setTimeout(() => { if (statusEl.textContent === 'Uploaded.') statusEl.textContent = ''; }, 1500);
+    setTimeout(() => { if (statusEl.textContent === t('admin.status.uploaded')) statusEl.textContent = ''; }, 1500);
   }catch(e){
-    statusEl.textContent = 'Upload failed. Try again.';
+    statusEl.textContent = t('admin.status.uploadFailed');
   }
 }
 
@@ -2086,14 +2094,14 @@ async function uploadPoster(){
   const input = document.getElementById('posterFileInput');
   const statusEl = document.getElementById('posterStatus');
   if (!title){
-    statusEl.textContent = 'Type a title first.';
+    statusEl.textContent = t('admin.status.typeTitle');
     return;
   }
   if (!input.files || !input.files[0]){
-    statusEl.textContent = 'Choose an image first.';
+    statusEl.textContent = t('admin.status.chooseImage');
     return;
   }
-  statusEl.textContent = 'Uploading...';
+  statusEl.textContent = t('admin.status.uploading');
   const formData = new FormData();
   formData.append('title', title);
   formData.append('image', input.files[0]);
@@ -2102,15 +2110,15 @@ async function uploadPoster(){
     if (await handleAuthFailure(res)) return;
     if (!res.ok){
       const data = await res.json().catch(() => ({}));
-      statusEl.textContent = data.error || 'Upload failed. Try again.';
+      statusEl.textContent = data.error || t('admin.status.uploadFailed');
       return;
     }
     input.value = '';
-    statusEl.textContent = 'Uploaded.';
+    statusEl.textContent = t('admin.status.uploaded');
     refreshPosterPreview();
-    setTimeout(() => { if (statusEl.textContent === 'Uploaded.') statusEl.textContent = ''; }, 1500);
+    setTimeout(() => { if (statusEl.textContent === t('admin.status.uploaded')) statusEl.textContent = ''; }, 1500);
   }catch(e){
-    statusEl.textContent = 'Upload failed. Try again.';
+    statusEl.textContent = t('admin.status.uploadFailed');
   }
 }
 
@@ -2130,7 +2138,7 @@ async function loadSharedPassword(){
 async function saveSharedPassword(){
   const input = document.getElementById('sharedPasswordInput');
   const statusEl = document.getElementById('sharedPasswordStatus');
-  statusEl.textContent = 'Saving...';
+  statusEl.textContent = t('admin.status.saving');
   try{
     const res = await fetch('/api/shared-password', {
       method: 'POST',
@@ -2139,14 +2147,14 @@ async function saveSharedPassword(){
     });
     if (await handleAuthFailure(res)) return;
     if (!res.ok){
-      statusEl.textContent = 'Save failed. Try again.';
+      statusEl.textContent = t('admin.status.saveFailed');
       return;
     }
     const data = await res.json();
-    statusEl.textContent = data.password ? 'Saved.' : 'Friend login turned off.';
-    setTimeout(() => { if (statusEl.textContent === 'Saved.') statusEl.textContent = ''; }, 1500);
+    statusEl.textContent = t(data.password ? 'admin.status.saved' : 'admin.status.friendLoginOff');
+    setTimeout(() => { if (statusEl.textContent === t('admin.status.saved')) statusEl.textContent = ''; }, 1500);
   }catch(e){
-    statusEl.textContent = 'Save failed. Try again.';
+    statusEl.textContent = t('admin.status.saveFailed');
   }
 }
 
@@ -2174,7 +2182,7 @@ function renderMenuRows(){
   if (menuItems.length === 0){
     const empty = document.createElement('div');
     empty.className = 'menu-empty';
-    empty.textContent = "No items -- friends can't order anything until you add one, or restore the AMC menu below.";
+    empty.textContent = t('admin.menuEditor.empty');
     container.appendChild(empty);
     return;
   }
@@ -2262,7 +2270,7 @@ function buildMenuRow(item, idx){
   remove.onclick = () => {
     menuItems.splice(idx, 1);
     renderMenuRows();
-    document.getElementById('menuStatus').textContent = 'Removed -- save the menu to apply it.';
+    document.getElementById('menuStatus').textContent = t('admin.menuEditor.removed');
   };
   top.appendChild(remove);
   row.appendChild(top);
@@ -2301,7 +2309,7 @@ function buildMenuRow(item, idx){
   group.className = 'menu-group';
   const none = document.createElement('option');
   none.value = '';
-  none.textContent = 'No choices';
+  none.textContent = t('admin.menuEditor.noChoices');
   group.appendChild(none);
   optionGroups.forEach(g => {
     const opt = document.createElement('option');
@@ -2330,7 +2338,7 @@ function renderGroupRows(){
   if (optionGroups.length === 0){
     const empty = document.createElement('div');
     empty.className = 'menu-empty';
-    empty.textContent = 'No option groups. Add one if an item comes with a choice (a sauce, a flavor, a topping).';
+    empty.textContent = t('admin.menuEditor.groupsEmpty');
     container.appendChild(empty);
     return;
   }
@@ -2378,14 +2386,14 @@ function buildGroupRow(group, idx){
     menuItems.forEach(it => { if (it.optionGroup === goneId) it.optionGroup = ''; });
     renderGroupRows();
     renderMenuRows();
-    document.getElementById('menuStatus').textContent = 'Removed -- save the menu to apply it.';
+    document.getElementById('menuStatus').textContent = t('admin.menuEditor.removed');
   };
   top.appendChild(remove);
   row.appendChild(top);
 
   const box = document.createElement('textarea');
   box.className = 'option-box';
-  box.placeholder = 'One option per line';
+  box.placeholder = t('admin.menuEditor.optionsPlaceholder');
   box.value = (group.options || []).join('\n');
   box.addEventListener('input', () => {
     optionGroups[idx].options = box.value.split('\n').map(v => v.trim()).filter(Boolean);
@@ -2400,7 +2408,9 @@ function buildGroupRow(group, idx){
 function groupUsageLabel(id){
   if (!id) return 'new';
   const n = menuItems.filter(it => it.optionGroup === id).length;
-  return n === 0 ? 'not used yet' : ('used by ' + n + ' item' + (n === 1 ? '' : 's'));
+  return n === 0
+    ? t('admin.menuEditor.groupUnused')
+    : t(n === 1 ? 'admin.menuEditor.groupUsedOne' : 'admin.menuEditor.groupUsedMany', { count: n });
 }
 
 function addOptionGroup(){
@@ -2434,7 +2444,7 @@ function applyMenuPayload(data){
 // What the panel says when it isn't reporting the result of an action.
 function menuRestingStatus(){
   return menuIsDefault
-    ? 'Showing the built-in AMC menu. Edit anything and save to make it your own list.'
+    ? t('admin.menuEditor.usingDefault')
     : '';
 }
 
@@ -2446,28 +2456,28 @@ async function loadConcessionMenu(){
     applyMenuPayload(await res.json());
     document.getElementById('menuStatus').textContent = menuRestingStatus();
   }catch(e){
-    document.getElementById('menuStatus').textContent = 'Could not load the menu.';
+    document.getElementById('menuStatus').textContent = t('admin.menuEditor.loadFailed');
   }
 }
 
 async function resetConcessionMenu(){
-  if (!confirm('Replace the menu with the built-in AMC list? Orders friends have already placed are not affected.')) return;
+  if (!confirm(t('admin.menuEditor.resetConfirm'))) return;
   const statusEl = document.getElementById('menuStatus');
-  statusEl.textContent = 'Restoring...';
+  statusEl.textContent = t('admin.menuEditor.restoring');
   try{
     const res = await fetch('/api/concession-menu/reset', { method: 'POST' });
     if (await handleAuthFailure(res)) return;
-    if (!res.ok){ statusEl.textContent = 'Could not restore the AMC menu. Try again.'; return; }
+    if (!res.ok){ statusEl.textContent = t('admin.menuEditor.restoreFailed'); return; }
     applyMenuPayload(await res.json());
-    statusEl.textContent = 'Restored the AMC menu.';
+    statusEl.textContent = t('admin.menuEditor.restored');
   }catch(e){
-    statusEl.textContent = 'Could not restore the AMC menu. Try again.';
+    statusEl.textContent = t('admin.menuEditor.restoreFailed');
   }
 }
 
 async function saveConcessionMenu(){
   const statusEl = document.getElementById('menuStatus');
-  statusEl.textContent = 'Saving...';
+  statusEl.textContent = t('admin.status.saving');
   try{
     const res = await fetch('/api/concession-menu', {
       method: 'POST',
@@ -2475,15 +2485,15 @@ async function saveConcessionMenu(){
       body: JSON.stringify({ items: menuItems, optionGroups })
     });
     if (await handleAuthFailure(res)) return;
-    if (!res.ok){ statusEl.textContent = 'Save failed. Try again.'; return; }
+    if (!res.ok){ statusEl.textContent = t('admin.status.saveFailed'); return; }
     // Re-render from what the server actually stored: blank rows are
     // dropped there, duplicate options collapsed, and new rows come back
     // with the id they were given, which is what keeps the next save an
     // edit instead of a duplicate.
     applyMenuPayload(await res.json());
-    statusEl.textContent = 'Saved.';
+    statusEl.textContent = t('admin.status.saved');
   }catch(e){
-    statusEl.textContent = 'Save failed. Try again.';
+    statusEl.textContent = t('admin.status.saveFailed');
   }
 }
 
@@ -2504,7 +2514,7 @@ async function savePaymentHandles(){
   const venmoInput = document.getElementById('venmoInput');
   const cashappInput = document.getElementById('cashappInput');
   const statusEl = document.getElementById('paymentHandlesStatus');
-  statusEl.textContent = 'Saving...';
+  statusEl.textContent = t('admin.status.saving');
   try{
     const res = await fetch('/api/payment-handles', {
       method: 'POST',
@@ -2513,16 +2523,16 @@ async function savePaymentHandles(){
     });
     if (await handleAuthFailure(res)) return;
     if (!res.ok){
-      statusEl.textContent = 'Save failed. Try again.';
+      statusEl.textContent = t('admin.status.saveFailed');
       return;
     }
     const data = await res.json();
     venmoInput.value = data.venmo || '';
     cashappInput.value = data.cashapp || '';
-    statusEl.textContent = 'Saved.';
-    setTimeout(() => { if (statusEl.textContent === 'Saved.') statusEl.textContent = ''; }, 1500);
+    statusEl.textContent = t('admin.status.saved');
+    setTimeout(() => { if (statusEl.textContent === t('admin.status.saved')) statusEl.textContent = ''; }, 1500);
   }catch(e){
-    statusEl.textContent = 'Save failed. Try again.';
+    statusEl.textContent = t('admin.status.saveFailed');
   }
 }
 
@@ -2548,7 +2558,7 @@ function populateScreenOptions(){
     groups[theaterName].forEach(({ screenId, layout }) => {
       const option = document.createElement('option');
       option.value = screenId;
-      option.textContent = 'Auditorium ' + layout.auditorium + ' (' + layout.name + ')';
+      option.textContent = t('admin.auditorium', { number: layout.auditorium, name: layout.name });
       optgroup.appendChild(option);
     });
     select.appendChild(optgroup);

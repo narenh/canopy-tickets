@@ -217,6 +217,12 @@ function buildLogoImgTag() {
 // needs a manual bump.
 const SEAT_LAYOUT_JS_VERSION = fs.statSync(path.join(__dirname, 'public', 'seat-layout.js')).mtimeMs;
 
+// Same treatment for the copy file, and for the same reason: editing a
+// line of copy and finding the old one still on screen because a browser
+// held the last copy.js is exactly the bug SEAT_LAYOUT_JS_VERSION exists
+// to prevent.
+const COPY_JS_VERSION = fs.statSync(path.join(__dirname, 'public', 'copy.js')).mtimeMs;
+
 // Sends a static HTML file with its `<!-- OG_META -->` (in <head>) and
 // `<!-- LOGO_IMG -->` (in <body>, wherever the page wants the logo to
 // appear) placeholders replaced with the real thing, and its
@@ -239,6 +245,7 @@ function renderHtmlPage(res, req, filePath) {
       .replace('<!-- OG_META -->', buildOgTags(req))
       .replace('<!-- LOGO_IMG -->', buildLogoImgTag())
       .replace('src="/seat-layout.js"', `src="/seat-layout.js?v=${SEAT_LAYOUT_JS_VERSION}"`)
+      .replace('src="/copy.js"', `src="/copy.js?v=${COPY_JS_VERSION}"`)
   );
 }
 

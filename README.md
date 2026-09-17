@@ -117,6 +117,35 @@ Docker" below for making that survive restarts/redeploys).
   into that seat's concession cart (see "Concessions" below).
 - `public/login.html` — the one password screen (no "admin" language --
   it doesn't know or care which password you're about to type).
+- `public/copy.js` — every sentence the app says, in one object. See
+  "Editing the copy" below.
+
+## Editing the copy
+
+All the wording lives in **`public/copy.js`**. Change the text between
+the quotes, save, reload — there's no build step, the file is served
+straight to the browser and read at load time (and cache-busted from its
+mtime, same as `seat-layout.js`, so an edit can't be hidden behind a
+stale copy in someone's browser).
+
+`{braces}` are placeholders the code fills in. Keep the name spelled the
+way it appears (`{amount}`, `{seat}`, `{count}`) or it'll show through to
+the page verbatim; move it anywhere in the sentence, or drop it if you
+don't want it said. Keys ending `One`/`Many` are singular and plural of
+the same line.
+
+Two ways a line reaches the page. Static markup names its key —
+`<p data-copy="friend.intro"></p>` — and `applyCopy()` fills every one of
+those at load. Everything built in JS asks at the point of use:
+`t('friend.claim.title', { seat: 'G17' })`. A key that doesn't exist
+renders as the key path itself rather than `undefined`, so a typo shows
+up on the page as the thing to go fix.
+
+Three things are deliberately *not* in there: one- and two-word button
+labels (Save, Close, Edit, Reserve, Skip), which read better next to the
+buttons they name; the concessions menu, which is data — edit it in the
+menu editor, or `lib/concessionMenu.js` for the built-in list it starts
+from; and anything only a developer sees.
 
 ## The friend password
 

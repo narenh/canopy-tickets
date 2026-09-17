@@ -1011,7 +1011,7 @@
       <div>
         <!-- LOGO_IMG -->
         <h1>Upcoming Showtimes</h1>
-        <p>Reserve a spot below. Tap any reserved seat to add concessions, up to 2 hours before showtime.</p>
+        <p data-copy="friend.intro"></p>
       </div>
       <div class="logout-link" onclick="logout()">Log out</div>
     </div>
@@ -1044,7 +1044,7 @@
   <div class="claim-overlay hidden" id="claimOverlay">
     <div class="claim-card">
       <div class="claim-title" id="claimTitle">Claim seat</div>
-      <div class="claim-sub">Your name will be shown next to this seat so the host knows it's yours.</div>
+      <div class="claim-sub" data-copy="friend.claim.hint"></div>
       <div class="claim-error" id="claimError"></div>
       <input type="text" id="claimName" placeholder="Your name" autocomplete="name">
       <div class="claim-actions">
@@ -1057,7 +1057,7 @@
   <!-- ===================== SUCCESS / PAY OVERLAY ===================== -->
   <div class="claim-overlay hidden" id="successOverlay">
     <div class="claim-card">
-      <div class="claim-title">You're in! &#127916;</div>
+      <div class="claim-title" data-copy="friend.success.heading"></div>
       <div class="success-sub" id="successSub"></div>
       <div class="success-step" id="successStep"></div>
       <!-- Built a step at a time by renderSuccessStep(): one decision on
@@ -1121,7 +1121,7 @@
           <!-- The payment links above go off to another app and nothing
                comes back, so this is the only way the app can ever learn
                that someone settled up. -->
-          <button type="button" class="mark-paid-btn hidden" id="cartMarkPaid" onclick="markCartPaid()">Mark as paid</button>
+          <button type="button" class="mark-paid-btn hidden" id="cartMarkPaid" onclick="markCartPaid()"></button>
           <div class="food-pending hidden" id="cartFoodPending"></div>
           <button type="button" id="cartCloseBtn" onclick="closeCartOverlay()">Close</button>
         </div>
@@ -1129,8 +1129,14 @@
     </div>
   </div>
 
+<script src="/copy.js"></script>
 <script src="/seat-layout.js"></script>
 <script>
+
+// Fills the [data-copy] elements in the markup above from public/copy.js.
+// Everything else on this page is built in JS and asks for its lines with
+// t() at the point of use.
+applyCopy();
 
 // Inline (not an emoji -- at seat-icon size, the wheelchair emoji renders
 // as a tiny broken-looking glyph on several platforms, easily mistaken
@@ -1169,7 +1175,7 @@ function handleAuthFailure(res){
   if (Date.now() - last < 4000){
     document.body.innerHTML =
       '<div style="padding:60px 20px;text-align:center;color:#9a9a9a;font-family:-apple-system,sans-serif;">' +
-      'Session trouble &mdash; <a href="/" style="color:#c9a24b;">click here to sign in again</a>.</div>';
+      t('sessionTrouble') + '</div>';
     return true;
   }
   sessionStorage.setItem(key, String(Date.now()));
@@ -1307,7 +1313,7 @@ async function loadList(){
     allShowtimes = (data.showtimes || []).filter(obj => !isPastShowtime(obj));
     renderCards();
   }catch(e){
-    container.innerHTML = '<div class="empty-state">Could not load showtimes. Try again.</div>';
+    container.innerHTML = '<div class="empty-state">' + escapeHtml(t('friend.list.loadFailed')) + '</div>';
   }
 }
 
@@ -1318,7 +1324,7 @@ async function loadList(){
 function renderCards(){
   const container = document.getElementById('cardsContainer');
   if (allShowtimes.length === 0){
-    container.innerHTML = '<div class="empty-state">No showtimes posted yet. Check back soon.</div>';
+    container.innerHTML = '<div class="empty-state">' + escapeHtml(t('friend.list.empty')) + '</div>';
     return;
   }
   container.innerHTML = '';
@@ -1416,12 +1422,12 @@ function buildCard(obj){
   if (ids.length === 0){
     const empty = document.createElement('div');
     empty.className = 'seats-empty';
-    empty.textContent = 'No seats posted yet';
+    empty.textContent = t('friend.list.noSeats');
     info.appendChild(empty);
   } else {
     const availLine = document.createElement('div');
     availLine.className = 'seats-avail-line ' + (availCount > 0 ? 'seats-avail-green' : 'seats-avail-red');
-    availLine.textContent = availCount + ' seat' + (availCount === 1 ? '' : 's') + ' available';
+    availLine.textContent = t(availCount === 1 ? 'friend.list.seatsAvailableOne' : 'friend.list.seatsAvailableMany', { count: availCount });
     info.appendChild(availLine);
   }
 
@@ -1505,8 +1511,8 @@ function buildClaimedSeatLine(obj, seatId, ordersOpen){
   const summary = document.createElement('div');
   summary.className = 'concession-summary' + (lines.length ? ' has-items' : '');
   summary.textContent = lines.length
-    ? '\uD83C\uDF7F ' + lines.length + ' item' + (lines.length === 1 ? '' : 's')
-    : 'No concessions';
+    ? t(lines.length === 1 ? 'friend.list.concessionsOne' : 'friend.list.concessionsMany', { count: lines.length })
+    : t('friend.list.noConcessions');
   main.appendChild(summary);
 
   row.appendChild(main);
@@ -1530,9 +1536,8 @@ function openSeatPicker(id){
   // Nothing to tap on a sold-out map, so don't tell people to tap.
   const pickerSeats = obj.seats || {};
   const anyOpen = Object.keys(pickerSeats).some(id => !pickerSeats[id].name);
-  document.getElementById('pickerNote').textContent = anyOpen
-    ? "Tap a gold seat to reserve it, or a red one to see whose it is. Gray seats aren't part of this block."
-    : "Every seat in this block is taken \u2014 tap a red seat to see whose it is. Gray seats aren't part of this block.";
+  document.getElementById('pickerNote').textContent =
+    t(anyOpen ? 'friend.seatMap.noteOpen' : 'friend.seatMap.noteSoldOut');
 
   // Show the picker before building the map -- buildSeatmap measures row
   // widths via offsetWidth, which reads 0 on anything still inside a
@@ -1648,12 +1653,12 @@ function buildSeatmap(obj){
         seatEl.textContent = seatId;
       }
       seatEl.setAttribute('aria-label', seatId);
-      seatEl.dataset.tooltip = seatId + ' — not purchased';
+      seatEl.dataset.tooltip = t('friend.seatMap.tipNotOurs', { seat: seatId });
 
       const entry = seats[seatId];
       if (entry && entry.name){
         seatEl.classList.add('taken');
-        seatEl.dataset.tooltip = seatId + ' — ' + entry.name;
+        seatEl.dataset.tooltip = t('friend.seatMap.tipTaken', { seat: seatId, name: entry.name });
         // The tooltip above is hover-only, and a phone has no hover -- so
         // on a sold-out map there was nothing a tap could do and no way
         // to find out whose seat was whose. A taken seat can't be
@@ -1671,7 +1676,7 @@ function buildSeatmap(obj){
         });
       } else if (entry){
         seatEl.classList.add('pickable');
-        seatEl.dataset.tooltip = seatId + ' — available';
+        seatEl.dataset.tooltip = t('friend.seatMap.tipAvailable', { seat: seatId });
         seatEl.addEventListener('click', () => openClaimOverlay(seatId));
       }
       rowEl.appendChild(seatEl);
@@ -1689,7 +1694,7 @@ function buildSeatmap(obj){
 // ---------------- CLAIM OVERLAY ----------------
 function openClaimOverlay(seatId){
   claimingSeatId = seatId;
-  document.getElementById('claimTitle').textContent = 'Reserve seat ' + seatId;
+  document.getElementById('claimTitle').textContent = t('friend.claim.title', { seat: seatId });
   document.getElementById('claimError').textContent = '';
   document.getElementById('claimName').value = '';
   document.getElementById('claimOverlay').classList.remove('hidden');
@@ -1717,8 +1722,10 @@ function openSuccessOverlay(showtime, seatId){
   successShowtime = showtime;
   successSeatId = seatId;
 
-  document.getElementById('successSub').textContent =
-    'Seat ' + seatId + ' for ' + (showtime.title || 'this showtime') + (typeof showtime.price === 'number' ? ' -- ' + formatPrice(showtime.price) : '') + '.';
+  const showtimeName = showtime.title || t('friend.success.unnamedShowtime');
+  document.getElementById('successSub').textContent = typeof showtime.price === 'number'
+    ? t('friend.success.subtitle', { seat: seatId, title: showtimeName, price: formatPrice(showtime.price) })
+    : t('friend.success.subtitleNoPrice', { seat: seatId, title: showtimeName });
 
   const seat = (showtime.seats || {})[seatId];
   // Nobody for the host to pay, so don't offer to send them money.
@@ -1761,7 +1768,7 @@ function renderSuccessStep(){
   // Only worth saying when there's more than one, and it's what tells
   // someone that "Skip" moves on rather than closing the card.
   if (successStepTotal > 1){
-    stepEl.textContent = 'Step ' + (successStepTotal - successSteps.length + 1) + ' of ' + successStepTotal;
+    stepEl.textContent = t('friend.success.step', { n: successStepTotal - successSteps.length + 1, total: successStepTotal });
   }
 
   if (step === 'pay'){
@@ -1772,14 +1779,16 @@ function renderSuccessStep(){
     // Both open in a new tab, so advancing straight away leaves the next
     // step waiting when they come back rather than the one they just did.
     if (venmo) actions.appendChild(successLink(
-      typeof price === 'number' ? ('Pay ' + formatPrice(price) + ' via Venmo') : 'Pay via Venmo', 'venmo-btn', venmo, true));
+      typeof price === 'number' ? t('friend.success.payVenmo', { amount: formatPrice(price) }) : t('friend.success.payVenmoNoPrice'),
+      'venmo-btn', venmo, true));
     if (cash) actions.appendChild(successLink(
-      typeof price === 'number' ? ('Pay ' + formatPrice(price) + ' via Cash App') : 'Pay via Cash App', 'cashapp-btn', cash, true));
+      typeof price === 'number' ? t('friend.success.payCashApp', { amount: formatPrice(price) }) : t('friend.success.payCashAppNoPrice'),
+      'cashapp-btn', cash, true));
     // The links above hand off to another app and nothing comes back, so
     // without this there's no moment at which the payment can be recorded
     // -- and the moment someone has just made it is the one moment they
     // remember to. Skip leaves the seat owing, which is also true.
-    actions.appendChild(successButton('I\u2019ve already paid', '', () => {
+    actions.appendChild(successButton(t('friend.success.alreadyPaid'), '', () => {
       markSeatPaid(successShowtime.id, successSeatId, { ticket: true });
       advanceSuccessStep();
     }));
@@ -1792,13 +1801,13 @@ function renderSuccessStep(){
       '/calendar.ics?seat=' + encodeURIComponent(successSeatId);
     // No target: iOS shows the Add to Calendar sheet over the page, and a
     // blank tab is what you get if you fight it.
-    actions.appendChild(successLink('\uD83D\uDCC5 Add to calendar', 'cal-btn', href, false));
+    actions.appendChild(successLink(t('friend.success.addCalendar'), 'cal-btn', href, false));
     actions.appendChild(successButton('Skip', '', advanceSuccessStep));
     return;
   }
 
   // concessions
-  actions.appendChild(successButton('\uD83C\uDF7F Add concessions', '', openCartFromSuccess));
+  actions.appendChild(successButton(t('friend.success.addConcessions'), '', openCartFromSuccess));
   actions.appendChild(successButton('Later', '', advanceSuccessStep));
 }
 
@@ -1836,7 +1845,7 @@ async function submitClaim(){
   const errorEl = document.getElementById('claimError');
   const name = document.getElementById('claimName').value.trim();
   if (!name){
-    errorEl.textContent = 'Enter your name first.';
+    errorEl.textContent = t('friend.claim.noName');
     return;
   }
   try{
@@ -1847,11 +1856,11 @@ async function submitClaim(){
     });
     if (await handleAuthFailure(res)) return;
     if (res.status === 409){
-      errorEl.textContent = 'Sorry, someone just claimed that seat. Pick another.';
+      errorEl.textContent = t('friend.claim.taken');
       return;
     }
     if (!res.ok){
-      errorEl.textContent = 'Could not claim that seat. Try again.';
+      errorEl.textContent = t('friend.claim.failed');
       return;
     }
     const data = await res.json();
@@ -1865,7 +1874,7 @@ async function submitClaim(){
     buildSeatmap(data.showtime);
     openSuccessOverlay(data.showtime, claimedSeatId);
   }catch(e){
-    errorEl.textContent = 'Could not reach the server. Try again.';
+    errorEl.textContent = t('friend.claim.unreachable');
   }
 }
 
@@ -1964,9 +1973,11 @@ function formatTaxRate(rate){
 function showtimeStart(obj){
   if (typeof obj.date !== 'string' || typeof obj.time !== 'string') return null;
   const d = obj.date.split('-').map(Number);
-  const t = obj.time.split(':').map(Number);
-  if (d.length < 3 || t.length < 2 || d.some(n => !Number.isFinite(n)) || t.some(n => !Number.isFinite(n))) return null;
-  const dt = new Date(d[0], d[1] - 1, d[2], t[0], t[1], 0, 0);
+  // Not `t`: that's the copy lookup from public/copy.js, and shadowing it
+  // inside a function is the kind of thing that only breaks later.
+  const hm = obj.time.split(':').map(Number);
+  if (d.length < 3 || hm.length < 2 || d.some(n => !Number.isFinite(n)) || hm.some(n => !Number.isFinite(n))) return null;
+  const dt = new Date(d[0], d[1] - 1, d[2], hm[0], hm[1], 0, 0);
   return Number.isFinite(dt.getTime()) ? dt : null;
 }
 
@@ -2147,7 +2158,7 @@ async function openCart(showtimeId, seatId){
   if (saveTimer){ clearTimeout(saveTimer); saveTimer = null; }
 
   document.getElementById('cartTitle').textContent = 'Concessions';
-  document.getElementById('cartSub').textContent = 'Seat ' + seatId + ' · ' + seat.name;
+  document.getElementById('cartSub').textContent = t('friend.cart.subtitle', { seat: seatId, name: seat.name });
   document.getElementById('cartError').textContent = '';
   document.getElementById('cartStatus').textContent = '';
 
@@ -2210,9 +2221,7 @@ function closeCartOverlay(){
 function renderCartLockedBanner(){
   const locked = document.getElementById('cartLocked');
   locked.classList.toggle('hidden', !cartLocked);
-  locked.textContent =
-    'The order for this showtime is final \u2014 it\u2019s gone in at the counter. ' +
-    'Message the host if you still need to change something.';
+  locked.textContent = t('friend.cart.locked');
 }
 
 function renderCart(){
@@ -2226,7 +2235,7 @@ function renderCart(){
   if (menuRows.length === 0){
     const empty = document.createElement('div');
     empty.className = 'cart-empty-menu';
-    empty.textContent = "The host hasn't put up a concessions menu yet. Check back later.";
+    empty.textContent = t('friend.cart.menuEmpty');
     body.appendChild(empty);
   } else {
     const hidden = hiddenPeanutItemIds();
@@ -2273,7 +2282,9 @@ function buildCartSectionEl(name, rows){
 
   const count = document.createElement('span');
   count.className = 'cart-section-count' + (inOrder ? ' has-order' : '');
-  count.textContent = inOrder ? inOrder + ' in order' : rows.length + ' item' + (rows.length === 1 ? '' : 's');
+  count.textContent = inOrder
+    ? t('friend.cart.sectionInOrder', { count: inOrder })
+    : t(rows.length === 1 ? 'friend.cart.sectionItemsOne' : 'friend.cart.sectionItemsMany', { count: rows.length });
   count.dataset.total = String(rows.length);
   summary.appendChild(count);
   wrap.appendChild(summary);
@@ -2306,7 +2317,7 @@ function buildMenuRowEl(row){
   const priceEl = document.createElement('div');
   priceEl.className = 'ci-price';
   priceEl.textContent = [
-    row.price > 0 ? formatPrice(row.price) : 'No price set',
+    row.price > 0 ? formatPrice(row.price) : t('friend.cart.noPriceSet'),
     // The host's own label for this item ("50c off"), not a discount the
     // app applies -- the price to its left is what gets charged.
     row.note || ''
@@ -2373,7 +2384,7 @@ function buildChoicePicker(label, itemName, choices, onChange){
   const wrap = document.createElement('div');
   wrap.className = 'ci-choice';
 
-  const placeholder = 'Choose ' + label.toLowerCase() + '...';
+  const placeholder = t('friend.cart.choosePrompt', { label: label.toLowerCase() });
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'ci-choice-btn needs-choice';
@@ -2440,8 +2451,8 @@ function syncSectionCounts(){
   sectionEls.forEach(({ count, rows }) => {
     const inOrder = rows.reduce((n, r) => n + orderCountFor(r.itemId), 0);
     count.textContent = inOrder
-      ? inOrder + ' in order'
-      : count.dataset.total + ' item' + (count.dataset.total === '1' ? '' : 's');
+      ? t('friend.cart.sectionInOrder', { count: inOrder })
+      : t(count.dataset.total === '1' ? 'friend.cart.sectionItemsOne' : 'friend.cart.sectionItemsMany', { count: count.dataset.total });
     count.classList.toggle('has-order', inOrder > 0);
   });
 }
@@ -2475,7 +2486,8 @@ function toggleOrderPanel(){
 // itself is on screen.
 function syncOrderCount(){
   const n = cartOrder.length;
-  document.getElementById('cartOrderCount').textContent = n ? n + ' item' + (n === 1 ? '' : 's') : '';
+  document.getElementById('cartOrderCount').textContent =
+    n ? t(n === 1 ? 'friend.cart.orderCountOne' : 'friend.cart.orderCountMany', { count: n }) : '';
 }
 
 function addOrderLine(row, option){
@@ -2555,7 +2567,7 @@ function buildOrderRowEl(line){
     // so it says what to do about it.
     const opt = document.createElement('span');
     opt.className = 'order-option is-missing';
-    opt.textContent = ' · no ' + optionLabelForItem(line.itemId).toLowerCase();
+    opt.textContent = t('friend.cart.noChoice', { label: optionLabelForItem(line.itemId).toLowerCase() });
     main.appendChild(opt);
   }
 
@@ -2607,7 +2619,7 @@ function renderSaveStatus(){
     // The only affordance left for a failed write, now that there's no
     // Save button to press again -- silent loss is the one thing autosave
     // must not do.
-    el.textContent = "Couldn't save \u2014 tap to retry";
+    el.textContent = t('friend.cart.saveRetry');
   } else {
     el.textContent = 'Saved';
   }
@@ -2651,16 +2663,13 @@ async function runSave(){
         const obj = currentCartShowtime();
         if (obj) obj.ordersClosed = true;
         cartLocked = true;
-        document.getElementById('cartError').textContent =
-          'The host finalized the order for this showtime, so this change was not saved.';
+        document.getElementById('cartError').textContent = t('friend.cart.saveClosed');
         renderCart();
         renderCards();
         return;
       }
       saveState = 'error';
-      document.getElementById('cartError').textContent = res.status === 409
-        ? 'That seat is no longer reserved, so there is nothing to order for it.'
-        : '';
+      document.getElementById('cartError').textContent = res.status === 409 ? t('friend.cart.saveNotReserved') : '';
       renderSaveStatus();
       return;
     }
@@ -2740,22 +2749,22 @@ function renderCartFoot(){
   totals.innerHTML = '';
   if (ticketPrice > 0){
     totals.appendChild(cartTotalRow(
-      'Ticket',
-      ticketPaid ? '<span class="paid-note">&#10003; paid</span>' : escapeHtml(formatPrice(ticketPrice)),
+      t('friend.totals.ticket'),
+      ticketPaid ? '<span class="paid-note">' + escapeHtml(t('friend.totals.paidNote')) + '</span>' : escapeHtml(formatPrice(ticketPrice)),
       // Not on the host's own seat: it was never owed, so there's nothing
       // to take back.
       ticketPaid && !isHost ? () => setCartPaid({ ticket: false }) : null
     ));
   }
-  totals.appendChild(cartTotalRow('Concessions', escapeHtml(concessions > 0 ? formatPrice(concessions) : '--')));
+  totals.appendChild(cartTotalRow(t('friend.totals.concessions'), escapeHtml(concessions > 0 ? formatPrice(concessions) : '--')));
   // Only when there's something to tax -- a row of "Tax $0.00" above an
   // empty order is noise.
   if (tax > 0){
-    totals.appendChild(cartTotalRow('Tax (' + formatTaxRate(concessionTaxRate) + ')', escapeHtml(formatPrice(tax))));
+    totals.appendChild(cartTotalRow(t('friend.totals.tax', { rate: formatTaxRate(concessionTaxRate) }), escapeHtml(formatPrice(tax))));
   }
   if (concessionsSettled && concessionsCost > 0 && !isHost){
     totals.appendChild(cartTotalRow(
-      'Concessions paid',
+      t('friend.totals.concessionsPaid'),
       '<span class="paid-note">&#10003;</span>',
       () => setCartPaid({ concessions: false })
     ));
@@ -2765,14 +2774,14 @@ function renderCartFoot(){
   // since what the order comes to is worth knowing either way.
   if (!isHost){
     if (owed > 0){
-      const owedRow = cartTotalRow('You owe', escapeHtml(formatPrice(owed)));
+      const owedRow = cartTotalRow(t('friend.totals.owed'), escapeHtml(formatPrice(owed)));
       owedRow.classList.add('is-owed');
       totals.appendChild(owedRow);
     } else if (ticketPaid || concessionsSettled){
       // Something was actually settled, as opposed to a seat that's free
       // and has ordered nothing -- that one owes nothing either, and
       // congratulating it would be strange.
-      const doneRow = cartTotalRow('All settled', '<span class="paid-note">&#10003;</span>');
+      const doneRow = cartTotalRow(t('friend.totals.settled'), '<span class="paid-note">&#10003;</span>');
       doneRow.classList.add('is-settled');
       totals.appendChild(doneRow);
     }
@@ -2785,8 +2794,10 @@ function renderCartFoot(){
   if (missing.length){
     // Names them and says what to do: these lines can't be edited in
     // place, so "still to choose" on its own would be a dead end.
-    hint.textContent = 'Remove and re-add to pick ' +
-      missing.map(m => 'a ' + m.label + ' for ' + m.name + (m.missing > 1 ? ' (×' + m.missing + ')' : '')).join(', ') + '.';
+    hint.textContent = t('friend.cart.missingHint', {
+      items: missing.map(m => t(m.missing > 1 ? 'friend.cart.missingItemMany' : 'friend.cart.missingItem',
+        { label: m.label, name: m.name, count: m.missing })).join(', ')
+    });
   }
 
   // Nothing to confirm and nothing to discard -- every change is already
@@ -2813,7 +2824,7 @@ function renderCartFoot(){
   venmoEl.classList.toggle('hidden', !venmoUrl);
   if (venmoUrl){
     venmoEl.href = venmoUrl;
-    venmoEl.textContent = 'Venmo ' + formatPrice(payable);
+    venmoEl.textContent = t('friend.totals.venmo', { amount: formatPrice(payable) });
   }
 
   const cashEl = document.getElementById('cartCashappLink');
@@ -2821,7 +2832,7 @@ function renderCartFoot(){
   cashEl.classList.toggle('hidden', !cashUrl);
   if (cashUrl){
     cashEl.href = cashUrl;
-    cashEl.textContent = 'Cash App ' + formatPrice(payable);
+    cashEl.textContent = t('friend.totals.cashApp', { amount: formatPrice(payable) });
   }
 
   // Held back on exactly the same terms as the pay links: while a write
@@ -2830,14 +2841,14 @@ function renderCartFoot(){
   // on. Nothing payable, nothing to mark.
   const markEl = document.getElementById('cartMarkPaid');
   markEl.classList.toggle('hidden', !(showPay && !isHost));
-  markEl.textContent = 'I\u2019ve paid ' + formatPrice(payable);
+  markEl.textContent = t('friend.totals.markPaid', { amount: formatPrice(payable) });
   markEl.disabled = paidInFlight;
 
   // Says why the button is asking for less than the row above it does.
   // Without it that gap reads as a bug.
   const pendingEl = document.getElementById('cartFoodPending');
   pendingEl.classList.toggle('hidden', !(foodPending && !isHost));
-  if (foodPending) pendingEl.textContent = 'Concessions settle after order is placed.';
+  if (foodPending) pendingEl.textContent = t('friend.totals.foodPending');
 }
 
 // "Paid" is somebody saying so. Venmo and Cash App hand off to another
@@ -2914,7 +2925,7 @@ function cartTotalRow(label, valueHtml, onUndo){
     const undo = document.createElement('button');
     undo.type = 'button';
     undo.className = 'paid-undo';
-    undo.textContent = 'undo';
+    undo.textContent = t('friend.totals.undo');
     undo.addEventListener('click', onUndo);
     row.lastChild.appendChild(undo);
   }
