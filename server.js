@@ -291,6 +291,9 @@ function publicShowtimeView(s) {
     screen: s.screen || DEFAULT_SCREEN,
     price: s.price,
     posterUrl: posterUrlForTitle(s.title),
+    // Set by the host when they go and place the order -- see the
+    // orders-closed route below for why it isn't a clock.
+    ordersClosed: !!s.ordersClosed,
     seats: blockSeats
   };
 }
@@ -523,6 +526,34 @@ app.put('/api/showtimes/:id', async (req, res) => {
   res.json({ showtime: obj });
 });
 
+// Closing the cart is the host saying "I'm at the counter now" -- after
+// this, friends can look at their orders but not change them.
+//
+// Deliberately a switch the host throws, not a clock. It used to be a
+// cutoff two hours before showtime, which was wrong twice over: it could
+// only ever be a guess at when the order actually gets placed, and it had
+// to be evaluated in the browser, because a showtime's date and time are
+// stored as bare local strings and this process runs somewhere
+// effectively UTC -- so the server couldn't have enforced it honestly
+// even if it wanted to. A flag it owns, it can.
+//
+// Its own endpoint rather than a field on the showtime save: this needs
+// to take effect the moment it's pressed, and it must not ride along with
+// a seats object the editor may have been holding since before someone's
+// last order.
+app.post('/api/showtimes/:id/orders-closed', async (req, res) => {
+  const { closed } = req.body || {};
+  if (typeof closed !== 'boolean') {
+    return res.status(400).json({ error: 'closed must be a boolean' });
+  }
+  const existing = store.getShowtime(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'not found' });
+
+  const obj = { ...existing, ordersClosed: closed, updatedAt: Date.now() };
+  await store.saveShowtime(req.params.id, obj);
+  res.json({ showtime: obj });
+});
+
 app.delete('/api/showtimes/:id', async (req, res) => {
   const existed = await store.deleteShowtime(req.params.id);
   if (!existed) return res.status(404).json({ error: 'not found' });
@@ -746,13 +777,10 @@ app.get('/api/public/concession-menu', (req, res) => {
 // friend side already runs on, and it's what makes "add mine to Jordan's
 // while I'm at it" work at all.
 //
-// The 2-hour-before-showtime cutoff the page shows is enforced in the
-// page, not here. The server can't evaluate it honestly: a showtime's
-// date/time are stored as bare local strings with no timezone, and this
-// process runs in a container that's almost certainly UTC -- so a
-// server-side cutoff would lock a San Francisco showtime's carts seven
-// or eight hours early. A client-side cutoff at least uses the friend's
-// own clock, which is the same wall clock the showtime is written in.
+// Once the host closes the cart this refuses the write (409), which is
+// the one rule here the server can actually enforce -- it's a flag the
+// host sets, not a time it would have to read out of a bare local date
+// string from a container in the wrong timezone.
 // Somebody saying they've settled up. There is no callback from Venmo or
 // Cash App that could tell this app a payment landed -- a payment link is
 // a deep link into someone else's app and nothing comes back -- so a
@@ -789,6 +817,9 @@ app.put('/api/public/showtimes/:id/seats/:seatId/concessions', async (req, res) 
   const result = await store.setSeatConcessions(req.params.id, req.params.seatId, items || []);
   if (!result.ok) {
     if (result.reason === 'not_found') return res.status(404).json({ error: 'not found' });
+    if (result.reason === 'orders_closed') {
+      return res.status(409).json({ error: 'orders are closed for this showtime', reason: 'orders_closed' });
+    }
     return res.status(409).json({ error: 'that seat is not reserved yet' });
   }
   res.json({ showtime: publicShowtimeView(result.showtime) });

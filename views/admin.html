@@ -827,6 +827,32 @@
     color:#fff;
   }
   .orders-empty{color:var(--muted);font-size:12.5px;}
+  .orders-close{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    flex-wrap:wrap;
+    padding:8px 20px 4px;
+  }
+  .orders-close button{
+    flex:0 0 auto;
+    background:none;
+    color:#e2857a;
+    border:1px solid #5a2b2b;
+    border-radius:10px;
+    padding:8px 14px;
+    font-family:inherit;
+    font-size:12.5px;
+    font-weight:700;
+    cursor:pointer;
+  }
+  .orders-close button:hover{background:#2a1618;}
+  .orders-close button:disabled{opacity:.5;cursor:not-allowed;}
+  /* Reopening is the recoverable direction, so it doesn't get the
+     warning colour the closing one does. */
+  .orders-close.is-closed button{color:var(--green);border-color:#2f5b3a;}
+  .orders-close.is-closed button:hover{background:#15251a;}
+  .orders-close-note{color:var(--muted);font-size:11.5px;line-height:1.4;}
   .order-line{
     margin-bottom:5px;
     line-height:1.4;
@@ -936,7 +962,7 @@
 
     <div class="og-section">
       <h3>Concessions Menu</h3>
-      <p>What friends can order from the reservation page. Ships with the AMC menu already filled in -- edit, reprice, add or remove anything and save, and your version takes over. One list for every showtime; orders are attached to each reserved seat, and friends can change theirs until 2 hours before showtime. Removing an item here doesn't disturb orders already placed -- those keep the name and price they were placed at.</p>
+      <p>What friends can order from the reservation page. Ships with the AMC menu already filled in -- edit, reprice, add or remove anything and save, and your version takes over. One list for every showtime; orders are attached to each reserved seat, and friends can change theirs until you close the cart on a showtime. Removing an item here doesn't disturb orders already placed -- those keep the name and price they were placed at.</p>
       <div id="menuRows"></div>
       <!-- Every section name already in use, so filing an item under one
            is a pick rather than a retype (sections match on exact text). -->
@@ -1045,6 +1071,15 @@
          summed shopping list. Built from the seats currently loaded in
          the editor, so it reflects unsaved seat edits too. -->
     <div class="orders" id="orders"></div>
+
+    <!-- The switch that stops friends changing their orders. Sits under
+         the roll-up because that's the list you're reading when you
+         decide you're done and about to go buy it. Writes immediately --
+         it deliberately doesn't wait for Save Showtime. -->
+    <div class="orders-close hidden" id="ordersCloseBar">
+      <button type="button" id="ordersCloseBtn" onclick="toggleOrdersClosed()">Close cart</button>
+      <span class="orders-close-note" id="ordersCloseNote"></span>
+    </div>
 
     <div class="toolbar-note">Tap a yellow seat to add it to your block. Tap a green seat to assign it to a friend. Tap a red seat to edit, clear, or release it.</div>
 
@@ -1472,6 +1507,7 @@ function formatTimeDisplay(t){
 // ---------------- EDITOR: NEW / OPEN ----------------
 function openNew(){
   currentId = null;
+  ordersClosed = false;
   document.getElementById('titleField').value = 'Movie Title';
   document.getElementById('theaterField').textContent = 'AMC Metreon 16';
   document.getElementById('showDate').value = todayISO();
@@ -1500,6 +1536,7 @@ async function openExisting(id){
     const data = await res.json();
     const obj = data.showtime;
     currentId = id;
+    ordersClosed = !!obj.ordersClosed;
     document.getElementById('titleField').value = obj.title || 'Movie Title';
     document.getElementById('theaterField').textContent = obj.theater || 'AMC Metreon 16';
     document.getElementById('showDate').value = obj.date || todayISO();
@@ -1773,6 +1810,53 @@ function updateSummary(){
 // Per-seat orders plus the summed shopping list, rebuilt whenever the
 // seat summary is. Reads seatStates (not the server's copy) so it stays
 // correct against edits that haven't been saved yet.
+// Whether friends can still change their orders for the showtime being
+// edited. Held here rather than read off the DOM so the button and the
+// note can't disagree about it.
+let ordersClosed = false;
+
+function renderOrdersCloseBar(){
+  const bar = document.getElementById('ordersCloseBar');
+  // Nothing to close on a showtime that doesn't exist yet -- there's no
+  // id to write to, and nobody can have ordered against it.
+  bar.classList.toggle('hidden', !currentId);
+  if (!currentId) return;
+
+  bar.classList.toggle('is-closed', ordersClosed);
+  document.getElementById('ordersCloseBtn').textContent = ordersClosed ? 'Reopen cart' : 'Close cart';
+  document.getElementById('ordersCloseNote').textContent = ordersClosed
+    ? 'Orders are closed. Friends can see their carts but not change them.'
+    : 'Friends can still add and remove items. Close it when you go to order.';
+}
+
+// Writes straight away rather than waiting for Save Showtime: this is the
+// host saying "I'm at the counter now", and it must not ride along with a
+// seats object this page may have been holding since before somebody's
+// last order.
+async function toggleOrdersClosed(){
+  if (!currentId) return;
+  const next = !ordersClosed;
+  if (next && !confirm('Close the cart? Friends will not be able to change their orders until you reopen it.')) return;
+
+  const btn = document.getElementById('ordersCloseBtn');
+  btn.disabled = true;
+  try{
+    const res = await fetch('/api/showtimes/' + currentId + '/orders-closed', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ closed: next })
+    });
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok){ alert('Could not change that. Try again.'); return; }
+    ordersClosed = next;
+    renderOrdersCloseBar();
+  }catch(e){
+    alert('Could not change that. Try again.');
+  }finally{
+    btn.disabled = false;
+  }
+}
+
 // The price in the editor form, which is what the seat summary above is
 // describing -- the seats there are the ones being edited, not the ones
 // last saved.
@@ -1782,6 +1866,7 @@ function currentShowtimePrice(){
 }
 
 function renderOrders(){
+  renderOrdersCloseBar();
   const el = document.getElementById('orders');
   const ordered = Object.keys(seatStates)
     .filter(id => seatStates[id].status === 'assigned' && seatStates[id].name && (seatStates[id].concessions || []).length)

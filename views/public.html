@@ -1011,7 +1011,7 @@
       <div>
         <!-- LOGO_IMG -->
         <h1>Upcoming Showtimes</h1>
-        <p>Reserve a spot below. Tap any reserved seat to add concessions, up to 2 hours before showtime.</p>
+        <p>Reserve a spot below. Tap any reserved seat to add concessions \u2014 usually until about 2 hours before showtime, when the order goes in.</p>
       </div>
       <div class="logout-link" onclick="logout()">Log out</div>
     </div>
@@ -1889,20 +1889,6 @@ async function submitClaim(){
 // honest instead of letting it disagree with what got saved.
 const MAX_CART_QTY = 99;
 
-// The reservation page promises orders close 2 hours before showtime, so
-// the host has a point at which the list stops moving and they can
-// actually go buy it all.
-//
-// This is enforced here and NOT on the server, on purpose. A showtime's
-// date/time are stored as bare local strings with no timezone, and the
-// server runs in a container that's effectively UTC -- a server-side
-// cutoff would lock a San Francisco showtime's carts seven or eight hours
-// early. The friend's own clock is the same wall clock the showtime was
-// written in, so it's the only one that can read this correctly. It's a
-// cutoff in the same spirit as everything else here: it keeps honest
-// people honest, and the host can still sort anything out by text.
-const CONCESSION_CUTOFF_HOURS = 2;
-
 // Nobody sitting next to Naren gets offered peanut candy. Played for a
 // laugh, but it's an allergy, so it's built to fail safe rather than to
 // be cute: see hidePeanutRows() for what it deliberately does NOT do.
@@ -1984,13 +1970,13 @@ function showtimeStart(obj){
   return Number.isFinite(dt.getTime()) ? dt : null;
 }
 
-// Open unless we can actually establish the cutoff has passed -- a
-// showtime with a missing or unparseable date/time stays editable rather
-// than locking everyone out of a cart for no visible reason.
+// Open until the host closes it from the editor, which they do when they
+// go and place the order. Not a clock: the only moment that actually
+// matters is the one where the order gets handed over, and nothing but
+// the host knows when that is. Anything without the flag is open, so a
+// showtime from before this existed stays editable.
 function concessionsOpen(obj){
-  const start = showtimeStart(obj);
-  if (!start) return true;
-  return Date.now() < start.getTime() - CONCESSION_CUTOFF_HOURS * 3600 * 1000;
+  return !(obj && obj.ordersClosed);
 }
 
 // "Chicken Tenders ×2 (BBQ Sauce, Icing Cup)" -- one cart line in words.
@@ -2165,11 +2151,7 @@ async function openCart(showtimeId, seatId){
   document.getElementById('cartError').textContent = '';
   document.getElementById('cartStatus').textContent = '';
 
-  const locked = document.getElementById('cartLocked');
-  locked.classList.toggle('hidden', !cartLocked);
-  locked.textContent =
-    'Orders for this showtime closed ' + CONCESSION_CUTOFF_HOURS + ' hours before it starts. ' +
-    'Message the host if you still need to change something.';
+  renderCartLockedBanner();
 
   const body = document.getElementById('cartBody');
   body.innerHTML = '<div class="cart-empty-menu">Loading menu...</div>';
@@ -2221,7 +2203,20 @@ function closeCartOverlay(){
   document.body.classList.remove('cart-open');
 }
 
+// Shown whenever the cart is read-only. Its own function because the
+// cart can close underneath an open page -- the host presses the button
+// while somebody is mid-order -- so this has to be reachable from the
+// save's rejection handler as well as from opening the cart.
+function renderCartLockedBanner(){
+  const locked = document.getElementById('cartLocked');
+  locked.classList.toggle('hidden', !cartLocked);
+  locked.textContent =
+    'Orders for this showtime are closed \u2014 they\u2019ve gone in at the counter. ' +
+    'Message the host if you still need to change something.';
+}
+
 function renderCart(){
+  renderCartLockedBanner();
   const body = document.getElementById('cartBody');
   body.innerHTML = '';
   menuRowEls.clear();
@@ -2643,6 +2638,25 @@ async function runSave(){
     );
     if (await handleAuthFailure(res)) return;
     if (!res.ok){
+      // The host closing the cart while this page was open is the one
+      // failure a retry can't fix, so say what happened and lock the card
+      // rather than leaving a retry button that will never work.
+      let closed = false;
+      if (res.status === 409){
+        try { closed = (await res.clone().json()).reason === 'orders_closed'; } catch (e) {}
+      }
+      if (closed){
+        saveState = 'idle';
+        savePending = false;
+        const obj = currentCartShowtime();
+        if (obj) obj.ordersClosed = true;
+        cartLocked = true;
+        document.getElementById('cartError').textContent =
+          'The host closed orders for this showtime, so this change was not saved.';
+        renderCart();
+        renderCards();
+        return;
+      }
       saveState = 'error';
       document.getElementById('cartError').textContent = res.status === 409
         ? 'That seat is no longer reserved, so there is nothing to order for it.'
