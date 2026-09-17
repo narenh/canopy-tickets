@@ -391,6 +391,17 @@
     border:none;
     font-weight:700;
   }
+  /* The cart's Save button sits right above the pay buttons and shares
+     their shape -- without this it keeps its bright "press me" blue in
+     the nothing-to-save state, one button away from two that really are
+     pressable. */
+  .claim-actions button:disabled{
+    background:#1e1e1e;
+    color:var(--muted);
+    border:1px solid #3a3a3a;
+    font-weight:400;
+    cursor:default;
+  }
   .success-sub{
     color:#e8e8e8;
     font-size:14px;
@@ -402,6 +413,184 @@
     min-height:16px;
     margin-bottom:6px;
   }
+
+  /* ---------- CONCESSIONS (list card) ---------- */
+  /* A reserved seat's line is the entry point to its cart, so the whole
+     line is the tap target rather than a separate small button hanging
+     off the end of it -- there's one of these per claimed seat and a row
+     of 12 tiny buttons would be both uglier and harder to hit on a
+     phone. It's a <button> (not a div with onclick) so keyboard and
+     screen-reader users get it for free. */
+  button.seat-line{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    width:100%;
+    text-align:left;
+    background:#101012;
+    border:1px solid #232326;
+    border-radius:10px;
+    padding:8px 10px;
+    margin-bottom:6px;
+    color:#ddd;
+    font-family:inherit;
+    font-size:13px;
+    cursor:pointer;
+  }
+  button.seat-line:hover{border-color:#3a3a3a;}
+  .seat-line-main{flex:1;min-width:0;}
+  .seat-line-who{margin-bottom:2px;}
+  .concession-summary{
+    color:var(--muted);
+    font-size:11.5px;
+    line-height:1.35;
+    /* Long orders wrap instead of stretching the card -- the full cart
+       is one tap away, this line is only ever a glance. */
+    overflow-wrap:anywhere;
+  }
+  .concession-summary.has-items{color:#cbbf9a;}
+  .concession-cta{
+    flex:0 0 auto;
+    color:var(--gold);
+    font-size:11px;
+    font-weight:700;
+    white-space:nowrap;
+  }
+
+  /* ---------- CART OVERLAY ---------- */
+  /* Wider and taller than the claim/success cards: this one is a list of
+     every menu item, not a single field. The head and foot stay put and
+     only the item list scrolls, so the running total and the Save button
+     never scroll out of reach mid-order. */
+  .cart-card{
+    max-width:420px;
+    max-height:min(82vh, 720px);
+    display:flex;
+    flex-direction:column;
+    padding:0;
+  }
+  .cart-head{padding:18px 20px 0;flex:0 0 auto;}
+  .cart-body{
+    flex:1 1 auto;
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+    padding:4px 20px;
+  }
+  .cart-foot{
+    flex:0 0 auto;
+    padding:12px 20px 18px;
+    border-top:1px solid #2a2a2a;
+  }
+  .cart-item{
+    padding:9px 0;
+    border-bottom:1px solid #202023;
+  }
+  .cart-item:last-child{border-bottom:none;}
+  /* The item and its stepper sit on one row; the note field (when there
+     is one) drops to a full-width line underneath, which is the only way
+     it's usable at phone width. */
+  .ci-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .ci-main{flex:1;min-width:0;}
+  .ci-name{font-size:14px;color:#fff;overflow-wrap:anywhere;}
+  .ci-price{font-size:12px;color:var(--muted);margin-top:1px;}
+  .ci-off-menu{color:#e2857a;}
+  .ci-stepper{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    flex:0 0 auto;
+  }
+  .ci-stepper button{
+    width:30px;
+    height:30px;
+    border-radius:50%;
+    border:1px solid #3a3a3a;
+    background:#1e1e1e;
+    color:#fff;
+    font-size:17px;
+    line-height:1;
+    cursor:pointer;
+    padding:0;
+  }
+  .ci-stepper button:disabled{opacity:.35;cursor:not-allowed;}
+  .ci-stepper .ci-plus{background:var(--gold);color:#241c07;border:none;font-weight:700;}
+  .ci-qty{
+    min-width:18px;
+    text-align:center;
+    font-size:14px;
+    font-weight:700;
+  }
+  .ci-qty.is-zero{color:var(--muted);font-weight:400;}
+  /* Only shown once something's actually in the cart for this item --
+     an empty note field against every one of 20 menu rows would bury
+     the items themselves. */
+  .ci-note{
+    width:100%;
+    background:#0f0f10;
+    color:#fff;
+    border:1px solid #2f2f2f;
+    border-radius:8px;
+    padding:6px 9px;
+    font-size:12.5px;
+    font-family:inherit;
+    margin-top:6px;
+  }
+  .cart-line-total{
+    font-size:12px;
+    color:var(--gold);
+    margin-top:3px;
+  }
+  .cart-totals{
+    font-size:13px;
+    color:#ddd;
+    margin-bottom:12px;
+  }
+  .cart-total-row{
+    display:flex;
+    justify-content:space-between;
+    gap:12px;
+    padding:2px 0;
+  }
+  .cart-total-row.is-owed{
+    font-size:15px;
+    font-weight:700;
+    color:#fff;
+    border-top:1px solid #2a2a2a;
+    margin-top:6px;
+    padding-top:7px;
+  }
+  .cart-total-row .paid-note{color:var(--green);}
+  .cart-empty-menu{
+    color:var(--muted);
+    font-size:13px;
+    padding:18px 0;
+    text-align:center;
+  }
+  .cart-locked{
+    background:#241c07;
+    border:1px solid var(--gold-dark);
+    color:#f0dda9;
+    border-radius:8px;
+    padding:8px 10px;
+    font-size:12px;
+    margin-bottom:10px;
+  }
+  /* Unlike the claim overlay's error line, this one doesn't reserve a
+     blank row: the cart head already carries a title, a subtitle and
+     (sometimes) the closed-orders banner, and two more empty reserved
+     lines under them push the first item off a short screen. Errors here
+     are rare enough that the shift when one appears is the better trade. */
+  .cart-head .claim-error{min-height:0;}
+  .cart-status{
+    color:var(--green);
+    font-size:12px;
+    min-height:16px;
+    margin-bottom:4px;
+  }
 </style>
 </head>
 <body>
@@ -412,7 +601,7 @@
       <div>
         <!-- LOGO_IMG -->
         <h1>Upcoming Showtimes</h1>
-        <p>Reserve a spot below. Choose your concessions until 2 hours before showtime (coming soon).</p>
+        <p>Reserve a spot below. Tap any reserved seat to add concessions, up to 2 hours before showtime.</p>
       </div>
       <div class="logout-link" onclick="logout()">Log out</div>
     </div>
@@ -461,9 +650,36 @@
       <div class="claim-title">You're in! 🎬</div>
       <div class="success-sub" id="successSub"></div>
       <div class="claim-actions">
+        <!-- Ahead of the pay buttons on purpose: ordering first means the
+             amount those buttons pre-fill is the whole bill, not a ticket
+             the friend then owes a second payment on top of. -->
+        <button type="button" id="successConcessionsBtn" onclick="openCartFromSuccess()">&#127871; Add concessions</button>
         <a class="venmo-btn hidden" id="venmoLink" href="#" target="_blank" rel="noopener">Pay via Venmo</a>
         <a class="cashapp-btn hidden" id="cashappLink" href="#" target="_blank" rel="noopener">Pay via Cash App</a>
         <button type="button" onclick="closeSuccessOverlay()">Skip</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== CONCESSION CART OVERLAY ===================== -->
+  <div class="claim-overlay hidden" id="cartOverlay">
+    <div class="claim-card cart-card">
+      <div class="cart-head">
+        <div class="claim-title" id="cartTitle">Concessions</div>
+        <div class="claim-sub" id="cartSub"></div>
+        <div class="cart-locked hidden" id="cartLocked"></div>
+        <div class="claim-error" id="cartError"></div>
+        <div class="cart-status" id="cartStatus"></div>
+      </div>
+      <div class="cart-body" id="cartBody"></div>
+      <div class="cart-foot">
+        <div class="cart-totals" id="cartTotals"></div>
+        <div class="claim-actions">
+          <button type="button" class="claim-submit-btn" id="cartSaveBtn" onclick="saveCart()">Save order</button>
+          <a class="venmo-btn hidden" id="cartVenmoLink" href="#" target="_blank" rel="noopener">Pay via Venmo</a>
+          <a class="cashapp-btn hidden" id="cartCashappLink" href="#" target="_blank" rel="noopener">Pay via Cash App</a>
+          <button type="button" id="cartCloseBtn" onclick="closeCartOverlay()">Close</button>
+        </div>
       </div>
     </div>
   </div>
@@ -625,15 +841,24 @@ async function loadList(){
     if (!res.ok) throw new Error('failed to load');
     const data = await res.json();
     allShowtimes = (data.showtimes || []).filter(obj => !isPastShowtime(obj));
-    if (allShowtimes.length === 0){
-      container.innerHTML = '<div class="empty-state">No showtimes posted yet. Check back soon.</div>';
-      return;
-    }
-    container.innerHTML = '';
-    allShowtimes.forEach(obj => container.appendChild(buildCard(obj)));
+    renderCards();
   }catch(e){
     container.innerHTML = '<div class="empty-state">Could not load showtimes. Try again.</div>';
   }
+}
+
+// Redraws the list from whatever's already in allShowtimes -- split out
+// of loadList so saving a concession cart can refresh the seat lines it
+// just changed without a second trip to the server for a list it already
+// got back from the save.
+function renderCards(){
+  const container = document.getElementById('cardsContainer');
+  if (allShowtimes.length === 0){
+    container.innerHTML = '<div class="empty-state">No showtimes posted yet. Check back soon.</div>';
+    return;
+  }
+  container.innerHTML = '';
+  allShowtimes.forEach(obj => container.appendChild(buildCard(obj)));
 }
 
 function showtimeSubtitle(obj){
@@ -726,13 +951,8 @@ function buildCard(obj){
     if (claimed.length > 0){
       const claimedList = document.createElement('div');
       claimedList.className = 'claimed-list';
-      claimedList.innerHTML = claimed.map(id => {
-        const s = seats[id];
-        // Paid seats show just the name -- only unpaid ones get a tag, so
-        // this list reads as "who still owes" rather than a payment log.
-        const unpaidTag = s.paid ? '' : '<span class="unpaid-tag">unpaid</span>';
-        return '<div class="seat-line"><b>' + escapeHtml(s.name) + '</b> <span class="seat-id">(' + escapeHtml(id) + ')</span>' + unpaidTag + '</div>';
-      }).join('');
+      const ordersOpen = concessionsOpen(obj);
+      claimed.forEach(id => claimedList.appendChild(buildClaimedSeatLine(obj, id, ordersOpen)));
       card.appendChild(claimedList);
     }
 
@@ -749,6 +969,46 @@ function buildCard(obj){
   }
 
   return card;
+}
+
+// One claimed seat on a list card. The whole row is the way into that
+// seat's concession cart -- see the CONCESSIONS block below for why any
+// friend can open any seat's, not just their own.
+function buildClaimedSeatLine(obj, seatId, ordersOpen){
+  const seat = (obj.seats || {})[seatId] || {};
+  const lines = seat.concessions || [];
+
+  const row = document.createElement('button');
+  row.type = 'button';
+  row.className = 'seat-line';
+  row.addEventListener('click', () => openCart(obj.id, seatId));
+
+  const main = document.createElement('div');
+  main.className = 'seat-line-main';
+
+  const who = document.createElement('div');
+  who.className = 'seat-line-who';
+  // Paid seats show just the name -- only unpaid ones get a tag, so this
+  // list reads as "who still owes" rather than a payment log.
+  who.innerHTML = '<b>' + escapeHtml(seat.name || '') + '</b> <span class="seat-id">(' + escapeHtml(seatId) + ')</span>' +
+    (seat.paid ? '' : '<span class="unpaid-tag">unpaid</span>');
+  main.appendChild(who);
+
+  const summary = document.createElement('div');
+  summary.className = 'concession-summary' + (lines.length ? ' has-items' : '');
+  summary.textContent = lines.length
+    ? '\uD83C\uDF7F ' + concessionSummary(lines)
+    : (ordersOpen ? 'No concessions yet' : 'No concessions ordered');
+  main.appendChild(summary);
+
+  row.appendChild(main);
+
+  const cta = document.createElement('div');
+  cta.className = 'concession-cta';
+  cta.textContent = ordersOpen ? (lines.length ? 'Edit' : '+ Add') : 'View';
+  row.appendChild(cta);
+
+  return row;
 }
 
 // ---------------- SEAT PICKER VIEW ----------------
@@ -878,6 +1138,10 @@ function openSuccessOverlay(showtime, seatId){
     cashappLink.classList.add('hidden');
   }
 
+  // Only offered when the host actually has a menu up -- otherwise the
+  // button leads straight to an empty "no menu yet" card.
+  document.getElementById('successConcessionsBtn').classList.toggle('hidden', concessionMenu.length === 0);
+
   document.getElementById('successOverlay').classList.remove('hidden');
 }
 
@@ -910,6 +1174,7 @@ async function submitClaim(){
     }
     const data = await res.json();
     const claimedSeatId = claimingSeatId;
+    lastClaim = { showtimeId: currentShowtimeId, seatId: claimedSeatId };
     closeClaimOverlay();
     // Refresh the in-memory copy for this showtime and redraw the map so
     // the newly-claimed seat shows red immediately.
@@ -922,9 +1187,474 @@ async function submitClaim(){
   }
 }
 
+// ---------------- CONCESSIONS ----------------
+//
+// There's no per-friend identity anywhere in this app -- one shared
+// password, and a name typed free-text at claim time -- so a cart belongs
+// to a SEAT, not to a login, and anyone on the reservation page can open
+// and edit any reserved seat's cart. That's deliberate (and matches how
+// the rest of the friend side already works): it's what makes "I'm at the
+// counter, add a popcorn to Jordan's too" a thing you can just do.
+//
+// Menu items are the host's list (admin editor). A cart line snapshots
+// the item's name and price at the moment it was added, so the host
+// repricing or removing a menu item never silently rewrites an order
+// someone already placed -- a line whose item has since left the menu
+// still shows, flagged, and can still be edited down to zero.
+
+// Matches MAX_QTY in lib/seats.js -- a cart line over this gets clamped
+// server-side, so stopping the stepper here keeps the number on screen
+// honest instead of letting it disagree with what got saved.
+const MAX_CART_QTY = 99;
+
+// The reservation page promises orders close 2 hours before showtime, so
+// the host has a point at which the list stops moving and they can
+// actually go buy it all.
+//
+// This is enforced here and NOT on the server, on purpose. A showtime's
+// date/time are stored as bare local strings with no timezone, and the
+// server runs in a container that's effectively UTC -- a server-side
+// cutoff would lock a San Francisco showtime's carts seven or eight hours
+// early. The friend's own clock is the same wall clock the showtime was
+// written in, so it's the only one that can read this correctly. It's a
+// cutoff in the same spirit as everything else here: it keeps honest
+// people honest, and the host can still sort anything out by text.
+const CONCESSION_CUTOFF_HOURS = 2;
+
+let concessionMenu = [];   // [{id, name, price}] from /api/public/concession-menu
+let cartShowtimeId = null;
+let cartSeatId = null;
+let cartRows = [];         // [{itemId, name, price, qty, note, offMenu}]
+let cartLocked = false;    // past the cutoff -- read-only
+let cartDirty = false;     // unsaved edits on screen
+let cartSaved = false;     // a save went through since this cart was opened
+let lastClaim = null;      // {showtimeId, seatId} -- for the success overlay's "Add concessions"
+
+async function loadConcessionMenu(){
+  try{
+    const res = await fetch('/api/public/concession-menu');
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok) return;
+    const data = await res.json();
+    concessionMenu = Array.isArray(data.items) ? data.items : [];
+  }catch(e){
+    // Non-fatal -- an already-loaded menu stays usable, and a cart that
+    // has never loaded one shows the "no menu yet" state.
+  }
+}
+
+function concessionsTotal(lines){
+  const total = (lines || []).reduce((sum, l) => sum + (l.price || 0) * (l.qty || 0), 0);
+  return Math.round(total * 100) / 100;
+}
+
+// Local Date for a showtime's start, or null if it hasn't got a usable
+// date/time. Built field-by-field rather than by parsing "2026-02-12T19:00"
+// as a string, which some browsers read as UTC and some as local.
+function showtimeStart(obj){
+  if (typeof obj.date !== 'string' || typeof obj.time !== 'string') return null;
+  const d = obj.date.split('-').map(Number);
+  const t = obj.time.split(':').map(Number);
+  if (d.length < 3 || t.length < 2 || d.some(n => !Number.isFinite(n)) || t.some(n => !Number.isFinite(n))) return null;
+  const dt = new Date(d[0], d[1] - 1, d[2], t[0], t[1], 0, 0);
+  return Number.isFinite(dt.getTime()) ? dt : null;
+}
+
+// Open unless we can actually establish the cutoff has passed -- a
+// showtime with a missing or unparseable date/time stays editable rather
+// than locking everyone out of a cart for no visible reason.
+function concessionsOpen(obj){
+  const start = showtimeStart(obj);
+  if (!start) return true;
+  return Date.now() < start.getTime() - CONCESSION_CUTOFF_HOURS * 3600 * 1000;
+}
+
+// One-line "what's in this cart" for the seat row on the list card.
+function concessionSummary(lines){
+  if (!lines || !lines.length) return '';
+  const parts = lines.map(l => l.name + (l.qty > 1 ? ' ×' + l.qty : ''));
+  const total = concessionsTotal(lines);
+  return parts.join(', ') + (total > 0 ? ' — ' + formatPrice(total) : '');
+}
+
+// Merges the seat's saved cart onto the current menu: every menu item
+// gets a row (quantity 0 = not ordered), and anything in the cart whose
+// item has since left the menu gets a flagged row at the bottom so it's
+// still visible and still removable.
+function buildCartRows(lines){
+  const byItem = new Map();
+  (lines || []).forEach(l => {
+    const key = l.itemId || null;
+    if (key && byItem.has(key)){
+      // Shouldn't happen from this page (one row per item), but summing
+      // beats silently dropping one if some older/other client wrote two
+      // lines for the same item.
+      const prev = byItem.get(key);
+      prev.qty += l.qty;
+      if (!prev.note && l.note) prev.note = l.note;
+      return;
+    }
+    if (key) byItem.set(key, { ...l });
+  });
+
+  const rows = concessionMenu.map(item => {
+    const existing = byItem.get(item.id);
+    return {
+      itemId: item.id,
+      // Current menu name/price for an item still on the menu -- a
+      // repriced item should show today's price to someone ordering it
+      // now; the snapshot only protects orders already placed.
+      name: item.name,
+      price: item.price,
+      qty: existing ? existing.qty : 0,
+      note: existing && existing.note ? existing.note : '',
+      offMenu: false
+    };
+  });
+
+  const menuIds = new Set(concessionMenu.map(i => i.id));
+  const pushed = new Set();
+  (lines || []).forEach(l => {
+    if (l.itemId && menuIds.has(l.itemId)) return;  // already has a menu row above
+    if (l.itemId && pushed.has(l.itemId)) return;   // merged into the row already pushed
+    if (l.itemId) pushed.add(l.itemId);
+    // Name and price here are the snapshot taken when this was ordered --
+    // there's no menu entry left to read a current one from, which is
+    // exactly why the snapshot exists.
+    const merged = (l.itemId && byItem.get(l.itemId)) || l;
+    rows.push({
+      itemId: l.itemId || '',
+      name: merged.name,
+      price: merged.price,
+      qty: merged.qty,
+      note: merged.note || '',
+      offMenu: true
+    });
+  });
+
+  return rows;
+}
+
+function cartLines(){
+  return cartRows
+    .filter(r => r.qty > 0)
+    .map(r => ({ itemId: r.itemId, name: r.name, price: r.price, qty: r.qty, note: r.note || '' }));
+}
+
+function currentCartShowtime(){
+  return allShowtimes.find(s => s.id === cartShowtimeId) || null;
+}
+
+// ---------------- CART OVERLAY ----------------
+async function openCart(showtimeId, seatId){
+  const obj = allShowtimes.find(s => s.id === showtimeId);
+  if (!obj) return;
+  const seat = (obj.seats || {})[seatId];
+  if (!seat || !seat.name) return;
+
+  cartShowtimeId = showtimeId;
+  cartSeatId = seatId;
+  cartLocked = !concessionsOpen(obj);
+  cartDirty = false;
+  cartSaved = false;
+
+  document.getElementById('cartTitle').textContent = 'Concessions';
+  document.getElementById('cartSub').textContent = 'Seat ' + seatId + ' · ' + seat.name;
+  document.getElementById('cartError').textContent = '';
+  document.getElementById('cartStatus').textContent = '';
+
+  const locked = document.getElementById('cartLocked');
+  locked.classList.toggle('hidden', !cartLocked);
+  locked.textContent =
+    'Orders for this showtime closed ' + CONCESSION_CUTOFF_HOURS + ' hours before it starts. ' +
+    'Message the host if you still need to change something.';
+
+  const body = document.getElementById('cartBody');
+  body.innerHTML = '<div class="cart-empty-menu">Loading menu...</div>';
+  document.getElementById('cartOverlay').classList.remove('hidden');
+
+  // Refetched on every open rather than once at page load: the host adds
+  // menu items from their own device, and a friend who left this page
+  // sitting open all afternoon shouldn't be ordering off yesterday's menu.
+  await loadConcessionMenu();
+
+  // Bail out if the overlay got closed (or switched to another seat)
+  // while that request was in flight.
+  if (cartShowtimeId !== showtimeId || cartSeatId !== seatId) return;
+
+  // Re-read rather than reusing the `seat` captured before the await --
+  // a save on another seat replaces the whole showtime object in
+  // allShowtimes, so the one from before the fetch can be detached.
+  const current = allShowtimes.find(s => s.id === showtimeId);
+  const freshSeat = current && (current.seats || {})[seatId];
+  if (!freshSeat || !freshSeat.name){ closeCartOverlay(); return; }
+
+  cartRows = buildCartRows(freshSeat.concessions);
+  renderCart();
+}
+
+function openCartFromSuccess(){
+  if (!lastClaim) return;
+  closeSuccessOverlay();
+  openCart(lastClaim.showtimeId, lastClaim.seatId);
+}
+
+function closeCartOverlay(){
+  cartShowtimeId = null;
+  cartSeatId = null;
+  cartRows = [];
+  cartDirty = false;
+  document.getElementById('cartOverlay').classList.add('hidden');
+}
+
+function renderCart(){
+  const body = document.getElementById('cartBody');
+  body.innerHTML = '';
+
+  if (cartRows.length === 0){
+    const empty = document.createElement('div');
+    empty.className = 'cart-empty-menu';
+    empty.textContent = "The host hasn't put up a concessions menu yet. Check back later.";
+    body.appendChild(empty);
+  } else {
+    cartRows.forEach(row => body.appendChild(buildCartRowEl(row)));
+  }
+
+  renderCartFoot();
+}
+
+function buildCartRowEl(row){
+  const el = document.createElement('div');
+  el.className = 'cart-item';
+
+  const rowEl = document.createElement('div');
+  rowEl.className = 'ci-row';
+
+  const main = document.createElement('div');
+  main.className = 'ci-main';
+
+  const nameEl = document.createElement('div');
+  nameEl.className = 'ci-name';
+  nameEl.textContent = row.name;
+  main.appendChild(nameEl);
+
+  const priceEl = document.createElement('div');
+  priceEl.className = 'ci-price' + (row.offMenu ? ' ci-off-menu' : '');
+  priceEl.textContent = (row.price > 0 ? formatPrice(row.price) : 'No price set') +
+    (row.offMenu ? ' · no longer on the menu' : '');
+  main.appendChild(priceEl);
+
+  const lineTotal = document.createElement('div');
+  lineTotal.className = 'cart-line-total hidden';
+  main.appendChild(lineTotal);
+
+  rowEl.appendChild(main);
+
+  const stepper = document.createElement('div');
+  stepper.className = 'ci-stepper';
+
+  const minus = document.createElement('button');
+  minus.type = 'button';
+  minus.textContent = '−';
+  minus.setAttribute('aria-label', 'Remove one ' + row.name);
+
+  const qtyEl = document.createElement('span');
+  qtyEl.className = 'ci-qty';
+
+  const plus = document.createElement('button');
+  plus.type = 'button';
+  plus.className = 'ci-plus';
+  plus.textContent = '+';
+  plus.setAttribute('aria-label', 'Add one ' + row.name);
+
+  stepper.appendChild(minus);
+  stepper.appendChild(qtyEl);
+  stepper.appendChild(plus);
+  rowEl.appendChild(stepper);
+  el.appendChild(rowEl);
+
+  const note = document.createElement('input');
+  note.type = 'text';
+  note.className = 'ci-note hidden';
+  note.placeholder = 'Note for this item (e.g. no ice)';
+  note.maxLength = 200;
+  note.value = row.note || '';
+
+  // Updates only this row plus the totals, rather than re-rendering the
+  // whole list -- a full re-render on every tap would drop focus out of
+  // a note field someone is in the middle of typing into.
+  function sync(){
+    qtyEl.textContent = String(row.qty);
+    qtyEl.classList.toggle('is-zero', row.qty === 0);
+    minus.disabled = cartLocked || row.qty === 0;
+    plus.disabled = cartLocked || row.qty >= MAX_CART_QTY;
+    note.classList.toggle('hidden', row.qty === 0);
+    note.readOnly = cartLocked;
+    const showTotal = row.qty > 0 && row.price > 0;
+    lineTotal.classList.toggle('hidden', !showTotal);
+    if (showTotal) lineTotal.textContent = row.qty + ' × ' + formatPrice(row.price) + ' = ' + formatPrice(row.price * row.qty);
+  }
+
+  function bump(delta){
+    if (cartLocked) return;
+    const next = Math.max(0, Math.min(MAX_CART_QTY, row.qty + delta));
+    if (next === row.qty) return;
+    row.qty = next;
+    // Dropping to zero drops the note with it -- the note described an
+    // order that no longer exists, and silently keeping it would make it
+    // reappear if the item got added back later.
+    if (row.qty === 0){
+      row.note = '';
+      note.value = '';
+    }
+    markCartDirty();
+    sync();
+    renderCartFoot();
+  }
+
+  minus.addEventListener('click', () => bump(-1));
+  plus.addEventListener('click', () => bump(1));
+  note.addEventListener('input', () => {
+    row.note = note.value;
+    // Only the first keystroke changes anything in the foot (Save goes
+    // from disabled to enabled, pay links hide); redrawing it on every
+    // subsequent one would be pure churn.
+    const wasDirty = cartDirty;
+    markCartDirty();
+    if (!wasDirty) renderCartFoot();
+  });
+
+  el.appendChild(note);
+  sync();
+  return el;
+}
+
+function markCartDirty(){
+  if (cartDirty) return;
+  cartDirty = true;
+  document.getElementById('cartStatus').textContent = '';
+}
+
+// Totals + the pay row. Pay links are shown only when what's on screen
+// matches what's been saved -- offering a pre-filled "pay $43.46" button
+// for an order the host hasn't actually received yet is the one way this
+// screen could genuinely cost someone money.
+function renderCartFoot(){
+  const obj = currentCartShowtime();
+  const seat = obj && (obj.seats || {})[cartSeatId];
+  const totals = document.getElementById('cartTotals');
+  const lines = cartLines();
+  const concessions = concessionsTotal(lines);
+  const ticketPrice = obj && typeof obj.price === 'number' ? obj.price : 0;
+  const ticketPaid = !!(seat && seat.paid);
+  const owed = Math.round(((ticketPaid ? 0 : ticketPrice) + concessions) * 100) / 100;
+
+  totals.innerHTML = '';
+  if (ticketPrice > 0){
+    totals.appendChild(cartTotalRow(
+      'Ticket',
+      ticketPaid ? '<span class="paid-note">&#10003; paid</span>' : escapeHtml(formatPrice(ticketPrice))
+    ));
+  }
+  totals.appendChild(cartTotalRow('Concessions', escapeHtml(concessions > 0 ? formatPrice(concessions) : '--')));
+  const owedRow = cartTotalRow('You owe', escapeHtml(formatPrice(owed)));
+  owedRow.classList.add('is-owed');
+  totals.appendChild(owedRow);
+
+  // Kept on screen (disabled) rather than hidden when there's nothing to
+  // save: hiding it would slide the pay buttons up under the thumb that
+  // just tapped Save, which is the one place a mis-tap costs money.
+  const saveBtn = document.getElementById('cartSaveBtn');
+  saveBtn.classList.toggle('hidden', cartLocked);
+  saveBtn.disabled = !cartDirty;
+  saveBtn.textContent = cartDirty ? 'Save order' : (cartSaved ? 'Saved' : 'Nothing to save yet');
+
+  document.getElementById('cartCloseBtn').textContent = cartDirty ? 'Discard changes' : 'Close';
+
+  // Note carries the seat so the host can tell two friends' payments
+  // apart in a Venmo feed; Cash App has no note param at all (see
+  // buildCashAppLink).
+  const note = (obj && obj.title ? obj.title : 'Movie') +
+    ' (' + formatDateShort(obj ? obj.date : '') + ', ' + cartSeatId + ')' +
+    (concessions > 0 ? ' + concessions' : '');
+  const showPay = !cartDirty && owed > 0;
+
+  const venmoEl = document.getElementById('cartVenmoLink');
+  const venmoUrl = showPay ? buildVenmoLink(owed, note) : null;
+  venmoEl.classList.toggle('hidden', !venmoUrl);
+  if (venmoUrl){
+    venmoEl.href = venmoUrl;
+    venmoEl.textContent = 'Pay ' + formatPrice(owed) + ' via Venmo';
+  }
+
+  const cashEl = document.getElementById('cartCashappLink');
+  const cashUrl = showPay ? buildCashAppLink(owed) : null;
+  cashEl.classList.toggle('hidden', !cashUrl);
+  if (cashUrl){
+    cashEl.href = cashUrl;
+    cashEl.textContent = 'Pay ' + formatPrice(owed) + ' via Cash App';
+  }
+}
+
+function cartTotalRow(label, valueHtml){
+  const row = document.createElement('div');
+  row.className = 'cart-total-row';
+  row.innerHTML = '<span>' + escapeHtml(label) + '</span><span>' + valueHtml + '</span>';
+  return row;
+}
+
+async function saveCart(){
+  if (!cartShowtimeId || !cartSeatId || cartLocked) return;
+  const errorEl = document.getElementById('cartError');
+  const statusEl = document.getElementById('cartStatus');
+  const saveBtn = document.getElementById('cartSaveBtn');
+  errorEl.textContent = '';
+  statusEl.textContent = '';
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Saving...';
+
+  try{
+    const res = await fetch(
+      '/api/public/showtimes/' + encodeURIComponent(cartShowtimeId) +
+      '/seats/' + encodeURIComponent(cartSeatId) + '/concessions',
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: cartLines() })
+      }
+    );
+    if (await handleAuthFailure(res)) return;
+    if (res.status === 409){
+      errorEl.textContent = 'That seat is no longer reserved, so there is nothing to order for it.';
+      renderCartFoot();
+      return;
+    }
+    if (!res.ok){
+      errorEl.textContent = 'Could not save that order. Try again.';
+      renderCartFoot();
+      return;
+    }
+    const data = await res.json();
+    const idx = allShowtimes.findIndex(s => s.id === cartShowtimeId);
+    if (idx !== -1) allShowtimes[idx] = data.showtime;
+    cartDirty = false;
+    cartSaved = true;
+    statusEl.textContent = 'Saved.';
+    renderCartFoot();
+    // The list underneath is showing this seat's old order -- redraw it
+    // (and the seat map, if the picker is what's open behind this).
+    renderCards();
+    if (currentShowtimeId === cartShowtimeId) buildSeatmap(data.showtime);
+  }catch(e){
+    errorEl.textContent = 'Could not reach the server. Try again.';
+    renderCartFoot();
+  }
+}
+
 // ---------------- INIT ----------------
 loadList();
 loadConfig(); // populates venmoHandle for the post-claim pay link
+loadConcessionMenu(); // so the post-claim overlay knows whether to offer concessions
 </script>
 
 </body>

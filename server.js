@@ -7,9 +7,10 @@ const store = require('./lib/store');
 const { createImageStore } = require('./lib/uploadedImage');
 const posterStore = require('./lib/posterStore');
 const sharedPasswordStore = require('./lib/sharedPassword');
+const concessionMenuStore = require('./lib/concessionMenu');
 const { createTextSettingStore } = require('./lib/textSetting');
 const { createPasswordAuth } = require('./lib/auth');
-const { normalizeSeats } = require('./lib/seats');
+const { normalizeSeats, normalizeSeatEntry } = require('./lib/seats');
 
 const ogImageStore = createImageStore('og');
 const logoImageStore = createImageStore('logo');
@@ -249,7 +250,11 @@ function publicShowtimeView(s) {
   const blockSeats = {};
   Object.keys(seats).forEach((id) => {
     if (seats[id].status === 'assigned') {
-      blockSeats[id] = { name: seats[id].name, paid: seats[id].paid };
+      // Carts ride along with the seat list rather than sitting behind
+      // their own endpoint: the reservation page shows every reserved
+      // seat's order inline on the list, so a separate fetch per seat
+      // would just be the same data in N round-trips.
+      blockSeats[id] = { name: seats[id].name, paid: seats[id].paid, concessions: seats[id].concessions };
     }
   });
   return {
@@ -342,6 +347,30 @@ app.post('/api/payment-handles', adminAuth.requireAuth('/'), (req, res) => {
   res.json({ ok: true, venmo: savedVenmo, cashapp: savedCashapp });
 });
 
+// ---------------- Concession menu (admin auth required to change) ----------------
+//
+// One global menu (see lib/concessionMenu.js for why it isn't per
+// showtime). The admin editor posts the whole list back every save --
+// there's no add/rename/delete-one endpoint, because the editor is a
+// handful of rows on screen at once and a whole-list PUT is the only
+// shape where reordering, renaming and deleting are all the same
+// operation.
+
+app.get('/api/concession-menu', adminAuth.requireAuth('/'), (req, res) => {
+  res.json({ items: concessionMenuStore.get() });
+});
+
+app.post('/api/concession-menu', adminAuth.requireAuth('/'), (req, res) => {
+  const { items } = req.body || {};
+  if (items !== undefined && !Array.isArray(items)) {
+    return res.status(400).json({ error: 'items must be an array' });
+  }
+  // Echoing the saved list back matters: brand-new rows get their ids
+  // assigned server-side, and the editor needs them to keep editing the
+  // same row instead of creating a duplicate on the next save.
+  res.json({ ok: true, items: concessionMenuStore.set(items || []) });
+});
+
 // ---------------- Showtimes API (admin auth required) ----------------
 
 app.use('/api/showtimes', adminAuth.requireAuth('/'));
@@ -352,6 +381,41 @@ app.use('/api/showtimes', adminAuth.requireAuth('/'));
 // public one.
 function withScreenFallback(item) {
   return { ...item, screen: item.screen || DEFAULT_SCREEN, posterUrl: posterUrlForTitle(item.title) };
+}
+
+// A friend's cart lives on the seat, and the admin editor saves the WHOLE
+// seats object -- so an editor page loaded before an order was placed
+// would write that order right back off the record on its next save.
+//
+// The editor does round-trip carts it knows about (see normalizeSeatEntry
+// in views/admin.html), so an incoming seat entry with no `concessions`
+// key at all means one of two things: a stale/older client that never
+// saw the cart, or a deliberate clear. The editor makes the deliberate
+// case explicit by sending `concessions: []`, which leaves "key absent"
+// meaning only "this client doesn't know", and that's the case we keep
+// the stored cart for.
+//
+// This narrows the window but doesn't close it: an editor that loaded
+// AFTER a cart existed and then saves stale contents still wins. Same
+// last-write-wins story the seat names already have here, and the same
+// reason it's acceptable -- one host, editing their own showtimes.
+function preserveConcessions(incomingSeats, existingSeats) {
+  const out = {};
+  Object.keys(incomingSeats || {}).forEach((id) => {
+    const incoming = incomingSeats[id];
+    if (!incoming || typeof incoming !== 'object' || incoming.status !== 'assigned') {
+      out[id] = incoming;
+      return;
+    }
+    if (Array.isArray(incoming.concessions)) {
+      out[id] = incoming;
+      return;
+    }
+    const prior = normalizeSeatEntry(existingSeats && existingSeats[id]);
+    const priorCart = prior && prior.status === 'assigned' ? prior.concessions : [];
+    out[id] = priorCart.length ? { ...incoming, concessions: priorCart } : incoming;
+  });
+  return out;
 }
 
 app.get('/api/showtimes', (req, res) => {
@@ -393,8 +457,9 @@ app.put('/api/showtimes/:id', async (req, res) => {
   const existing = store.getShowtime(req.params.id);
   if (!existing) return res.status(404).json({ error: 'not found' });
   const body = req.body || {};
-  const seats =
+  const rawSeats =
     body.seats && typeof body.seats === 'object' && !Array.isArray(body.seats) ? body.seats : existing.seats;
+  const seats = preserveConcessions(rawSeats, existing.seats);
   const obj = {
     ...existing,
     title: String(body.title ?? existing.title).slice(0, 200),
@@ -442,6 +507,42 @@ app.post('/api/public/showtimes/:id/claim', async (req, res) => {
   if (!result.ok) {
     if (result.reason === 'not_found') return res.status(404).json({ error: 'not found' });
     return res.status(409).json({ error: 'that seat is no longer available' });
+  }
+  res.json({ showtime: publicShowtimeView(result.showtime) });
+});
+
+// The menu a friend picks from. Read-only on this side -- only the admin
+// editor changes it (see /api/concession-menu above).
+app.get('/api/public/concession-menu', (req, res) => {
+  res.json({ items: concessionMenuStore.get() });
+});
+
+// Replaces one reserved seat's concession cart.
+//
+// Deliberately NOT tied to "the person who claimed this seat": there's no
+// per-friend identity in this app (one shared password, names typed in
+// free-text at claim time), so anyone who can see the reservation page
+// can edit any cart on it. That's the same trust model the rest of the
+// friend side already runs on, and it's what makes "add mine to Jordan's
+// while I'm at it" work at all.
+//
+// The 2-hour-before-showtime cutoff the page shows is enforced in the
+// page, not here. The server can't evaluate it honestly: a showtime's
+// date/time are stored as bare local strings with no timezone, and this
+// process runs in a container that's almost certainly UTC -- so a
+// server-side cutoff would lock a San Francisco showtime's carts seven
+// or eight hours early. A client-side cutoff at least uses the friend's
+// own clock, which is the same wall clock the showtime is written in.
+app.put('/api/public/showtimes/:id/seats/:seatId/concessions', async (req, res) => {
+  const { items } = req.body || {};
+  if (items !== undefined && !Array.isArray(items)) {
+    return res.status(400).json({ error: 'items must be an array' });
+  }
+
+  const result = await store.setSeatConcessions(req.params.id, req.params.seatId, items || []);
+  if (!result.ok) {
+    if (result.reason === 'not_found') return res.status(404).json({ error: 'not found' });
+    return res.status(409).json({ error: 'that seat is not reserved yet' });
   }
   res.json({ showtime: publicShowtimeView(result.showtime) });
 });

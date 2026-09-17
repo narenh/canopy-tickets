@@ -13,6 +13,10 @@ claim seats. One URL, one login form, two possible passwords:
   name, and get a one-tap Venmo and/or Cash App link pre-filled with the
   price (whichever you've set up — see "Payment handles" below). You still
   confirm the payment actually landed manually on the admin side.
+- Friends can come back any time and tap their reserved seat to build a
+  **concession order** off a menu you set — see "Concessions" below. The
+  pay link then covers the ticket and the snacks together, and the editor
+  gives you a summed shopping list to take to the counter.
 
 There's nothing "admin-flavored" about the URL or login page — the same
 link works for you and for friends, it just goes different places
@@ -45,8 +49,14 @@ Docker" below for making that survive restarts/redeploys).
   showtime carries a `screen` (which auditorium/seat-map it uses, see
   `public/seat-layout.js`), defaulting to IMAX at Metreon
   (`"amc-metreon-16"`) via a fallback in `server.js` if unset.
+  `setSeatConcessions` does the same read-check-write dance for a friend
+  editing a reserved seat's concession order.
 - `lib/sharedPassword.js` — persistence for the friend password (see
   below). No password saved means friend login is off.
+- `lib/concessionMenu.js` — persistence for the concession menu: one
+  global list of `{id, name, price}` (see "Concessions" below for why it
+  isn't per showtime). An item keeps its id across renames and reprices,
+  so carts referencing it stay lined up with the menu.
 - `lib/textSetting.js` — generic persistence for a single admin-settable
   string setting: `createTextSettingStore(name)` gives each named setting
   its own file in `DATA_DIR`. Used for the Venmo and Cash App handles
@@ -55,7 +65,10 @@ Docker" below for making that survive restarts/redeploys).
   (`canopy_admin` and `canopy_shared` cookies) so admin and friend logins
   never overlap.
 - `lib/seats.js` — normalizes a stored seat entry into
-  `{status: 'occupied'}` or `{status: 'assigned', name, paid}`.
+  `{status: 'occupied'}` or `{status: 'assigned', name, paid, concessions}`,
+  where `concessions` is that seat's cart (`{itemId, name, price, qty,
+  note?}` per line). A seat saved before concessions existed just
+  normalizes to an empty cart, so there's no migration step.
 - `lib/uploadedImage.js` — persistence for admin-uploaded site images (the
   link-preview image, the logo): `createImageStore(name)` gives each one
   its own file in `DATA_DIR`, same durability story as `showtimes.json`.
@@ -79,8 +92,10 @@ Docker" below for making that survive restarts/redeploys).
   so there's nothing else to keep in sync by hand.
 - `views/admin.html` — the showtime list + seat-map editor, plus (below
   the showtimes list) the friend-password field, the payment handles
-  fields, and the logo/link-preview uploaders. Only served to
-  authenticated admin requests.
+  fields, the concessions menu editor, and the logo/link-preview
+  uploaders. The editor also shows what friends have ordered for the
+  showtime you're editing, per seat plus a summed shopping list. Only
+  served to authenticated admin requests.
 - `views/public.html` — the friend-facing reservation page. Only served to
   authenticated shared requests. Shows each showtime's remaining spot count
   (green if any are open, red if sold out), who's already claimed a seat,
@@ -88,7 +103,8 @@ Docker" below for making that survive restarts/redeploys).
   assigned to), and a pre-filled Venmo and/or Cash App pay button right
   after claiming for whichever handle(s) are set (see "Payment handles"
   below); doesn't expose which seats are sold-out-but-not-mine vs. simply
-  not part of the block.
+  not part of the block. Each reserved seat on the list is also the way
+  into that seat's concession cart (see "Concessions" below).
 - `public/login.html` — the one password screen (no "admin" language --
   it doesn't know or care which password you're about to type).
 
@@ -112,6 +128,71 @@ force-log-out friends who are already signed in (sessions are independent
 of the password's current value, same as `ADMIN_PASSWORD` changes don't
 log out an existing admin session). Rotating the password controls new
 access, not already-granted access.
+
+## Concessions
+
+Friends can come back to the reservation page any time after reserving a
+seat and build a concession order for it. On the list, every reserved
+seat is its own tappable row showing what's on it so far ("🍿 Large
+Popcorn ×2, Icee — $25.97", or "No concessions yet"); tapping it opens
+that seat's cart, where every menu item has a −/+ stepper and an optional
+per-item note ("no ice", "extra butter"). The order is saved against the
+seat, so it's there when they come back on another device or another day.
+
+**Set the menu** from the "Concessions Menu" field in the admin editor,
+below the showtimes list: a name and a price per row, add and remove rows
+freely, save. It's one menu shared by every showtime, not one per
+showtime — this is one person's friend group at, in practice, one
+theater, and retyping "Large Popcorn — $9.49" for every movie would be
+the whole feature's worth of friction. Until you've set a menu, friends
+just see "The host hasn't put up a concessions menu yet."
+
+**What the host sees.** Open a showtime in the editor and, under the seat
+summary, there's what everyone ordered: a line per seat (with their
+notes), then a summed roll-up — `Large Popcorn ×4 … $37.96` — and a
+total. That roll-up is the point: it's the list you read at the counter,
+already added up, instead of adding up six people's orders yourself. The
+seat editor overlay shows one seat's order too, read-only, so you can see
+what someone asked for while you're marking their seat paid.
+
+**Paying.** The cart's pay button covers the whole bill — ticket plus
+concessions — unless you've already marked that seat paid, in which case
+it's just the concessions. The buttons only appear when what's on screen
+matches what's been saved: pre-filling "pay $43.46" for an order the host
+hasn't actually received yet is the one way this screen could cost
+someone money, so making an edit hides them until you save.
+
+A few things worth knowing about how this actually works:
+
+- **Anyone can edit any seat's cart.** There's no per-friend identity in
+  this app — one shared password, and a name typed free-text at claim
+  time — so a cart belongs to a *seat*, not to a login. That's
+  deliberate, and it's the same trust model the rest of the friend side
+  already runs on: it's what makes "I'm at the counter, add a popcorn to
+  Jordan's too" something you can just do.
+- **Orders close 2 hours before showtime**, which is what the page has
+  always promised. After that the cart still opens, but read-only, with a
+  note pointing people at you. This is enforced in the page, not on the
+  server, and that's not an oversight: a showtime's date/time are stored
+  as bare local strings with no timezone, and the server runs in a
+  container that's effectively UTC — a server-side cutoff would lock a San
+  Francisco showtime's carts seven or eight hours early. The friend's own
+  clock is the same wall clock the showtime was written in, so it's the
+  only one that can read the cutoff correctly. As a friend-group nudge
+  that's the right trade; don't mistake it for an access control.
+- **Editing the menu never rewrites an order that's already placed.** A
+  cart line stores the item's name and price as they were when it was
+  added, not a live lookup — so repricing a popcorn doesn't retroactively
+  change what someone owes, and removing an item doesn't make it vanish
+  from a cart that contains it (it stays, flagged "no longer on the
+  menu", and can still be edited down to zero).
+- **Clearing a seat's name clears its order.** The order belonged to the
+  person whose name was on the seat, so freeing the seat for someone else
+  starts them from an empty cart. Fixing a typo in a name, or ticking
+  "paid", keeps it.
+- Orders live on the seat inside `showtimes.json`, and the menu in
+  `concession-menu.json` — both in `DATA_DIR`, so they need the same
+  persistent volume as everything else (see below).
 
 ## Payment handles
 
@@ -191,8 +272,8 @@ docker compose up -d --build
 Visit `http://localhost:3000`, log in with `ADMIN_PASSWORD`, and set a
 friend password from the editor (see "The friend password" above). The
 `canopy-data` named volume declared in `docker-compose.yml` is what
-persists `showtimes.json`, the friend password, and uploaded images across
-restarts and rebuilds — don't remove it (`docker compose down -v` would
+persists `showtimes.json`, the concessions menu, the friend password, and
+uploaded images across restarts and rebuilds — don't remove it (`docker compose down -v` would
 wipe it).
 
 To pick up new code later: `docker compose up -d --build` again. The
@@ -244,7 +325,8 @@ as static files instead of actually running the Node server.
      so sessions still survive restarts/redeploys/extra replicas either
      way. Set it explicitly so that changing `ADMIN_PASSWORD` later
      doesn't also silently log everyone out.
-3. Add a **persistent volume** — this is where `showtimes.json`, the
+3. Add a **persistent volume** — this is where `showtimes.json` (which
+   carries friends' concession orders), the concessions menu, the
    friend password, the Venmo/Cash App handles, and the uploaded
    logo/link-preview images all live.
    Without it, every redeploy gives the container a brand-new, empty
@@ -279,5 +361,5 @@ Check this in Coolify's deployment logs right after a redeploy. If it says
 actually attached (Storages tab is empty, wrong destination path, or it
 was added but the resource hasn't been redeployed since) — fix that and
 redeploy again; nothing else changes. The same volume is also what makes
-the friend password, payment handles, and uploaded images survive a
-redeploy, so this check covers all of it.
+the friend password, payment handles, concessions menu, and uploaded
+images survive a redeploy, so this check covers all of it.
