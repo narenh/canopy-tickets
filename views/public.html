@@ -100,8 +100,30 @@
      of this row). */
   .card-body{
     display:flex;
+    align-items:center;
     gap:12px;
     margin-bottom:10px;
+    cursor:pointer;
+    /* Pulled out to the card's edges and padded back, so the pressed and
+       focused states cover the full width of the header rather than a
+       box floating inside it. */
+    margin-left:-10px;
+    margin-right:-10px;
+    padding:4px 10px;
+    border-radius:10px;
+  }
+  .card-body:hover{background:#1a1a1d;}
+  .card-body:focus-visible{outline:2px solid var(--gold);outline-offset:-2px;}
+  /* Says the header goes somewhere. Muted, because the Reserve button
+     below it is the call to action and this shouldn't compete. */
+  .card-chevron{
+    flex:0 0 auto;
+    width:8px;
+    height:8px;
+    margin-left:2px;
+    border-right:2px solid var(--muted);
+    border-top:2px solid var(--muted);
+    transform:rotate(45deg);
   }
   .card-info{flex:1;min-width:0;}
   /* Same box whether or not this title has a poster yet, so every card's
@@ -904,7 +926,7 @@
     </div>
 
     <div class="seatmap" id="seatmap"></div>
-    <div class="toolbar-note">Tap a gold seat to reserve it. Red seats are already taken; gray seats aren't part of this block.</div>
+    <div class="toolbar-note" id="pickerNote"></div>
 
     <div class="legend">
       <div class="legend-item"><span class="legend-swatch sw-pickable"></span> Open</div>
@@ -1231,8 +1253,25 @@ function buildCard(obj){
   const card = document.createElement('div');
   card.className = 'card';
 
+  // The whole header opens the seat map -- for a sold-out showtime too,
+  // where it's the only way in and reads as a chart of who's sitting
+  // where rather than something to pick from.
+  //
+  // role/tabindex rather than a <button>: the header carries an <h3>,
+  // which isn't valid inside a button, and losing the heading to satisfy
+  // the element would be the wrong trade.
   const body = document.createElement('div');
   body.className = 'card-body';
+  body.setAttribute('role', 'button');
+  body.setAttribute('tabindex', '0');
+  body.setAttribute('aria-label', 'Seat map for ' + (obj.title || 'this showtime'));
+  body.addEventListener('click', () => openSeatPicker(obj.id));
+  body.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' '){
+      e.preventDefault();
+      openSeatPicker(obj.id);
+    }
+  });
   body.appendChild(buildPosterEl(obj));
 
   const info = document.createElement('div');
@@ -1276,6 +1315,12 @@ function buildCard(obj){
   }
 
   body.appendChild(info);
+
+  const chevron = document.createElement('div');
+  chevron.className = 'card-chevron';
+  chevron.setAttribute('aria-hidden', 'true');
+  body.appendChild(chevron);
+
   card.appendChild(body);
 
   if (ids.length > 0){
@@ -1355,6 +1400,14 @@ function openSeatPicker(id){
   currentShowtimeId = id;
   document.getElementById('pickerTitle').textContent = obj.title || 'Movie Title';
   document.getElementById('pickerSubtitle').textContent = showtimeSubtitle(obj);
+
+  // Nothing to tap on a sold-out map, so don't tell people to tap.
+  const pickerSeats = obj.seats || {};
+  const anyOpen = Object.keys(pickerSeats).some(id => !pickerSeats[id].name);
+  document.getElementById('pickerNote').textContent = anyOpen
+    ? "Tap a gold seat to reserve it. Red seats are already taken; gray seats aren't part of this block."
+    : "Every seat in this block is taken \u2014 hover or tap a red seat to see whose it is. Gray seats aren't part of this block.";
+
   // Show the picker before building the map -- buildSeatmap measures row
   // widths via offsetWidth, which reads 0 on anything still inside a
   // display:none ancestor.
