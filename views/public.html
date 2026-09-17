@@ -79,7 +79,12 @@
     margin-top:4px;
   }
   .cards{
-    padding:14px 20px 20px;
+    /* 10, not 20, at the sides. Paired with the card's own 10 below it
+       this puts a card's contents at 20px -- the same left edge as the
+       page title above them, which they never shared before -- while the
+       card itself sits closer to the screen edge and the rows inside it
+       get the width back. */
+    padding:14px 10px 20px;
     display:flex;
     flex-direction:column;
     gap:12px;
@@ -88,7 +93,7 @@
     background:#151517;
     border:1px solid #2a2a2a;
     border-radius:14px;
-    padding:14px 16px;
+    padding:14px 10px;
   }
   /* Poster + title/info/seat-count column, side by side; the claimed-
      seat names and the Reserve button below stay full-width (not part
