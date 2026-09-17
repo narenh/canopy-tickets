@@ -553,6 +553,23 @@
     font-family:inherit;
   }
   .ci-choice-select:disabled{opacity:.6;}
+  /* Amber, not red: nothing is wrong yet, there's just a pick still to
+     make. Marks the exact dropdown so the hint in the footer doesn't send
+     someone hunting. */
+  .ci-choice-select.needs-choice{
+    border-color:var(--gold-dark);
+    color:var(--gold);
+  }
+  .cart-hint{
+    background:#241c07;
+    border:1px solid var(--gold-dark);
+    color:#f0dda9;
+    border-radius:8px;
+    padding:7px 10px;
+    font-size:11.5px;
+    margin-bottom:10px;
+    overflow-wrap:anywhere;
+  }
   /* Only shown once something's actually in the cart for this item --
      an empty note field against every one of 20 menu rows would bury
      the items themselves. */
@@ -592,15 +609,6 @@
     padding-top:7px;
   }
   .cart-total-row .paid-note{color:var(--green);}
-  .cart-peanut-note{
-    background:#151517;
-    border:1px solid #2a2a2a;
-    border-radius:8px;
-    color:var(--muted);
-    font-size:11.5px;
-    padding:7px 10px;
-    margin:8px 0 4px;
-  }
   .cart-section{
     border-top:1px solid #202023;
     margin-top:4px;
@@ -745,6 +753,7 @@
       </div>
       <div class="cart-body" id="cartBody"></div>
       <div class="cart-foot">
+        <div class="cart-hint hidden" id="cartHint"></div>
         <div class="cart-totals" id="cartTotals"></div>
         <div class="claim-actions">
           <button type="button" class="claim-submit-btn" id="cartSaveBtn" onclick="saveCart()">Save order</button>
@@ -1464,6 +1473,30 @@ function buildCartRows(lines){
   return rows;
 }
 
+// Every unit of an item that comes with a choice has to have one picked
+// before the cart will save. An order reaching the host as "Chicken
+// Tenders x2" with no sauces named is one they can't actually place --
+// they'd be standing at the counter texting to ask.
+//
+// Only rows that are in the cart AND whose group actually has options
+// count: an item whose group the host hasn't filled in yet can't be
+// picked from, so it would otherwise block saving forever. Off-menu lines
+// are exempt for the same reason -- there's no group left to pick from.
+function missingChoices(){
+  const out = [];
+  cartRows.forEach(row => {
+    if (row.qty === 0) return;
+    const choices = optionsForItem(row.itemId);
+    if (!choices.length) return;
+    let missing = 0;
+    for (let unit = 0; unit < row.qty; unit++){
+      if (!row.options[unit]) missing++;
+    }
+    if (missing) out.push({ name: row.name, label: optionLabelForItem(row.itemId).toLowerCase(), missing });
+  });
+  return out;
+}
+
 function cartLines(){
   return cartRows
     .filter(r => r.qty > 0)
@@ -1502,6 +1535,8 @@ function hasPeanutNeighbor(showtime, seatId){
 
 // Returns the rows to leave out of the rendered menu, and never touches
 // cartRows itself -- what gets saved is still whatever is in the cart.
+// Silent by design: the people this applies to are in on the joke, and a
+// banner explaining the bit is worse than the bit.
 //
 // Two things this deliberately does not do:
 //  - it won't hide a peanut item that's ALREADY in this cart. Hiding a
@@ -1589,12 +1624,6 @@ function renderCart(){
     body.appendChild(empty);
   } else {
     const hidden = hiddenPeanutRows();
-    if (hidden.size){
-      const why = document.createElement('div');
-      why.className = 'cart-peanut-note';
-      why.textContent = "\uD83E\uDD5C Peanut candy is hidden \u2014 you're sitting next to Naren.";
-      body.appendChild(why);
-    }
 
     // Unsectioned items inline, then each named section folded away
     // behind a header. 25 candy bars sitting above the eight things
@@ -1763,8 +1792,10 @@ function buildCartRowEl(row){
       });
       select.value = current;
 
+      select.classList.toggle('needs-choice', !current);
       select.addEventListener('change', () => {
         row.options[unit] = select.value;
+        select.classList.toggle('needs-choice', !select.value);
         markCartDirty();
         renderCartFoot();
       });
@@ -1872,13 +1903,26 @@ function renderCartFoot(){
   owedRow.classList.add('is-owed');
   totals.appendChild(owedRow);
 
+  // A locked cart has no save button, so there's nothing to hold back.
+  const missing = cartLocked ? [] : missingChoices();
+  const hint = document.getElementById('cartHint');
+  hint.classList.toggle('hidden', missing.length === 0);
+  if (missing.length){
+    // Names the items rather than just refusing: the offending dropdown
+    // can be a long way up a 39-row list.
+    hint.textContent = 'Still to choose: ' +
+      missing.map(m => m.name + ' (' + m.label + (m.missing > 1 ? ' ×' + m.missing : '') + ')').join(', ');
+  }
+
   // Kept on screen (disabled) rather than hidden when there's nothing to
   // save: hiding it would slide the pay buttons up under the thumb that
   // just tapped Save, which is the one place a mis-tap costs money.
   const saveBtn = document.getElementById('cartSaveBtn');
   saveBtn.classList.toggle('hidden', cartLocked);
-  saveBtn.disabled = !cartDirty;
-  saveBtn.textContent = cartDirty ? 'Save order' : (cartSaved ? 'Saved' : 'Nothing to save yet');
+  saveBtn.disabled = !cartDirty || missing.length > 0;
+  saveBtn.textContent = missing.length
+    ? 'Choose an option first'
+    : (cartDirty ? 'Save order' : (cartSaved ? 'Saved' : 'Nothing to save yet'));
 
   document.getElementById('cartCloseBtn').textContent = cartDirty ? 'Discard changes' : 'Close';
 
@@ -1888,7 +1932,9 @@ function renderCartFoot(){
   const note = (obj && obj.title ? obj.title : 'Movie') +
     ' (' + formatDateShort(obj ? obj.date : '') + ', ' + cartSeatId + ')' +
     (concessions > 0 ? ' + concessions' : '');
-  const showPay = !cartDirty && owed > 0;
+  // Also withheld while something is unchosen: an incomplete cart can't
+  // have been saved, so its total isn't one the host has agreed to.
+  const showPay = !cartDirty && missing.length === 0 && owed > 0;
 
   const venmoEl = document.getElementById('cartVenmoLink');
   const venmoUrl = showPay ? buildVenmoLink(owed, note) : null;
@@ -1916,6 +1962,12 @@ function cartTotalRow(label, valueHtml){
 
 async function saveCart(){
   if (!cartShowtimeId || !cartSeatId || cartLocked) return;
+  // The button is already disabled in this state; this is the backstop so
+  // the rule lives with the save rather than only with the control.
+  if (missingChoices().length){
+    renderCartFoot();
+    return;
+  }
   const errorEl = document.getElementById('cartError');
   const statusEl = document.getElementById('cartStatus');
   const saveBtn = document.getElementById('cartSaveBtn');

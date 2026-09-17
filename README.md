@@ -182,8 +182,17 @@ would affect.
 
 Friends pick **one per unit ordered**: order two chicken tenders and you
 get two dropdowns, because that's two sauce cups and quite possibly two
-different ones. Candy is deliberately *not* an option group — it's a flat
-list of individual items, so two different candies are just two lines.
+different ones. **A cart won't save while any of those picks is empty** —
+Save is held closed, the unchosen dropdowns are outlined, and the footer
+names what's outstanding ("Still to choose: Chicken Tenders (sauce)"),
+since an order reaching you as "Chicken Tenders ×2" with no sauces named
+is one you can't actually place. The pay buttons are withheld too: an
+incomplete cart can't have been saved, so its total isn't one you've
+agreed to. Setting the item back to zero clears the requirement, and an
+item whose group the host hasn't filled in yet never triggers it.
+
+Candy is deliberately *not* an option group — it's a flat list of
+individual items, so two different candies are just two lines.
 
 A group the host creates and hasn't filled in yet is still legal: an item
 whose group has no options behaves exactly like an item with no group
@@ -245,8 +254,9 @@ A few things worth knowing about how this actually works:
 - **Nobody sitting next to Naren is offered peanut candy.** Played for a
   laugh, built to fail safe: when a neighbouring seat in the same row is
   reserved by a Naren (matched on a word boundary, any capitalization),
-  peanut items drop out of that seat's menu with a line saying why. It
-  will *not* hide a peanut item already in the cart — an invisible line
+  peanut items quietly drop out of that seat's menu. No banner explaining
+  the bit — the people it applies to are in on it. It will *not* hide a
+  peanut item already in the cart — an invisible line
   someone is still being charged for is worse than a visible one — and it
   isn't enforcement: the host still sees every order in full, which is
   the copy that matters at the counter. Only same-row neighbours count,
