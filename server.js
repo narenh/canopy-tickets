@@ -522,6 +522,115 @@ app.post('/api/public/showtimes/:id/claim', async (req, res) => {
   res.json({ showtime: publicShowtimeView(result.showtime) });
 });
 
+// ---------------- Calendar invite ----------------
+//
+// Handed out as a real .ics file from a real URL rather than a data: URI
+// or a Google Calendar link: a served text/calendar file is the one thing
+// every phone knows what to do with (iOS offers "Add to Calendar", Android
+// hands it to whichever calendar app is installed), and it doesn't assume
+// anyone's calendar lives at a particular provider.
+
+// Three hours: long enough for trailers, the film and getting out, which
+// is what the block on someone's calendar is actually for. Nothing here
+// knows a film's real runtime.
+const CALENDAR_EVENT_MINUTES = 180;
+
+// RFC 5545 escaping for a text value: backslash first, or it would escape
+// the escapes it just added.
+function icsEscape(value) {
+  return String(value == null ? '' : value)
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\r?\n/g, '\\n');
+}
+
+// Content lines are capped at 75 octets, continued with CRLF + a space.
+// Measured in bytes, not characters -- a movie title with an accent or an
+// emoji in it would otherwise fold a line one byte too late.
+function icsFold(line) {
+  const out = [];
+  let current = '';
+  let bytes = 0;
+  for (const ch of line) {
+    const size = Buffer.byteLength(ch, 'utf8');
+    if (bytes + size > 73) {
+      out.push(current);
+      current = ' ';
+      bytes = 1;
+    }
+    current += ch;
+    bytes += size;
+  }
+  out.push(current);
+  return out.join('\r\n');
+}
+
+// A FLOATING local timestamp (no Z, no TZID): a showtime's date and time
+// are stored as bare local strings with no timezone -- see the cutoff
+// comment on the concessions route -- so the only honest thing to put in
+// the file is "7pm wherever you are", which is what everyone means. The
+// alternative is guessing a timezone and being an hour out twice a year.
+function icsLocalStamp(date, time, addMinutes) {
+  const d = String(date || '').split('-').map(Number);
+  const t = String(time || '').split(':').map(Number);
+  if (d.length < 3 || t.length < 2 || d.some((n) => !Number.isFinite(n)) || t.some((n) => !Number.isFinite(n))) {
+    return null;
+  }
+  const dt = new Date(d[0], d[1] - 1, d[2], t[0], t[1], 0, 0);
+  if (!Number.isFinite(dt.getTime())) return null;
+  if (addMinutes) dt.setMinutes(dt.getMinutes() + addMinutes);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${dt.getFullYear()}${p(dt.getMonth() + 1)}${p(dt.getDate())}T${p(dt.getHours())}${p(dt.getMinutes())}00`;
+}
+
+app.get('/api/public/showtimes/:id/calendar.ics', (req, res) => {
+  const show = store.getShowtime(req.params.id);
+  if (!show) return res.status(404).json({ error: 'not found' });
+
+  const start = icsLocalStamp(show.date, show.time);
+  const end = icsLocalStamp(show.date, show.time, CALENDAR_EVENT_MINUTES);
+  if (!start || !end) return res.status(400).json({ error: 'this showtime has no usable date and time' });
+
+  const seatId = typeof req.query.seat === 'string' ? req.query.seat.trim().slice(0, 12) : '';
+  const title = show.title || 'Movie';
+  const details = [seatId ? `Seat ${seatId}` : '', show.format, typeof show.price === 'number' ? `$${show.price.toFixed(2)}` : '']
+    .filter(Boolean)
+    .join(' \u00b7 ');
+
+  // Stable per seat, so re-adding replaces the event someone already has
+  // rather than leaving them with two.
+  const uid = `${show.id}${seatId ? '-' + seatId.toLowerCase() : ''}@canopy-tickets`;
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//canopy-tickets//EN',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    'BEGIN:VEVENT',
+    `UID:${uid}`,
+    `DTSTAMP:${stamp}`,
+    `DTSTART:${start}`,
+    `DTEND:${end}`,
+    `SUMMARY:${icsEscape(title)}`
+  ];
+  if (show.theater) lines.push(`LOCATION:${icsEscape(show.theater)}`);
+  if (details) lines.push(`DESCRIPTION:${icsEscape(details)}`);
+  lines.push('END:VEVENT', 'END:VCALENDAR');
+
+  const body = lines.map(icsFold).join('\r\n') + '\r\n';
+  const filename = (title.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '') || 'showtime').toLowerCase();
+
+  // attachment, not inline: it's what gets iOS to offer "Add to Calendar"
+  // instead of rendering the file as text in the browser.
+  res.set('Content-Type', 'text/calendar; charset=utf-8');
+  res.set('Content-Disposition', `attachment; filename="${filename}.ics"`);
+  res.set('Cache-Control', 'no-store');
+  res.send(body);
+});
+
 // The menu a friend picks from. Read-only on this side -- only the admin
 // editor changes it (see /api/concession-menu above).
 app.get('/api/public/concession-menu', (req, res) => {

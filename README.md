@@ -102,7 +102,9 @@ Docker" below for making that survive restarts/redeploys).
   uploaders. The editor also shows what friends have ordered for the
   showtime you're editing, per seat plus a summed shopping list. Only
   served to authenticated admin requests.
-- `views/public.html` — the friend-facing reservation page. Only served to
+- `views/public.html` — the friend-facing reservation page. Claiming a
+  seat offers an **Add to calendar** link first (see below), served as a
+  real `.ics` by `server.js`. Only served to
   authenticated shared requests. Shows each showtime's remaining spot count
   (green if any are open, red if sold out), who's already claimed a seat,
   a seat map to pick a specific open one from (hover a seat for who it's
@@ -134,6 +136,31 @@ force-log-out friends who are already signed in (sessions are independent
 of the password's current value, same as `ADMIN_PASSWORD` changes don't
 log out an existing admin session). Rotating the password controls new
 access, not already-granted access.
+
+## Add to calendar
+
+Right after claiming a seat, the first button on the confirmation card is
+**Add to calendar** — the one thing on that card that stops mattering the
+moment it's dismissed, since the money can be sorted out later but nobody
+re-opens a reservation page to find out what time the film was. It points
+at `/api/public/showtimes/:id/calendar.ics?seat=G15`, which builds a real
+`.ics` on the fly: title, theater as the location, and the seat, format
+and price in the description.
+
+A served `text/calendar` file rather than a `data:` URI or a Google
+Calendar link — it's the one thing every phone knows what to do with, and
+it doesn't assume anyone's calendar lives at a particular provider. The
+`UID` is stable per seat, so adding it twice replaces the event rather
+than leaving someone with two of them.
+
+Two things it deliberately doesn't do. The timestamps are **floating
+local** (no `Z`, no `TZID`): a showtime's date and time are stored as bare
+local strings with no timezone (same reason the concessions cutoff is
+enforced in the page), so "7pm wherever you are" is the only honest thing
+to write — the alternative is guessing a timezone and being an hour out
+twice a year. And the event is a flat **3 hours**; nothing here knows a
+film's real runtime, and the block on someone's calendar is for trailers,
+the film and getting out.
 
 ## Concessions
 

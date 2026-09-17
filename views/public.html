@@ -392,6 +392,17 @@
     border:none;
     font-weight:700;
   }
+  /* The first thing on this card and the one that stops being possible
+     once it's dismissed, so it gets a solid fill rather than the plain
+     dark of the secondary buttons. Gold, not a blue of its own: it's the
+     page's own accent, and it keeps the two blue-ish fills below it
+     reading as the pay buttons rather than as a set of three. */
+  .claim-actions .cal-btn{
+    background:var(--gold);
+    color:#241c07;
+    border:none;
+    font-weight:700;
+  }
   .claim-actions .cashapp-btn{
     background:var(--cashapp);
     color:#04240f;
@@ -807,6 +818,13 @@
       <div class="claim-title">You're in! 🎬</div>
       <div class="success-sub" id="successSub"></div>
       <div class="claim-actions">
+        <!-- First, because it's the one thing here that stops mattering
+             the moment this card is dismissed: the money can be sorted
+             out later, but nobody re-opens a reservation page to find out
+             what time the film was. No target=_blank -- iOS shows the
+             Add to Calendar sheet over the page, and a blank tab is what
+             you get if you fight it. -->
+        <a class="cal-btn hidden" id="successCalLink" href="#">&#128197; Add to calendar</a>
         <!-- Ahead of the pay buttons on purpose: ordering first means the
              amount those buttons pre-fill is the whole bill, not a ticket
              the friend then owes a second payment on top of. -->
@@ -1334,6 +1352,18 @@ function openSuccessOverlay(showtime, seatId){
     cashappLink.classList.remove('hidden');
   } else {
     cashappLink.classList.add('hidden');
+  }
+
+  // Hidden rather than broken when a showtime has no usable date or time
+  // -- there's no event to build, and the server would say so with a 400
+  // after the tap rather than before it.
+  const calLink = document.getElementById('successCalLink');
+  if (showtimeStart(showtime)){
+    calLink.href = '/api/public/showtimes/' + encodeURIComponent(showtime.id) +
+      '/calendar.ics?seat=' + encodeURIComponent(seatId);
+    calLink.classList.remove('hidden');
+  } else {
+    calLink.classList.add('hidden');
   }
 
   // Only offered when the host actually has a menu up -- otherwise the
