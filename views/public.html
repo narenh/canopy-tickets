@@ -464,14 +464,25 @@
      never scroll out of reach mid-order. */
   .cart-card{
     max-width:420px;
-    max-height:min(82vh, 720px);
+    /* height, not max-height: the menu below is sized flex-basis 0, so it
+       contributes no natural height of its own and the card would
+       otherwise shrink-wrap the order panel and footer, leaving the menu
+       pinned at its minimum even on a tall screen. Fixing the sheet's
+       height lets the menu take everything the order panel doesn't. */
+    height:min(88vh, 760px);
     display:flex;
     flex-direction:column;
     padding:0;
   }
   .cart-head{padding:18px 20px 0;flex:0 0 auto;}
   .cart-body{
-    flex:1 1 auto;
+    /* basis 0, not auto: with `auto` the menu's natural height (40-odd
+       rows) dominated the shrink weighting, so the order panel below
+       absorbed almost all of it and collapsed to two rows. At basis 0 the
+       menu takes the space that's left over instead, and min-height is
+       the floor a long order can't push it through. */
+    flex:1 1 0;
+    min-height:132px;
     overflow-y:auto;
     -webkit-overflow-scrolling:touch;
     padding:4px 20px;
@@ -544,20 +555,67 @@
 
   /* ---------- ORDER LIST ---------- */
   .cart-order{
-    margin-bottom:10px;
-    /* Capped and scrollable so a long order can't push the totals and
-       the Save button off the bottom of the card. */
-    max-height:34vh;
-    overflow-y:auto;
-    -webkit-overflow-scrolling:touch;
+    /* Shrink, don't grow: this is the item that gives up room when the
+       card runs short, which is why its min-height is 0 and the menu's
+       isn't. */
+    flex:0 1 auto;
+    min-height:0;
+    display:flex;
+    flex-direction:column;
+    max-height:min(168px, 24vh);
+    /* Belt and braces with the inner list's own scroll: whatever the
+       list does, nothing from this panel paints over the totals. */
+    overflow:hidden;
+    padding:0 20px;
+    border-top:1px solid #2a2a2a;
   }
-  .cart-order-head{
+  .cart-order-toggle{
+    flex:0 0 auto;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:10px;
+    width:100%;
+    cursor:pointer;
+    background:none;
+    border:none;
+    font-family:inherit;
     font-size:11px;
     text-transform:uppercase;
     letter-spacing:1px;
     color:var(--muted);
-    margin-bottom:5px;
+    padding:6px 0 5px;
+    text-align:left;
   }
+  .cart-order-toggle::before{
+    content:'\25b8';
+    display:inline-block;
+    margin-right:5px;
+    transition:transform .15s;
+  }
+  .cart-order:not(.is-collapsed) .cart-order-toggle::before{transform:rotate(90deg);}
+  .cart-order-toggle span:first-of-type{flex:1;}
+  .cart-order.is-collapsed .cart-order-list{display:none;}
+  .cart-order-count{
+    flex:0 0 auto;
+    text-transform:none;
+    letter-spacing:0;
+    font-size:11.5px;
+    color:var(--gold);
+  }
+  /* Capped in px as well as vh so the footer's height is predictable on a
+     short phone, where vh alone still left the menu with a few rows. Past
+     the cap this list scrolls inside itself; collapsing it gives the whole
+     card back to the menu. */
+  .cart-order-list{
+    flex:1 1 auto;
+    min-height:0;
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+    padding-bottom:6px;
+  }
+  .cart-pay-row{display:flex;gap:8px;}
+  .cart-pay-row a{flex:1 1 0;min-width:0;font-size:13px;}
   .order-row{
     display:flex;
     align-items:baseline;
@@ -760,20 +818,35 @@
         <div class="cart-status" id="cartStatus"></div>
       </div>
       <div class="cart-body" id="cartBody"></div>
+      <!-- Its own flex item between the menu and the footer, not part of
+           either. That is what stops a long order squeezing the menu: the
+           menu has a min-height the flex algorithm will not go below, and
+           this panel gives up space instead, scrolling inside whatever it
+           gets. Collapsing it hands the rest back. -->
+      <div class="cart-order hidden" id="cartOrderWrap">
+        <!-- A button and a div rather than <details>: Chrome puts a
+             details element's content in its own internal box, which
+             ignores the flex height cap around it -- the list rendered
+             straight over the totals and the buttons below instead of
+             scrolling inside its panel. -->
+        <button type="button" class="cart-order-toggle" id="cartOrderToggle" aria-expanded="true" onclick="toggleOrderPanel()">
+          <span>Your order</span>
+          <span class="cart-order-count" id="cartOrderCount"></span>
+        </button>
+        <div class="cart-order-list" id="cartOrderList"></div>
+      </div>
       <div class="cart-foot">
-        <!-- Above the totals on purpose: this is the bit someone is
-             actually building, so it stays in view while the catalog
-             above it scrolls. -->
-        <div class="cart-order hidden" id="cartOrderWrap">
-          <div class="cart-order-head">Your order</div>
-          <div class="cart-order-list" id="cartOrderList"></div>
-        </div>
         <div class="cart-hint hidden" id="cartHint"></div>
         <div class="cart-totals" id="cartTotals"></div>
         <div class="claim-actions">
           <button type="button" class="claim-submit-btn" id="cartSaveBtn" onclick="saveCart()">Save order</button>
-          <a class="venmo-btn hidden" id="cartVenmoLink" href="#" target="_blank" rel="noopener">Pay via Venmo</a>
-          <a class="cashapp-btn hidden" id="cartCashappLink" href="#" target="_blank" rel="noopener">Pay via Cash App</a>
+          <!-- Side by side rather than stacked: four full-width buttons
+               were most of this footer's height, and on a short phone
+               that came straight out of the menu above. -->
+          <div class="cart-pay-row">
+            <a class="venmo-btn hidden" id="cartVenmoLink" href="#" target="_blank" rel="noopener">Venmo</a>
+            <a class="cashapp-btn hidden" id="cartCashappLink" href="#" target="_blank" rel="noopener">Cash App</a>
+          </div>
           <button type="button" id="cartCloseBtn" onclick="closeCartOverlay()">Close</button>
         </div>
       </div>
@@ -1101,11 +1174,14 @@ function buildClaimedSeatLine(obj, seatId, ordersOpen){
     (seat.paid ? '' : '<span class="unpaid-tag">unpaid</span>');
   main.appendChild(who);
 
+  // A count, not the contents. Spelling out four people's orders in full
+  // turns the showtime list into a wall of sauces; whoever cares about
+  // the detail is one tap from it, and the host has the itemised copy.
   const summary = document.createElement('div');
   summary.className = 'concession-summary' + (lines.length ? ' has-items' : '');
   summary.textContent = lines.length
-    ? '\uD83C\uDF7F ' + concessionSummary(lines)
-    : (ordersOpen ? 'No concessions yet' : 'No concessions ordered');
+    ? '\uD83C\uDF7F ' + lines.length + ' item' + (lines.length === 1 ? '' : 's')
+    : 'No concessions';
   main.appendChild(summary);
 
   row.appendChild(main);
@@ -1796,7 +1872,28 @@ function renderOrderList(){
 
   document.getElementById('cartOrderWrap').classList.toggle('hidden', cartOrder.length === 0);
   cartOrder.forEach(line => list.appendChild(buildOrderRowEl(line)));
+  syncOrderCount();
   syncSectionCounts();
+}
+
+function setOrderPanelCollapsed(collapsed){
+  const wrap = document.getElementById('cartOrderWrap');
+  wrap.classList.toggle('is-collapsed', collapsed);
+  document.getElementById('cartOrderToggle').setAttribute('aria-expanded', String(!collapsed));
+}
+
+// Collapsing hands the whole card back to the menu. The count in the
+// header is what makes that safe to do -- see syncOrderCount below.
+function toggleOrderPanel(){
+  setOrderPanelCollapsed(!document.getElementById('cartOrderWrap').classList.contains('is-collapsed'));
+}
+
+// The count on the panel header, which is the whole of what's readable
+// when it's collapsed -- so it has to stay right whether or not the list
+// itself is on screen.
+function syncOrderCount(){
+  const n = cartOrder.length;
+  document.getElementById('cartOrderCount').textContent = n ? n + ' item' + (n === 1 ? '' : 's') : '';
 }
 
 function addOrderLine(row, option){
@@ -1813,16 +1910,20 @@ function addOrderLine(row, option){
 
   // Appended rather than re-rendering the whole list, so a note someone
   // is part-way through typing on another line keeps its focus.
-  document.getElementById('cartOrderWrap').classList.remove('hidden');
+  const wrap = document.getElementById('cartOrderWrap');
+  wrap.classList.remove('hidden');
   document.getElementById('cartOrderList').appendChild(buildOrderRowEl(line));
+  syncOrderCount();
 
   markCartDirty();
   syncMenuRowCount(row.itemId);
   syncSectionCounts();
   renderCartFoot();
 
-  // The new line is in the footer, which may already be scrolled; bring
-  // it into view so "+" visibly does something.
+  // Adding into a collapsed panel would put the line somewhere nobody
+  // can see; open it so "+" visibly does something, then scroll the new
+  // line into view within it.
+  setOrderPanelCollapsed(false);
   const refs = orderRowEls.get(line.uid);
   if (refs) refs.el.scrollIntoView({ block: 'nearest' });
 }
@@ -1838,6 +1939,7 @@ function removeOrderLine(uid){
   orderRowEls.delete(uid);
 
   document.getElementById('cartOrderWrap').classList.toggle('hidden', cartOrder.length === 0);
+  syncOrderCount();
   markCartDirty();
   syncMenuRowCount(gone.itemId);
   syncSectionCounts();
@@ -1974,7 +2076,7 @@ function renderCartFoot(){
   venmoEl.classList.toggle('hidden', !venmoUrl);
   if (venmoUrl){
     venmoEl.href = venmoUrl;
-    venmoEl.textContent = 'Pay ' + formatPrice(owed) + ' via Venmo';
+    venmoEl.textContent = 'Venmo ' + formatPrice(owed);
   }
 
   const cashEl = document.getElementById('cartCashappLink');
@@ -1982,7 +2084,7 @@ function renderCartFoot(){
   cashEl.classList.toggle('hidden', !cashUrl);
   if (cashUrl){
     cashEl.href = cashUrl;
-    cashEl.textContent = 'Pay ' + formatPrice(owed) + ' via Cash App';
+    cashEl.textContent = 'Cash App ' + formatPrice(owed);
   }
 }
 

@@ -139,9 +139,11 @@ access, not already-granted access.
 
 Friends can come back to the reservation page any time after reserving a
 seat and build a concession order for it. On the list, every reserved
-seat is its own tappable row showing what's on it so far ("🍿 Chicken
-Tenders (BBQ Sauce), Chicken Tenders (Ranch), Skittles — $29.97", or "No
-concessions yet"); tapping it opens that seat's cart. The order is saved
+seat is its own tappable row showing only a count — "🍿 5 items", or "No
+concessions". Spelling out four people's orders in full turned the
+showtime list into a wall of sauces; whoever wants the detail is one tap
+away, and you have the itemised copy in the editor. Tapping the row opens
+that seat's cart. The order is saved
 against the seat, so it's there when they come back on another device or
 another day.
 
@@ -157,6 +159,16 @@ The order list is compact and read-only: item, its pick, the price, and
 an **×** to remove it. Changing your mind is remove-and-re-add, which is
 what keeps it a list you can read at a glance instead of a dozen rows of
 dropdowns and text boxes.
+
+**The menu can't be squeezed.** The catalog and the order are two scroll
+regions sharing one card, and a long order used to crush the menu down to
+a couple of rows — on a small phone, to about 17 pixels. The menu now has
+a floor the layout won't go below; past that the order panel is the thing
+that gives up room, scrolling inside whatever it has. Its header ("Your
+order · 11 items") collapses it entirely, handing the whole card back to
+the menu, and the count stays visible while collapsed so nothing is lost
+by doing it. Adding an item re-opens it, so **+** always visibly does
+something.
 
 **The menu ships filled in.** AMC's own list — drinks, the food page, and
 candy as individual items — is hardcoded in `lib/concessionMenu.js` and
