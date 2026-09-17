@@ -10,7 +10,7 @@ const sharedPasswordStore = require('./lib/sharedPassword');
 const concessionMenuStore = require('./lib/concessionMenu');
 const { createTextSettingStore } = require('./lib/textSetting');
 const { createPasswordAuth } = require('./lib/auth');
-const { normalizeSeats, normalizeSeatEntry, isHostSeat } = require('./lib/seats');
+const { normalizeSeats, normalizeSeatEntry, isHostSeat, CONCESSION_TAX_RATE } = require('./lib/seats');
 
 const ogImageStore = createImageStore('og');
 const logoImageStore = createImageStore('logo');
@@ -130,22 +130,18 @@ function parsePrice(raw) {
   return Math.round(n * 100) / 100;
 }
 
+// CONCESSION_TAX_RATE lives in lib/seats.js now, because settling a cart
+// needs its tax-inclusive total and that calculation belongs next to the
+// subtotal it builds on. The reasoning for the number is there.
+//
 // California normally exempts cold food to go -- a candy bar or a bottled
 // drink from a shop isn't taxed. Concessions at a cinema are the
 // exception: food sold where admission is charged is taxable regardless
-// of what it is or whether it's hot (Reg. 1603). So this applies to the
+// of what it is or whether it's hot (Reg. 1603). So it applies to the
 // whole concessions subtotal rather than trying to sort popcorn from
-// candy, which is both simpler and closer to what the receipt says.
-//
-// The ticket itself isn't in it -- California doesn't tax admissions, and
-// the price on a showtime is what the host already paid AMC anyway.
-//
-// APPROXIMATE, and meant to be: it's San Francisco's combined state,
-// county and district rate, which moves every few years and is one number
-// to edit here when it does. It exists so nobody is surprised at the
-// counter by a bill a few dollars over what the app quoted, not to be an
-// accounting system.
-const CONCESSION_TAX_RATE = 0.08625; // San Francisco, CA
+// candy, which is both simpler and closer to what the receipt says. The
+// ticket itself isn't in it -- California doesn't tax admissions, and the
+// price on a showtime is what the host already paid AMC anyway.
 
 // Every showtime needs an auditorium/seat-map now, keyed by a
 // theater+auditorium id (see public/seat-layout.js -- SEAT_LAYOUTS keys
@@ -274,6 +270,9 @@ function publicShowtimeView(s) {
       blockSeats[id] = {
         name: seats[id].name,
         paid: seats[id].paid,
+        // Dollars of concessions already settled, so the page can work
+        // out what's still owed on a cart that grew after being paid for.
+        concessionsPaid: seats[id].concessionsPaid,
         // The host's own seat owes nothing at all -- not the ticket and
         // not the concessions -- because they're the one paying for the
         // lot. `paid` alone only covers the ticket.
@@ -438,6 +437,10 @@ function withScreenFallback(item) {
 // AFTER a cart existed and then saves stale contents still wins. Same
 // last-write-wins story the seat names already have here, and the same
 // reason it's acceptable -- one host, editing their own showtimes.
+//
+// `concessionsPaid` gets the same treatment for the same reason, and it
+// matters more: silently zeroing it would tell someone who has already
+// sent the money that they still owe it.
 function preserveConcessions(incomingSeats, existingSeats) {
   const out = {};
   Object.keys(incomingSeats || {}).forEach((id) => {
@@ -446,13 +449,18 @@ function preserveConcessions(incomingSeats, existingSeats) {
       out[id] = incoming;
       return;
     }
-    if (Array.isArray(incoming.concessions)) {
+    const knowsCart = Array.isArray(incoming.concessions);
+    const knowsSettled = typeof incoming.concessionsPaid === 'number';
+    if (knowsCart && knowsSettled) {
       out[id] = incoming;
       return;
     }
     const prior = normalizeSeatEntry(existingSeats && existingSeats[id]);
-    const priorCart = prior && prior.status === 'assigned' ? prior.concessions : [];
-    out[id] = priorCart.length ? { ...incoming, concessions: priorCart } : incoming;
+    const assigned = prior && prior.status === 'assigned';
+    const merged = { ...incoming };
+    if (!knowsCart && assigned && prior.concessions.length) merged.concessions = prior.concessions;
+    if (!knowsSettled && assigned && prior.concessionsPaid > 0) merged.concessionsPaid = prior.concessionsPaid;
+    out[id] = merged;
   });
   return out;
 }
@@ -745,6 +753,33 @@ app.get('/api/public/concession-menu', (req, res) => {
 // server-side cutoff would lock a San Francisco showtime's carts seven
 // or eight hours early. A client-side cutoff at least uses the friend's
 // own clock, which is the same wall clock the showtime is written in.
+// Somebody saying they've settled up. There is no callback from Venmo or
+// Cash App that could tell this app a payment landed -- a payment link is
+// a deep link into someone else's app and nothing comes back -- so a
+// friend marking themselves paid is the only signal that exists. Same
+// trust model as the carts above: one shared password, any friend can
+// mark any seat, and the host can overrule all of it in the editor.
+//
+// `ticket` and `concessions` are booleans, not amounts. What concessions
+// come to is worked out in the store from what's actually saved on the
+// seat, so a stale page can't settle $40 of food off a $12 view of it.
+app.put('/api/public/showtimes/:id/seats/:seatId/paid', async (req, res) => {
+  const body = req.body || {};
+  const patch = {};
+  if (typeof body.ticket === 'boolean') patch.ticket = body.ticket;
+  if (typeof body.concessions === 'boolean') patch.concessions = body.concessions;
+  if (!Object.keys(patch).length) {
+    return res.status(400).json({ error: 'ticket and/or concessions must be booleans' });
+  }
+
+  const result = await store.setSeatPaid(req.params.id, req.params.seatId, patch);
+  if (!result.ok) {
+    if (result.reason === 'not_found') return res.status(404).json({ error: 'not found' });
+    return res.status(409).json({ error: 'that seat is not reserved yet' });
+  }
+  res.json({ showtime: publicShowtimeView(result.showtime) });
+});
+
 app.put('/api/public/showtimes/:id/seats/:seatId/concessions', async (req, res) => {
   const { items } = req.body || {};
   if (items !== undefined && !Array.isArray(items)) {

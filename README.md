@@ -5,7 +5,8 @@ claim seats. One URL, one login form, two possible passwords:
 
 - Enter **`ADMIN_PASSWORD`** and you land in the editor — create
   showtimes, pick which seats you actually bought on a real AMC seat map,
-  assign seats to specific friends, and mark them paid.
+  assign seats to specific friends, and mark them paid. Friends can mark
+  themselves paid too, for tickets and concessions alike.
 - Enter the **friend password** (set from the editor, not an env var — see
   below) and you land on the reservation page — the one you hand out to
   friends. They see upcoming showtimes (soonest first) and how many spots
@@ -70,7 +71,8 @@ Docker" below for making that survive restarts/redeploys).
   (`canopy_admin` and `canopy_shared` cookies) so admin and friend logins
   never overlap.
 - `lib/seats.js` — normalizes a stored seat entry into
-  `{status: 'occupied'}` or `{status: 'assigned', name, paid, concessions}`,
+  `{status: 'occupied'}` or `{status: 'assigned', name, paid, concessionsPaid,
+  concessions}`,
   where `concessions` is that seat's cart (`{itemId, name, price, qty,
   note?, options?}` per line, `options` holding one pick per unit
   ordered). A seat saved before concessions existed just normalizes to an
@@ -107,8 +109,8 @@ Docker" below for making that survive restarts/redeploys).
   real `.ics` by `server.js`. Only served to
   authenticated shared requests. Shows each showtime's remaining spot count
   (green if any are open, red if sold out), who's already claimed a seat,
-  a seat map to pick a specific open one from (hover a seat for who it's
-  assigned to), and a pre-filled Venmo and/or Cash App pay button right
+  a seat map to pick a specific open one from (hover or tap a taken seat
+  for who it's assigned to), and a pre-filled Venmo and/or Cash App pay button right
   after claiming for whichever handle(s) are set (see "Payment handles"
   below); doesn't expose which seats are sold-out-but-not-mine vs. simply
   not part of the block. Each reserved seat on the list is also the way
@@ -227,7 +229,7 @@ is the one thing autosave must not do.
 
 **The host owes nothing.** A seat whose name matches `HOST_SEAT_NAME` in
 `lib/seats.js` reads as paid everywhere and its cart drops the "You owe"
-line entirely —
+line, the pay buttons and the "mark as paid" control entirely —
 they buy every ticket and every tray on their own card, so there's nobody
 for them to pay, and the reservation page stops offering to send them
 money. It's derived rather than stored, so it holds however the name got
@@ -237,7 +239,7 @@ generalising it is a matter of replacing that constant rather than
 hunting the idea through the views.
 
 **Sales tax** is added on the concessions, at `CONCESSION_TAX_RATE` in
-`server.js` — San Francisco's combined rate, served to both the cart and
+`lib/seats.js` — San Francisco's combined rate, served to both the cart and
 the editor so the two can't drift apart. California normally exempts cold
 food to go, but concessions at a cinema are the exception: food sold
 where admission is charged is taxable whatever it is, so this applies to
@@ -351,12 +353,33 @@ people's orders yourself. The seat editor overlay shows one seat's order
 too, read-only, so you can see what someone asked for while you're
 marking their seat paid.
 
-**Paying.** The cart's pay button covers the whole bill — ticket plus
-concessions — unless you've already marked that seat paid, in which case
-it's just the concessions. The buttons only appear when what's on screen
-matches what's been saved: pre-filling "pay $43.46" for an order the host
-hasn't actually received yet is the one way this screen could cost
-someone money, so making an edit hides them until you save.
+**Paying.** The cart's pay button covers whatever the seat still owes —
+the ticket, the concessions, or both. The buttons only appear when what's
+on screen matches what's been saved: pre-filling "pay $43.46" for an
+order the host hasn't actually received yet is the one way this screen
+could cost someone money, so making an edit hides them until you save.
+
+**Marking yourself paid.** A payment link hands off to Venmo or Cash App
+and nothing comes back — neither has a callback that could tell this app
+the money arrived — so somebody saying so is the only signal that exists.
+Under the pay buttons is **I've paid $X**, which settles whatever the
+seat currently owes; the post-claim card offers the same thing as **I've
+already paid** next to the pay links, since the moment you've just sent
+the money is the moment you remember to record it. Any friend can mark
+any seat and undo it again, same as they can edit any seat's cart, and
+the host can overrule all of it from the editor.
+
+The ticket settles as a flag, but **concessions settle as an amount**,
+because a cart can grow after it's been paid for: order tenders, send the
+money, then remember you wanted candy. A flag would go on insisting you
+were square. What's owed is the current tax-inclusive total minus what's
+been settled, so the extra candy is what's left owing — and the amount is
+worked out on the server from what's actually stored on the seat, so a
+stale page can't settle $40 of food off a $12 view of the cart.
+
+On the list, a seat is tagged **unpaid** while it owes anything at all,
+ticket or food; the editor spells out what each seat owes and lets the
+host tick either half by hand.
 
 A few things worth knowing about how this actually works:
 
@@ -398,8 +421,8 @@ A few things worth knowing about how this actually works:
   seat behind you.
 - **Clearing a seat's name clears its order.** The order belonged to the
   person whose name was on the seat, so freeing the seat for someone else
-  starts them from an empty cart. Fixing a typo in a name, or ticking
-  "paid", keeps it.
+  starts them from an empty cart — and clears what they'd settled with
+  it. Fixing a typo in a name, or ticking "paid", keeps both.
 - Orders live on the seat inside `showtimes.json`. The menu lives in
   `concession-menu.json`, which only exists once the host has saved an
   edit — no file means the built-in AMC menu is in effect. Both are in

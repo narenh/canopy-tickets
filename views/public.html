@@ -317,14 +317,22 @@
      real seat (so it takes up exactly one column) but otherwise nothing:
      no border, no background, not part of the tab/hover/click behavior. */
   .seat-filler{width:22px;height:20px;flex:0 0 auto;}
-  /* Custom hover tooltip (seat number + assignment), bigger and more
-     legible than the browser's native title-attribute tooltip. */
-  .seat:hover::before{
+  /* Custom tooltip (seat number + assignment), bigger and more legible
+     than the browser's native title-attribute tooltip.
+     
+     .show-tip is the phone half of this: a touch screen has no hover, so
+     on a sold-out map -- where every seat is taken and the only thing the
+     map has left to say is whose seat is whose -- there was no way at all
+     to read one. Tapping a seat sets the class; see selectSeatTip. The
+     --tip-shift it reads is how far the tooltip has to slide back to stay
+     inside the scroller when the seat is near an edge. */
+  .seat:hover::before,
+  .seat.show-tip::before{
     content:attr(data-tooltip);
     position:absolute;
     bottom:130%;
     left:50%;
-    transform:translateX(-50%);
+    transform:translateX(calc(-50% + var(--tip-shift, 0px)));
     background:#000;
     color:#fff;
     padding:4px 8px;
@@ -336,6 +344,12 @@
     pointer-events:none;
     border:1px solid #444;
   }
+  /* The tapped seat sits above its neighbours so its tooltip isn't
+     painted over by the seats to either side. */
+  .seat.show-tip{z-index:21;}
+  /* Taken seats are tappable now, so stop telling the pointer they
+     aren't. There is nothing to claim, but there is something to read. */
+  .seat.taken{cursor:pointer;}
   .toolbar-note{
     color:var(--muted);
     font-size:11.5px;
@@ -826,6 +840,46 @@
     padding-top:7px;
   }
   .cart-total-row .paid-note{color:var(--green);}
+  /* "paid" is a claim, not a fact -- nothing tells this app a Venmo
+     payment landed -- so whoever made the claim has to be able to take it
+     back. Small and quiet: it's there for a mis-tap, not a decision. */
+  .cart-total-row .paid-undo{
+    background:none;
+    border:none;
+    color:var(--muted);
+    font-family:inherit;
+    font-size:11px;
+    text-decoration:underline;
+    padding:0 0 0 8px;
+    cursor:pointer;
+  }
+  .cart-total-row .paid-undo:hover{color:#fff;}
+  .cart-total-row.is-settled{
+    font-size:14px;
+    font-weight:700;
+    color:var(--green);
+    border-top:1px solid #2a2a2a;
+    margin-top:6px;
+    padding-top:7px;
+  }
+  /* Full width under the pay links, and outlined rather than filled: it
+     sits below two payment buttons and shouldn't compete with them for
+     the tap. It's what you press after paying, not instead of. */
+  .mark-paid-btn{
+    width:100%;
+    background:none;
+    color:var(--green);
+    border:1px solid #2f5b3a;
+    border-radius:12px;
+    padding:10px;
+    font-family:inherit;
+    font-size:13px;
+    font-weight:700;
+    margin-top:8px;
+    cursor:pointer;
+  }
+  .mark-paid-btn:hover{background:#15251a;}
+  .mark-paid-btn:disabled{opacity:.5;cursor:not-allowed;}
   /* A section used to be a hairline rule and some bold white text, which
      read as just another item row -- the headers were easy to scroll
      straight past. Now each one is a card of its own: its own border,
@@ -1058,6 +1112,10 @@
             <a class="venmo-btn hidden" id="cartVenmoLink" href="#" target="_blank" rel="noopener">Venmo</a>
             <a class="cashapp-btn hidden" id="cartCashappLink" href="#" target="_blank" rel="noopener">Cash App</a>
           </div>
+          <!-- The payment links above go off to another app and nothing
+               comes back, so this is the only way the app can ever learn
+               that someone settled up. -->
+          <button type="button" class="mark-paid-btn hidden" id="cartMarkPaid" onclick="markCartPaid()">Mark as paid</button>
           <button type="button" id="cartCloseBtn" onclick="closeCartOverlay()">Close</button>
         </div>
       </div>
@@ -1191,6 +1249,7 @@ function formatTimeDisplay(t){
 
 // ---------------- VIEW SWITCHING ----------------
 function showList(){
+  clearSeatTip();
   document.getElementById('pickerView').classList.add('hidden');
   document.getElementById('listView').classList.remove('hidden');
 }
@@ -1392,6 +1451,17 @@ function buildCard(obj){
   return card;
 }
 
+// Is there anything left on this seat for its owner to send over -- the
+// ticket, the food, or what's been added to the food since they last
+// paid? The host's own seat never owes: they're the one being paid.
+function seatOwesAnything(obj, seat){
+  if (!seat || seat.host) return false;
+  const price = typeof obj.price === 'number' ? obj.price : 0;
+  if (!seat.paid && price > 0) return true;
+  const cost = concessionsGrandTotal(seat.concessions || []);
+  return cost - (seat.concessionsPaid || 0) > 0.005;
+}
+
 // One claimed seat on a list card. The whole row is the way into that
 // seat's concession cart -- see the CONCESSIONS block below for why any
 // friend can open any seat's, not just their own.
@@ -1409,13 +1479,15 @@ function buildClaimedSeatLine(obj, seatId, ordersOpen){
 
   const who = document.createElement('div');
   who.className = 'seat-line-who';
-  // Paid seats show just the name -- only unpaid ones get a tag, so this
-  // list reads as "who still owes" rather than a payment log.
+  // Paid seats show just the name -- only ones still owing get a tag, so
+  // this list reads as "who still owes" rather than a payment log. The
+  // food counts towards that as well as the ticket: a seat that's settled
+  // its ticket and then ordered $25 of popcorn has not settled up.
   // Seat first, then who's in it: the seat is what you're scanning for
   // when you're looking down a row, and it's the shorter of the two so
   // the names line up.
   who.innerHTML = '<span class="seat-id">' + escapeHtml(seatId) + '</span><b>' + escapeHtml(seat.name || '') + '</b>' +
-    (seat.paid ? '' : '<span class="unpaid-tag">unpaid</span>');
+    (seatOwesAnything(obj, seat) ? '<span class="unpaid-tag">unpaid</span>' : '');
   main.appendChild(who);
 
   // A count, not the contents. Spelling out four people's orders in full
@@ -1450,8 +1522,8 @@ function openSeatPicker(id){
   const pickerSeats = obj.seats || {};
   const anyOpen = Object.keys(pickerSeats).some(id => !pickerSeats[id].name);
   document.getElementById('pickerNote').textContent = anyOpen
-    ? "Tap a gold seat to reserve it. Red seats are already taken; gray seats aren't part of this block."
-    : "Every seat in this block is taken \u2014 hover or tap a red seat to see whose it is. Gray seats aren't part of this block.";
+    ? "Tap a gold seat to reserve it, or a red one to see whose it is. Gray seats aren't part of this block."
+    : "Every seat in this block is taken \u2014 tap a red seat to see whose it is. Gray seats aren't part of this block.";
 
   // Show the picker before building the map -- buildSeatmap measures row
   // widths via offsetWidth, which reads 0 on anything still inside a
@@ -1459,6 +1531,63 @@ function openSeatPicker(id){
   showPicker();
   buildSeatmap(obj);
 }
+
+// ---- Tap-to-read seat tooltips ----
+//
+// Desktop reads a seat by hovering it. A phone can't, and a sold-out map
+// is nothing but taken seats, so without this there is literally no way
+// to find out who's sitting where from the map. One tip at a time, and a
+// tap anywhere else puts it away.
+let activeTipSeat = null;
+let tipMeasureCtx = null;
+
+function clearSeatTip(){
+  if (!activeTipSeat) return;
+  activeTipSeat.classList.remove('show-tip');
+  activeTipSeat.style.removeProperty('--tip-shift');
+  activeTipSeat = null;
+}
+
+function toggleSeatTip(seatEl){
+  if (activeTipSeat === seatEl){ clearSeatTip(); return; }
+  clearSeatTip();
+  seatEl.classList.add('show-tip');
+  activeTipSeat = seatEl;
+  nudgeSeatTip(seatEl);
+}
+
+// The tooltip is a ::before, so it can't be measured directly. Measuring
+// its text on a canvas and adding the padding gets within a pixel, which
+// is all this needs: without it a tooltip on the first or last seat in a
+// row hangs off the side of the scroller and gets clipped -- and the
+// seats at the ends of a row are exactly the ones a phone is most likely
+// to be scrolled to.
+function nudgeSeatTip(seatEl){
+  const map = document.getElementById('seatmap');
+  if (!map) return;
+  if (!tipMeasureCtx){
+    const canvas = document.createElement('canvas');
+    tipMeasureCtx = canvas.getContext && canvas.getContext('2d');
+  }
+  if (!tipMeasureCtx) return;   // no canvas: centered and maybe clipped beats no tooltip
+
+  tipMeasureCtx.font = '400 12px ' + getComputedStyle(seatEl).fontFamily;
+  // 8px padding + 1px border on each side, per the ::before rule.
+  const half = (tipMeasureCtx.measureText(seatEl.dataset.tooltip || '').width + 18) / 2;
+
+  const seatBox = seatEl.getBoundingClientRect();
+  const mapBox = map.getBoundingClientRect();
+  const center = seatBox.left + seatBox.width / 2;
+  const edge = 4;
+  let shift = 0;
+  if (center - half < mapBox.left + edge) shift = (mapBox.left + edge) - (center - half);
+  else if (center + half > mapBox.right - edge) shift = (mapBox.right - edge) - (center + half);
+  if (shift) seatEl.style.setProperty('--tip-shift', Math.round(shift) + 'px');
+}
+
+// Anywhere that isn't the seat itself -- the seat's own handler stops the
+// event before it gets here.
+document.getElementById('pickerView').addEventListener('click', clearSeatTip);
 
 // Screen arc + "SCREEN" label, built fresh into #seatmap alongside the
 // rows (not as a separate element above it) so it's part of the same
@@ -1477,6 +1606,7 @@ function buildScreenWrap(){
 function buildSeatmap(obj){
   const seats = obj.seats || {};
   const seatmap = document.getElementById('seatmap');
+  clearSeatTip();          // the element it pointed at is about to be discarded
   seatmap.innerHTML = '';
   seatEls = {};
 
@@ -1515,6 +1645,21 @@ function buildSeatmap(obj){
       if (entry && entry.name){
         seatEl.classList.add('taken');
         seatEl.dataset.tooltip = seatId + ' — ' + entry.name;
+        // The tooltip above is hover-only, and a phone has no hover -- so
+        // on a sold-out map there was nothing a tap could do and no way
+        // to find out whose seat was whose. A taken seat can't be
+        // claimed, but it can say who's in it.
+        seatEl.setAttribute('role', 'button');
+        seatEl.tabIndex = 0;
+        seatEl.addEventListener('click', (e) => {
+          // Or the outside-tap handler below would close it again in the
+          // same gesture that opened it.
+          e.stopPropagation();
+          toggleSeatTip(seatEl);
+        });
+        seatEl.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); toggleSeatTip(seatEl); }
+        });
       } else if (entry){
         seatEl.classList.add('pickable');
         seatEl.dataset.tooltip = seatId + ' — available';
@@ -1621,6 +1766,14 @@ function renderSuccessStep(){
       typeof price === 'number' ? ('Pay ' + formatPrice(price) + ' via Venmo') : 'Pay via Venmo', 'venmo-btn', venmo, true));
     if (cash) actions.appendChild(successLink(
       typeof price === 'number' ? ('Pay ' + formatPrice(price) + ' via Cash App') : 'Pay via Cash App', 'cashapp-btn', cash, true));
+    // The links above hand off to another app and nothing comes back, so
+    // without this there's no moment at which the payment can be recorded
+    // -- and the moment someone has just made it is the one moment they
+    // remember to. Skip leaves the seat owing, which is also true.
+    actions.appendChild(successButton('I\u2019ve already paid', '', () => {
+      markSeatPaid(successShowtime.id, successSeatId, { ticket: true });
+      advanceSuccessStep();
+    }));
     actions.appendChild(successButton('Skip', '', advanceSuccessStep));
     return;
   }
@@ -1797,6 +1950,14 @@ async function loadConcessionMenu(){
 function concessionsTotal(lines){
   const total = (lines || []).reduce((sum, l) => sum + (l.price || 0) * (l.qty || 0), 0);
   return Math.round(total * 100) / 100;
+}
+
+// What a cart costs to settle, tax in -- the figure someone sends over,
+// and so the figure concessionsPaid is measured against. Mirrors
+// concessionsGrandTotal in lib/seats.js; keep the two in sync.
+function concessionsGrandTotal(lines){
+  const sub = concessionsTotal(lines);
+  return Math.round((sub + concessionTax(sub)) * 100) / 100;
 }
 
 function concessionTax(subtotal){
@@ -2536,13 +2697,26 @@ function renderCartFoot(){
   // The host's seat settles itself: they bought the tickets and they're
   // buying the concessions, so there's nobody for them to pay.
   const isHost = !!(seat && seat.host);
-  const owed = isHost ? 0 : Math.round(((ticketPaid ? 0 : ticketPrice) + concessions + tax) * 100) / 100;
+
+  // Concessions are settled by AMOUNT, not by a flag, so that ordering
+  // more after paying leaves the difference owing rather than the lot or
+  // nothing. Clamped at zero because removing a line after paying leaves
+  // an overpayment, which is between the two of them and not something
+  // this screen should render as a negative number.
+  const concessionsCost = Math.round((concessions + tax) * 100) / 100;
+  const settled = Math.min(isHost ? concessionsCost : (seat ? seat.concessionsPaid || 0 : 0), concessionsCost);
+  const concessionsOwed = Math.max(0, Math.round((concessionsCost - settled) * 100) / 100);
+  const concessionsSettled = concessionsCost > 0 && concessionsOwed === 0;
+  const owed = isHost ? 0 : Math.round(((ticketPaid ? 0 : ticketPrice) + concessionsOwed) * 100) / 100;
 
   totals.innerHTML = '';
   if (ticketPrice > 0){
     totals.appendChild(cartTotalRow(
       'Ticket',
-      ticketPaid ? '<span class="paid-note">&#10003; paid</span>' : escapeHtml(formatPrice(ticketPrice))
+      ticketPaid ? '<span class="paid-note">&#10003; paid</span>' : escapeHtml(formatPrice(ticketPrice)),
+      // Not on the host's own seat: it was never owed, so there's nothing
+      // to take back.
+      ticketPaid && !isHost ? () => setCartPaid({ ticket: false }) : null
     ));
   }
   totals.appendChild(cartTotalRow('Concessions', escapeHtml(concessions > 0 ? formatPrice(concessions) : '--')));
@@ -2551,13 +2725,33 @@ function renderCartFoot(){
   if (tax > 0){
     totals.appendChild(cartTotalRow('Tax (' + formatTaxRate(concessionTaxRate) + ')', escapeHtml(formatPrice(tax))));
   }
+  // Shown as soon as anything has been settled, not only once it's all
+  // settled -- order, pay, then order more and this is the only row that
+  // says the earlier payment happened, and the only place to take it
+  // back. "You owe" below still carries the remainder.
+  if (settled > 0 && !isHost){
+    totals.appendChild(cartTotalRow(
+      'Concessions paid',
+      '<span class="paid-note">&#10003; ' + escapeHtml(formatPrice(settled)) + '</span>',
+      () => setCartPaid({ concessions: false })
+    ));
+  }
   // No owed row at all on the host's own seat -- there's nothing for them
   // to pay, so the line has nothing to say. The costs above still show,
   // since what the order comes to is worth knowing either way.
   if (!isHost){
-    const owedRow = cartTotalRow('You owe', escapeHtml(formatPrice(owed)));
-    owedRow.classList.add('is-owed');
-    totals.appendChild(owedRow);
+    if (owed > 0){
+      const owedRow = cartTotalRow('You owe', escapeHtml(formatPrice(owed)));
+      owedRow.classList.add('is-owed');
+      totals.appendChild(owedRow);
+    } else if (ticketPaid || concessionsSettled){
+      // Something was actually settled, as opposed to a seat that's free
+      // and has ordered nothing -- that one owes nothing either, and
+      // congratulating it would be strange.
+      const doneRow = cartTotalRow('All settled', '<span class="paid-note">&#10003;</span>');
+      doneRow.classList.add('is-settled');
+      totals.appendChild(doneRow);
+    }
   }
 
   // A locked cart has no save button, so there's nothing to hold back.
@@ -2600,12 +2794,95 @@ function renderCartFoot(){
     cashEl.href = cashUrl;
     cashEl.textContent = 'Cash App ' + formatPrice(owed);
   }
+
+  // Held back on exactly the same terms as the pay links: while a write
+  // is in flight the figure on screen isn't the one the host will see,
+  // and marking that paid would settle an amount neither of them agreed
+  // on. Nothing owed, nothing to mark.
+  const markEl = document.getElementById('cartMarkPaid');
+  markEl.classList.toggle('hidden', !(showPay && !isHost));
+  markEl.textContent = 'I\u2019ve paid ' + formatPrice(owed);
+  markEl.disabled = paidInFlight;
 }
 
-function cartTotalRow(label, valueHtml){
+// "Paid" is somebody saying so. Venmo and Cash App hand off to another
+// app and never report back, so there is no other way this could work,
+// and a friend group that shares one password to reserve each other's
+// seats is not one that needs this policed. Anyone can mark any seat,
+// anyone can undo it, and the host can overrule all of it in the editor.
+let paidInFlight = false;
+
+// Marks a seat without a cart open behind it -- the post-claim card, where
+// the list underneath still needs redrawing but there's no footer to
+// re-render. Deliberately not awaited by its callers: the card moves to
+// its next step immediately either way, and a write that fails leaves the
+// seat owing, which is the safe way for this to be wrong.
+async function markSeatPaid(showtimeId, seatId, patch){
+  try{
+    const res = await fetch('/api/public/showtimes/' + encodeURIComponent(showtimeId) +
+      '/seats/' + encodeURIComponent(seatId) + '/paid', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch)
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    const idx = allShowtimes.findIndex(x => x.id === showtimeId);
+    if (idx !== -1) allShowtimes[idx] = data.showtime;
+    renderCards();
+    if (currentShowtimeId === showtimeId) buildSeatmap(data.showtime);
+  }catch(e){ /* left owing -- see above */ }
+}
+
+async function setCartPaid(patch){
+  if (!cartShowtimeId || !cartSeatId || paidInFlight) return;
+  paidInFlight = true;
+  renderCartFoot();
+  try{
+    const res = await fetch('/api/public/showtimes/' + encodeURIComponent(cartShowtimeId) +
+      '/seats/' + encodeURIComponent(cartSeatId) + '/paid', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch)
+    });
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok) return;
+    const data = await res.json();
+    // The server's copy of the seat is the one that decides what's still
+    // owed, and the list behind this card is showing the old answer.
+    const idx = allShowtimes.findIndex(x => x.id === cartShowtimeId);
+    if (idx !== -1) allShowtimes[idx] = data.showtime;
+    renderCards();
+    if (currentShowtimeId === cartShowtimeId) buildSeatmap(data.showtime);
+  } catch (err){
+    // Nothing to roll back -- the footer redraws from the copy we still
+    // have, which is the state the server is still in.
+  } finally {
+    paidInFlight = false;
+    renderCartFoot();
+  }
+}
+
+// Settles whatever is currently outstanding on this seat, which is what
+// a single Venmo for the total actually does. Sending both flags rather
+// than working out which are needed keeps this honest when the ticket
+// was already marked and only the food is left.
+function markCartPaid(){
+  setCartPaid({ ticket: true, concessions: true });
+}
+
+function cartTotalRow(label, valueHtml, onUndo){
   const row = document.createElement('div');
   row.className = 'cart-total-row';
   row.innerHTML = '<span>' + escapeHtml(label) + '</span><span>' + valueHtml + '</span>';
+  if (onUndo){
+    const undo = document.createElement('button');
+    undo.type = 'button';
+    undo.className = 'paid-undo';
+    undo.textContent = 'undo';
+    undo.addEventListener('click', onUndo);
+    row.lastChild.appendChild(undo);
+  }
   return row;
 }
 
