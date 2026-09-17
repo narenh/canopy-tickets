@@ -559,8 +559,12 @@
     /* Tighter at the sides than the head and foot: every row now sits
        inside a section, which brings its own border and padding, so the
        old 20px stacked into a deep gutter. At 10px the section labels
-       still line up with the title above them. */
-    padding:4px 10px;
+       still line up with the title above them.
+       No padding at the TOP, because a sticky header's `top: 0` is inset
+       by the scroller's padding -- 4px here was 4px of band above the
+       pinned header with item rows sliding visibly through it. The first
+       section's own margin supplies the spacing instead. */
+    padding:0 10px 4px;
   }
   .cart-foot{
     flex:0 0 auto;
@@ -768,6 +772,12 @@
     position:sticky;
     top:0;
     z-index:2;
+    /* Paints its own colour upward past the pin point. The scroller clips
+       it at the top edge, so this costs nothing visually but guarantees
+       no strip of item row can show above the header -- browsers don't
+       agree on exactly where `top: 0` lands, and on iOS the gap was wider
+       than the padding alone accounts for. */
+    box-shadow:0 -14px 0 0 #1a1a1e;
     display:flex;
     align-items:center;
     gap:9px;
