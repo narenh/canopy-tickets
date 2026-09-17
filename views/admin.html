@@ -28,6 +28,17 @@
   }
   .hidden{display:none !important;}
 
+  /* Everything here is laid out mobile-first (full-bleed, no width cap),
+     which on a desktop window stretches every card, header and form row
+     across the whole screen. Cap the content column and center it so a
+     wide window just gets margins instead of 2000px-wide cards. The
+     full-screen overlays are deliberately not in here -- they're
+     position:fixed against the viewport and cap their own cards. */
+  #listView, #editorView{
+    max-width:800px;
+    margin:0 auto;
+  }
+
   /* ---------- LIST VIEW ---------- */
   .list-header{
     padding:24px 20px 10px;
