@@ -2823,11 +2823,7 @@ function renderCartFoot(){
   // Without it that gap reads as a bug.
   const pendingEl = document.getElementById('cartFoodPending');
   pendingEl.classList.toggle('hidden', !(foodPending && !isHost));
-  if (foodPending){
-    pendingEl.textContent = 'Concessions (' + formatPrice(concessionsCost) +
-      ') settle once the order goes in, ' + CONCESSION_CUTOFF_HOURS + ' hours before the show \u2014 ' +
-      'no point paying for a cart you can still change.';
-  }
+  if (foodPending) pendingEl.textContent = 'Concessions settle after order is placed.';
 }
 
 // "Paid" is somebody saying so. Venmo and Cash App hand off to another

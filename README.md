@@ -380,7 +380,7 @@ means paying the wrong number.
 
 So before the cutoff the cart shows what you'll owe in total but the pay
 buttons and "I've paid" offer the **ticket alone**, with a line underneath
-saying why. Once orders close the food total is final, and both cover the
+saying why: *Concessions settle after order is placed.* Once orders close the food total is final, and both cover the
 lot. That gap is deliberate: if the buttons offered the draft total and
 someone sent it, the app's record and the actual payment would disagree
 the moment the cart changed.
