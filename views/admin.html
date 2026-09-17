@@ -1079,10 +1079,9 @@
         <input type="checkbox" id="seatEditorPaid">
         <span>Ticket paid</span>
       </label>
-      <!-- Concessions settle as an amount, not a flag, so that ordering
-           more after paying leaves the difference owing. Ticking this
-           settles whatever the cart currently comes to; the label says
-           what that is. -->
+      <!-- Separate from the ticket because the two are paid at different
+           times: the ticket the moment the seat is claimed, the food only
+           once the order goes in and its total stops moving. -->
       <label class="se-checkbox" id="seatEditorConcessionsPaidWrap">
         <input type="checkbox" id="seatEditorConcessionsPaid">
         <span id="seatEditorConcessionsPaidLabel">Concessions paid</span>
@@ -1152,7 +1151,7 @@ const HOST_SEAT_NAME = /\bnaren\b/i;
 function normalizeSeatEntry(raw){
   if (!raw) return null;
   if (typeof raw === 'string'){
-    if (raw === 'selected') return { status: 'assigned', name: '', paid: true, concessionsPaid: 0, concessions: [] };
+    if (raw === 'selected') return { status: 'assigned', name: '', paid: true, concessionsPaid: false, concessions: [] };
     if (raw === 'occupied') return { status: 'occupied' };
     return null;
   }
@@ -1163,11 +1162,10 @@ function normalizeSeatEntry(raw){
         status: 'assigned',
         name,
         paid: !!raw.paid || HOST_SEAT_NAME.test(name),
-        // Dollars of concessions already settled, not a flag -- a cart
-        // can grow after it's been paid for. Mirrors lib/seats.js.
-        concessionsPaid: name && typeof raw.concessionsPaid === 'number' && raw.concessionsPaid > 0
-          ? Math.round(raw.concessionsPaid * 100) / 100
-          : 0,
+        // Tracked apart from the ticket because the two are paid at
+        // different times -- the ticket when the seat is claimed, the
+        // food once the order goes in. Mirrors lib/seats.js.
+        concessionsPaid: name ? !!raw.concessionsPaid : false,
         // A seat with nobody's name on it has nobody to order for it.
         concessions: name && Array.isArray(raw.concessions) ? raw.concessions : []
       };
@@ -1199,7 +1197,7 @@ function concessionsGrandTotal(lines){
 function seatOutstanding(s, price){
   if (!s || !s.name || HOST_SEAT_NAME.test(s.name)) return 0;
   const ticket = s.paid ? 0 : (typeof price === 'number' ? price : 0);
-  const food = Math.max(0, concessionsGrandTotal(s.concessions) - (s.concessionsPaid || 0));
+  const food = s.concessionsPaid ? 0 : concessionsGrandTotal(s.concessions);
   return Math.round((ticket + food) * 100) / 100;
 }
 
@@ -1639,7 +1637,7 @@ function renderSeat(id){
 function seatTap(id){
   const cur = seatStates[id];
   if (!cur || cur.status !== 'assigned'){
-    seatStates[id] = { status: 'assigned', name: '', paid: false, concessionsPaid: 0, concessions: [] };
+    seatStates[id] = { status: 'assigned', name: '', paid: false, concessionsPaid: false, concessions: [] };
     renderSeat(id);
     updateSummary();
     return;
@@ -1674,7 +1672,7 @@ function renderSeatEditorConcessionsPaid(seat){
   const isHost = !!(seat && seat.name && HOST_SEAT_NAME.test(seat.name));
 
   wrap.classList.toggle('hidden', cost <= 0 || isHost);
-  box.checked = cost > 0 && (seat.concessionsPaid || 0) >= cost - 0.005;
+  box.checked = cost > 0 && !!seat.concessionsPaid;
   label.textContent = 'Concessions paid (' + formatPrice(cost) + ' with tax)';
 }
 
@@ -1714,11 +1712,8 @@ function applySeatEdit(){
   // the one case that clears it (see clearNameFromEditor), and
   // normalizeSeatEntry enforces that regardless of what's passed here.
   const priorCart = prior && prior.status === 'assigned' ? (prior.concessions || []) : [];
-  // Ticking the box settles the cart as it stands right now; unticking it
-  // puts the whole thing back on the tab. Anything in between is the
-  // friend's own doing from the reservation page.
   const foodBox = document.getElementById('seatEditorConcessionsPaid');
-  const concessionsPaid = name && foodBox.checked ? concessionsGrandTotal(priorCart) : 0;
+  const concessionsPaid = !!(name && foodBox.checked);
   seatStates[editingSeatId] = {
     status: 'assigned',
     name,
@@ -1741,7 +1736,7 @@ function clearNameFromEditor(){
   // preserveConcessions in server.js). Sending [] is how this says
   // "actually clear it" -- which is right, since the order belonged to
   // the person whose name is being removed.
-  seatStates[editingSeatId] = { status: 'assigned', name: '', paid: false, concessionsPaid: 0, concessions: [] };
+  seatStates[editingSeatId] = { status: 'assigned', name: '', paid: false, concessionsPaid: false, concessions: [] };
   renderSeat(editingSeatId);
   updateSummary();
   closeSeatEditor();

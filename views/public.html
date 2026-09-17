@@ -880,6 +880,12 @@
   }
   .mark-paid-btn:hover{background:#15251a;}
   .mark-paid-btn:disabled{opacity:.5;cursor:not-allowed;}
+  .food-pending{
+    color:var(--muted);
+    font-size:11.5px;
+    line-height:1.4;
+    margin-top:8px;
+  }
   /* A section used to be a hairline rule and some bold white text, which
      read as just another item row -- the headers were easy to scroll
      straight past. Now each one is a card of its own: its own border,
@@ -1116,6 +1122,7 @@
                comes back, so this is the only way the app can ever learn
                that someone settled up. -->
           <button type="button" class="mark-paid-btn hidden" id="cartMarkPaid" onclick="markCartPaid()">Mark as paid</button>
+          <div class="food-pending hidden" id="cartFoodPending"></div>
           <button type="button" id="cartCloseBtn" onclick="closeCartOverlay()">Close</button>
         </div>
       </div>
@@ -1458,8 +1465,10 @@ function seatOwesAnything(obj, seat){
   if (!seat || seat.host) return false;
   const price = typeof obj.price === 'number' ? obj.price : 0;
   if (!seat.paid && price > 0) return true;
-  const cost = concessionsGrandTotal(seat.concessions || []);
-  return cost - (seat.concessionsPaid || 0) > 0.005;
+  // Counted whether or not it's settleable yet: this tag answers "has
+  // this person paid me", and an unpaid cart is an unpaid cart even
+  // while its total is still a draft.
+  return !seat.concessionsPaid && (seat.concessions || []).length > 0;
 }
 
 // One claimed seat on a list card. The whole row is the way into that
@@ -1950,14 +1959,6 @@ async function loadConcessionMenu(){
 function concessionsTotal(lines){
   const total = (lines || []).reduce((sum, l) => sum + (l.price || 0) * (l.qty || 0), 0);
   return Math.round(total * 100) / 100;
-}
-
-// What a cart costs to settle, tax in -- the figure someone sends over,
-// and so the figure concessionsPaid is measured against. Mirrors
-// concessionsGrandTotal in lib/seats.js; keep the two in sync.
-function concessionsGrandTotal(lines){
-  const sub = concessionsTotal(lines);
-  return Math.round((sub + concessionTax(sub)) * 100) / 100;
 }
 
 function concessionTax(subtotal){
@@ -2698,16 +2699,29 @@ function renderCartFoot(){
   // buying the concessions, so there's nobody for them to pay.
   const isHost = !!(seat && seat.host);
 
-  // Concessions are settled by AMOUNT, not by a flag, so that ordering
-  // more after paying leaves the difference owing rather than the lot or
-  // nothing. Clamped at zero because removing a line after paying leaves
-  // an overpayment, which is between the two of them and not something
-  // this screen should render as a negative number.
+  // The ticket and the food are two different bills that come due at
+  // different times, and the gap between them is the whole reason this
+  // isn't one number.
+  //
+  // A ticket costs what it costs the moment the seat is claimed, so it
+  // can be settled straight away -- and the post-claim card offers to.
+  //
+  // A cart can't be settled until it stops moving, which is when the host
+  // places the order at the cutoff. Before that the total on screen is a
+  // draft: people decide what they want on the day (am I hungry, do I
+  // have dinner plans), so a cart typically gets filled in hours before
+  // the show and changes several times while it does. Paying against a
+  // draft means paying the wrong number.
   const concessionsCost = Math.round((concessions + tax) * 100) / 100;
-  const settled = Math.min(isHost ? concessionsCost : (seat ? seat.concessionsPaid || 0 : 0), concessionsCost);
-  const concessionsOwed = Math.max(0, Math.round((concessionsCost - settled) * 100) / 100);
-  const concessionsSettled = concessionsCost > 0 && concessionsOwed === 0;
+  const concessionsSettled = isHost || !!(seat && seat.concessionsPaid);
+  const concessionsOwed = concessionsSettled ? 0 : concessionsCost;
+  // Everything still outstanding, draft food included -- what you'll end
+  // up sending, so there are no surprises later.
   const owed = isHost ? 0 : Math.round(((ticketPaid ? 0 : ticketPrice) + concessionsOwed) * 100) / 100;
+  // What can actually be settled right now. Same as `owed` once orders
+  // have closed; before that it's the ticket alone.
+  const payable = isHost ? 0 : Math.round(((ticketPaid ? 0 : ticketPrice) + (cartLocked ? concessionsOwed : 0)) * 100) / 100;
+  const foodPending = concessionsOwed > 0 && !cartLocked;
 
   totals.innerHTML = '';
   if (ticketPrice > 0){
@@ -2725,14 +2739,10 @@ function renderCartFoot(){
   if (tax > 0){
     totals.appendChild(cartTotalRow('Tax (' + formatTaxRate(concessionTaxRate) + ')', escapeHtml(formatPrice(tax))));
   }
-  // Shown as soon as anything has been settled, not only once it's all
-  // settled -- order, pay, then order more and this is the only row that
-  // says the earlier payment happened, and the only place to take it
-  // back. "You owe" below still carries the remainder.
-  if (settled > 0 && !isHost){
+  if (concessionsSettled && concessionsCost > 0 && !isHost){
     totals.appendChild(cartTotalRow(
       'Concessions paid',
-      '<span class="paid-note">&#10003; ' + escapeHtml(formatPrice(settled)) + '</span>',
+      '<span class="paid-note">&#10003;</span>',
       () => setCartPaid({ concessions: false })
     ));
   }
@@ -2777,32 +2787,47 @@ function renderCartFoot(){
   // Withheld while a write is in flight or has failed (the figure on the
   // button would be one the host hasn't got), and while a line is short
   // its pick, because that order isn't one they can actually place.
-  const showPay = saveState === 'idle' && missing.length === 0 && owed > 0;
+  //
+  // Everything below offers `payable`, not `owed`: sending the draft food
+  // total now and having it change before the order goes in is worse than
+  // sending it twice, and it would put the app's record out of step with
+  // what actually got sent.
+  const showPay = saveState === 'idle' && missing.length === 0 && payable > 0;
 
   const venmoEl = document.getElementById('cartVenmoLink');
-  const venmoUrl = showPay ? buildVenmoLink(owed, payNote) : null;
+  const venmoUrl = showPay ? buildVenmoLink(payable, payNote) : null;
   venmoEl.classList.toggle('hidden', !venmoUrl);
   if (venmoUrl){
     venmoEl.href = venmoUrl;
-    venmoEl.textContent = 'Venmo ' + formatPrice(owed);
+    venmoEl.textContent = 'Venmo ' + formatPrice(payable);
   }
 
   const cashEl = document.getElementById('cartCashappLink');
-  const cashUrl = showPay ? buildCashAppLink(owed) : null;
+  const cashUrl = showPay ? buildCashAppLink(payable) : null;
   cashEl.classList.toggle('hidden', !cashUrl);
   if (cashUrl){
     cashEl.href = cashUrl;
-    cashEl.textContent = 'Cash App ' + formatPrice(owed);
+    cashEl.textContent = 'Cash App ' + formatPrice(payable);
   }
 
   // Held back on exactly the same terms as the pay links: while a write
   // is in flight the figure on screen isn't the one the host will see,
   // and marking that paid would settle an amount neither of them agreed
-  // on. Nothing owed, nothing to mark.
+  // on. Nothing payable, nothing to mark.
   const markEl = document.getElementById('cartMarkPaid');
   markEl.classList.toggle('hidden', !(showPay && !isHost));
-  markEl.textContent = 'I\u2019ve paid ' + formatPrice(owed);
+  markEl.textContent = 'I\u2019ve paid ' + formatPrice(payable);
   markEl.disabled = paidInFlight;
+
+  // Says why the button is asking for less than the row above it does.
+  // Without it that gap reads as a bug.
+  const pendingEl = document.getElementById('cartFoodPending');
+  pendingEl.classList.toggle('hidden', !(foodPending && !isHost));
+  if (foodPending){
+    pendingEl.textContent = 'Concessions (' + formatPrice(concessionsCost) +
+      ') settle once the order goes in, ' + CONCESSION_CUTOFF_HOURS + ' hours before the show \u2014 ' +
+      'no point paying for a cart you can still change.';
+  }
 }
 
 // "Paid" is somebody saying so. Venmo and Cash App hand off to another
@@ -2863,12 +2888,12 @@ async function setCartPaid(patch){
   }
 }
 
-// Settles whatever is currently outstanding on this seat, which is what
-// a single Venmo for the total actually does. Sending both flags rather
-// than working out which are needed keeps this honest when the ticket
-// was already marked and only the food is left.
+// Settles exactly what the button just offered. The food only counts
+// once orders have closed and its total is final -- before that the
+// button is the ticket alone, and marking the food paid off a draft is
+// the thing this is carefully not doing.
 function markCartPaid(){
-  setCartPaid({ ticket: true, concessions: true });
+  setCartPaid({ ticket: true, concessions: cartLocked });
 }
 
 function cartTotalRow(label, valueHtml, onUndo){

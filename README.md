@@ -363,23 +363,32 @@ could cost someone money, so making an edit hides them until you save.
 and nothing comes back — neither has a callback that could tell this app
 the money arrived — so somebody saying so is the only signal that exists.
 Under the pay buttons is **I've paid $X**, which settles whatever the
-seat currently owes; the post-claim card offers the same thing as **I've
-already paid** next to the pay links, since the moment you've just sent
-the money is the moment you remember to record it. Any friend can mark
+seat can currently settle; the post-claim card offers the same thing as
+**I've already paid** next to the pay links, since the moment you've just
+sent the money is the moment you remember to record it. Any friend can mark
 any seat and undo it again, same as they can edit any seat's cart, and
 the host can overrule all of it from the editor.
 
-The ticket settles as a flag, but **concessions settle as an amount**,
-because a cart can grow after it's been paid for: order tenders, send the
-money, then remember you wanted candy. A flag would go on insisting you
-were square. What's owed is the current tax-inclusive total minus what's
-been settled, so the extra candy is what's left owing — and the amount is
-worked out on the server from what's actually stored on the seat, so a
-stale page can't settle $40 of food off a $12 view of the cart.
+**The ticket and the food are two bills that come due at different
+times**, which is why they're tracked separately. A ticket costs what it
+costs the moment the seat is claimed, so it can be settled right away.
+A cart can't be, because it's a draft until the host places the order at
+the cutoff: people decide what they want on the day — am I hungry, do I
+have dinner plans — so carts typically get filled in hours before the
+show and change several times while they are. Paying against a draft
+means paying the wrong number.
+
+So before the cutoff the cart shows what you'll owe in total but the pay
+buttons and "I've paid" offer the **ticket alone**, with a line underneath
+saying why. Once orders close the food total is final, and both cover the
+lot. That gap is deliberate: if the buttons offered the draft total and
+someone sent it, the app's record and the actual payment would disagree
+the moment the cart changed.
 
 On the list, a seat is tagged **unpaid** while it owes anything at all,
-ticket or food; the editor spells out what each seat owes and lets the
-host tick either half by hand.
+ticket or food — an unpaid cart is unpaid even while its total is still a
+draft. The editor spells out what each seat owes and lets the host tick
+either half by hand.
 
 A few things worth knowing about how this actually works:
 

@@ -439,7 +439,7 @@ function withScreenFallback(item) {
 // reason it's acceptable -- one host, editing their own showtimes.
 //
 // `concessionsPaid` gets the same treatment for the same reason, and it
-// matters more: silently zeroing it would tell someone who has already
+// matters more: silently clearing it would tell someone who has already
 // sent the money that they still owe it.
 function preserveConcessions(incomingSeats, existingSeats) {
   const out = {};
@@ -450,7 +450,7 @@ function preserveConcessions(incomingSeats, existingSeats) {
       return;
     }
     const knowsCart = Array.isArray(incoming.concessions);
-    const knowsSettled = typeof incoming.concessionsPaid === 'number';
+    const knowsSettled = typeof incoming.concessionsPaid === 'boolean';
     if (knowsCart && knowsSettled) {
       out[id] = incoming;
       return;
@@ -459,7 +459,7 @@ function preserveConcessions(incomingSeats, existingSeats) {
     const assigned = prior && prior.status === 'assigned';
     const merged = { ...incoming };
     if (!knowsCart && assigned && prior.concessions.length) merged.concessions = prior.concessions;
-    if (!knowsSettled && assigned && prior.concessionsPaid > 0) merged.concessionsPaid = prior.concessionsPaid;
+    if (!knowsSettled && assigned && prior.concessionsPaid) merged.concessionsPaid = true;
     out[id] = merged;
   });
   return out;
