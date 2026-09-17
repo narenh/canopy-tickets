@@ -31,9 +31,15 @@
      across the whole screen. Cap the content column and center it so a
      wide window just gets margins instead of 2000px-wide cards. The
      full-screen overlays are deliberately not in here -- they're
-     position:fixed against the viewport and cap their own cards. */
+     position:fixed against the viewport and cap their own cards.
+
+     880, not a rounder 800: the widest seat map (IMAX, 34 seats at
+     22px + 2px gap, plus .seatmap's 16px side padding) needs ~846px,
+     and anything narrower puts each row's last seat behind a
+     horizontal scroll on desktop. Narrow this and check the IMAX
+     picker before assuming it's only a prose-width knob. */
   #listView, #pickerView{
-    max-width:800px;
+    max-width:880px;
     margin:0 auto;
   }
 
