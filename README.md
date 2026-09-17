@@ -157,12 +157,17 @@ menu" button appears once it has, and puts them back). It's one menu
 shared by every showtime, not one per showtime — this is one person's
 friend group at, in practice, one theater.
 
-Prices are AMC's **base** prices, before the $1.99-per-order service fee
-its app adds on top. That fee isn't modelled: nothing in this app adds
-anything to a cart that isn't a line in it, so a friend is quoted exactly
-the sum of what they picked. Each item also has a free-text **note**
-shown under it — that's where "50¢ off" lives. It's a label, not a
-discount the app applies; `price` is what gets charged.
+**A price is what a friend actually owes**, with nothing added on top.
+You buy the whole order on your own AMC Stubs account, which waives the
+$1.99-per-order service fee AMC's app charges and passes your Stubs
+discount on to everyone — so there's no fee, surcharge or markup for this
+app to model, and a cart total is exactly the sum of its lines.
+
+That's also why some of these sit below the price on the board: the soda
+and popcorn are discounted, the food isn't. Each item has a free-text
+**note** shown under it, which is where that gets explained — "50¢ off"
+is a label on an already-discounted price, not arithmetic the app
+performs.
 
 **Option groups** are named lists of choices an item comes with —
 `Sauce`, `Pretzel Flavor`, `Pizza`. An item points at one group by id, so
