@@ -711,7 +711,14 @@ app.get('/api/public/showtimes/:id/calendar.ics', (req, res) => {
 // editor changes it (see /api/concession-menu above).
 app.get('/api/public/concession-menu', (req, res) => {
   const menu = concessionMenuStore.get();
-  res.json({ items: menu.items, optionGroups: menu.optionGroups });
+  // openSections is presentation config rather than menu data -- it isn't
+  // part of what the host saves, so it comes straight off the constant
+  // whether or not they've edited the menu.
+  res.json({
+    items: menu.items,
+    optionGroups: menu.optionGroups,
+    openSections: concessionMenuStore.DEFAULT_OPEN_SECTIONS
+  });
 });
 
 // Replaces one reserved seat's concession cart.

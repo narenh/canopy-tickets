@@ -25,6 +25,8 @@
     padding-bottom:40px;
   }
   .hidden{display:none !important;}
+  /* Set while the concessions sheet is open -- see closeCartOverlay. */
+  body.cart-open{overflow:hidden;}
 
   /* Everything here is laid out mobile-first (full-bleed, no width cap),
      which on a desktop window stretches every card, header and form row
@@ -480,6 +482,20 @@
      every menu item, not a single field. The head and foot stay put and
      only the item list scrolls, so the running total and the Save button
      never scroll out of reach mid-order. */
+  /* A phone gets the whole screen rather than a card floating on a
+     dimmed page: at this size the margins were costing rows of menu, and
+     a sheet that fills the display makes the menu the only thing on
+     screen that scrolls. */
+  @media (max-width: 600px){
+    #cartOverlay{padding:0;}
+    #cartOverlay .cart-card{
+      width:100%;
+      max-width:none;
+      height:100%;
+      border-radius:0;
+      border:none;
+    }
+  }
   .cart-card{
     max-width:420px;
     /* height, not max-height: the menu below is sized flex-basis 0, so it
@@ -492,7 +508,36 @@
     flex-direction:column;
     padding:0;
   }
-  .cart-head{padding:18px 20px 0;flex:0 0 auto;}
+  .cart-head{
+    position:relative;
+    padding:16px 20px 6px;
+    flex:0 0 auto;
+  }
+  .cart-close-x{
+    position:absolute;
+    top:8px;
+    right:10px;
+    width:34px;
+    height:34px;
+    border-radius:50%;
+    border:none;
+    background:none;
+    color:var(--muted);
+    font-size:26px;
+    line-height:1;
+    padding:0;
+    cursor:pointer;
+  }
+  .cart-close-x:hover{color:#fff;}
+  /* Leaves room for the X so a long movie title can't run under it. */
+  .cart-head .claim-title{padding-right:34px;}
+  .cart-subrow{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    gap:10px;
+  }
+  .cart-subrow .claim-sub{margin-bottom:0;}
   .cart-body{
     /* basis 0, not auto: with `auto` the menu's natural height (40-odd
        rows) dominated the shrink weighting, so the order panel below
@@ -503,7 +548,11 @@
     min-height:132px;
     overflow-y:auto;
     -webkit-overflow-scrolling:touch;
-    padding:4px 20px;
+    /* Tighter at the sides than the head and foot: every row now sits
+       inside a section, which brings its own border and padding, so the
+       old 20px stacked into a deep gutter. At 10px the section labels
+       still line up with the title above them. */
+    padding:4px 10px;
   }
   .cart-foot{
     flex:0 0 auto;
@@ -750,8 +799,9 @@
   .cart-section[open] summary::before{transform:rotate(45deg);margin-top:-3px;}
   /* The label sits between the chevron and the count, so it gets the slack. */
   .cart-section summary span:first-of-type{flex:1;}
-  /* A pill, so the count reads as a badge on the header rather than as
-     more header text. */
+  /* Plain text, not a chip: it's a footnote on the header, and a bordered
+     pill on every section was more furniture than the number deserves.
+     Colour alone carries the "something in here is ordered" state. */
   .cart-section-count{
     flex:0 0 auto;
     font-size:10.5px;
@@ -759,18 +809,8 @@
     letter-spacing:.02em;
     text-transform:none;
     color:var(--muted);
-    background:#0b0b0d;
-    border:1px solid #2a2a2e;
-    border-radius:999px;
-    padding:2px 8px;
   }
-  /* Something in this section is in the order -- worth spotting from the
-     collapsed header alone. */
-  .cart-section-count.has-order{
-    color:#241c07;
-    background:var(--gold);
-    border-color:var(--gold);
-  }
+  .cart-section-count.has-order{color:var(--gold);}
   .cart-section-body{padding:2px 10px 6px;}
   /* Indented so a row inside a section reads as belonging to the header
      above it rather than as another top-level item. */
@@ -797,11 +837,13 @@
      lines under them push the first item off a short screen. Errors here
      are rare enough that the shift when one appears is the better trade. */
   .cart-head .claim-error{min-height:0;}
+  /* No reserved height any more -- it shares the seat's line, so an empty
+     status costs nothing instead of holding a gap open above the menu. */
   .cart-status{
+    flex:0 0 auto;
     color:var(--muted);
     font-size:11.5px;
-    min-height:16px;
-    margin-bottom:4px;
+    white-space:nowrap;
   }
   .cart-status.is-error{color:#e2857a;cursor:pointer;text-decoration:underline;}
 </style>
@@ -885,13 +927,23 @@
   <div class="claim-overlay hidden" id="cartOverlay">
     <div class="claim-card cart-card">
       <div class="cart-head">
+        <!-- Close in the corner as well as at the foot: on a full-screen
+             sheet the bottom button is a scroll away from wherever
+             someone's thumb is, and the corner X is where anyone
+             dismissing a full-screen thing reaches first. -->
+        <button type="button" class="cart-close-x" id="cartCloseX" onclick="closeCartOverlay()" aria-label="Close">&#215;</button>
         <div class="claim-title" id="cartTitle">Concessions</div>
-        <div class="claim-sub" id="cartSub"></div>
+        <!-- The seat and the save state share a line. On its own row the
+             status reserved height between the seat and the first item
+             whether or not it had anything to say. -->
+        <div class="cart-subrow">
+          <div class="claim-sub" id="cartSub"></div>
+          <!-- Doubles as the retry affordance: with no Save button, a
+               failed write has nothing else to offer. -->
+          <div class="cart-status" id="cartStatus" onclick="retrySave()"></div>
+        </div>
         <div class="cart-locked hidden" id="cartLocked"></div>
         <div class="claim-error" id="cartError"></div>
-        <!-- Doubles as the retry affordance: with no Save button, a
-             failed write has nothing else to offer. -->
-        <div class="cart-status" id="cartStatus" onclick="retrySave()"></div>
       </div>
       <div class="cart-body" id="cartBody"></div>
       <!-- Its own flex item between the menu and the footer, not part of
@@ -1515,6 +1567,7 @@ const PEANUT_ITEM = /peanut|reese/i;
 
 let concessionMenu = [];   // [{id, name, price, note, section, optionGroup}] from /api/public/concession-menu
 let optionGroups = [];     // [{id, label, options[]}] -- the choice lists items point at
+let openSections = [];     // section names that start expanded rather than folded away
 let cartShowtimeId = null;
 let cartSeatId = null;
 // The order, one entry per unit ordered -- NOT one per menu item with a
@@ -1546,6 +1599,7 @@ async function loadConcessionMenu(){
     const data = await res.json();
     concessionMenu = Array.isArray(data.items) ? data.items : [];
     optionGroups = Array.isArray(data.optionGroups) ? data.optionGroups : [];
+    openSections = Array.isArray(data.openSections) ? data.openSections : [];
   }catch(e){
     // Non-fatal -- an already-loaded menu stays usable, and a cart that
     // has never loaded one shows the "no menu yet" state.
@@ -1770,6 +1824,10 @@ async function openCart(showtimeId, seatId){
   const body = document.getElementById('cartBody');
   body.innerHTML = '<div class="cart-empty-menu">Loading menu...</div>';
   document.getElementById('cartOverlay').classList.remove('hidden');
+  // Pins the showtime list behind the sheet. Without it a phone will
+  // happily scroll the page underneath once the menu hits its end, which
+  // is the one thing a full-screen sheet shouldn't do.
+  document.body.classList.add('cart-open');
 
   // Refetched on every open rather than once at page load: the host adds
   // menu items from their own device, and a friend who left this page
@@ -1810,6 +1868,7 @@ function closeCartOverlay(){
   cartOrder = [];
   orderRowEls.clear();
   document.getElementById('cartOverlay').classList.add('hidden');
+  document.body.classList.remove('cart-open');
 }
 
 function renderCart(){
@@ -1856,9 +1915,11 @@ function buildCartSectionEl(name, rows){
   wrap.className = 'cart-section';
 
   const inOrder = rows.reduce((n, r) => n + orderCountFor(r.itemId), 0);
-  // Opens itself when something in it is already ordered -- a friend
-  // reopening their cart should see where their Skittles came from.
-  wrap.open = inOrder > 0;
+  // Open when the menu says this is one of the sections worth having on
+  // screen from the start, or when something in it is already ordered --
+  // a friend reopening their cart should see where their Skittles came
+  // from without hunting for it.
+  wrap.open = inOrder > 0 || openSections.indexOf(name) !== -1;
 
   const summary = document.createElement('summary');
   const label = document.createElement('span');

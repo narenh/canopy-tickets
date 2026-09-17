@@ -287,16 +287,26 @@ until someone fills it.
 **Sections** keep the list readable. An item can carry a section name,
 and a named section is folded behind a collapsed header in the cart
 instead of sitting inline — that's what keeps 25 candy bars from burying
-the two things nearly every order has. Out of the box the menu opens on
-**Large Popcorn** and **Large Soda** at the top level, where they cost no
-taps at all, then **More Drinks**, **Hot Food**, **Packaged Snacks** and
-**Candy** folded away underneath. A section renders where its *first*
-item falls in the menu, so the order in `DEFAULT_ITEMS` is the order on
-screen.
+the two things nearly every order has. Out of the box it's **Popcorn &
+Soda**, **More Drinks**, **Hot Food**, **Packaged Snacks** and **Candy**.
+Popcorn & Soda and Hot Food start expanded (`DEFAULT_OPEN_SECTIONS` in
+`lib/concessionMenu.js`, matched by name), which puts popcorn, a soda and
+the chicken tenders on screen the moment the cart opens — most of what
+most orders are — with the rest one tap away rather than in the way.
+
+A section renders where its *first* item falls in the menu, so the order
+in `DEFAULT_ITEMS` is the order on screen.
+
+On a phone the cart is a **full-screen sheet** rather than a card
+floating on a dimmed page: at that size the margins were costing rows of
+menu. It closes from an **×** in the corner as well as the button at the
+foot — on a full-screen sheet the bottom button is a scroll away from
+wherever a thumb is — and the page behind is pinned while it's open, so
+the menu is the only thing on screen that scrolls.
 
 A section header is its own card: a gold uppercase label (nothing else in
 the list is gold except the **+** buttons, so a header can't be mistaken
-for an item), a chevron, and the count as a badge that fills in gold when
+for an item), a chevron, and a count that turns gold when
 something in that section is already in the order. An open section's
 header sticks to the top of the scrolling menu, because the point where a
 25-row section is most confusing is the middle of it. The editor's menu
