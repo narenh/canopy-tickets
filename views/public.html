@@ -2383,13 +2383,14 @@ function renderCartFoot(){
   if (tax > 0){
     totals.appendChild(cartTotalRow('Tax (' + formatTaxRate(concessionTaxRate) + ')', escapeHtml(formatPrice(tax))));
   }
-  // "$0.00" would read as a rounding accident. Say why it's nothing.
-  const owedRow = cartTotalRow(
-    isHost ? 'You owe' : 'You owe',
-    isHost ? '<span class="paid-note">nothing &mdash; you\'re buying</span>' : escapeHtml(formatPrice(owed))
-  );
-  owedRow.classList.add('is-owed');
-  totals.appendChild(owedRow);
+  // No owed row at all on the host's own seat -- there's nothing for them
+  // to pay, so the line has nothing to say. The costs above still show,
+  // since what the order comes to is worth knowing either way.
+  if (!isHost){
+    const owedRow = cartTotalRow('You owe', escapeHtml(formatPrice(owed)));
+    owedRow.classList.add('is-owed');
+    totals.appendChild(owedRow);
+  }
 
   // A locked cart has no save button, so there's nothing to hold back.
   const missing = cartLocked ? [] : missingChoices();

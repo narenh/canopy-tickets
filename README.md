@@ -226,7 +226,8 @@ pending. A failed write says so and offers a retry, because silent loss
 is the one thing autosave must not do.
 
 **The host owes nothing.** A seat whose name matches `HOST_SEAT_NAME` in
-`lib/seats.js` reads as paid everywhere and its cart totals to nothing —
+`lib/seats.js` reads as paid everywhere and its cart drops the "You owe"
+line entirely —
 they buy every ticket and every tray on their own card, so there's nobody
 for them to pay, and the reservation page stops offering to send them
 money. It's derived rather than stored, so it holds however the name got
