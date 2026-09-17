@@ -140,12 +140,23 @@ access, not already-granted access.
 Friends can come back to the reservation page any time after reserving a
 seat and build a concession order for it. On the list, every reserved
 seat is its own tappable row showing what's on it so far ("🍿 Chicken
-Tenders ×2 (BBQ Sauce, Icing Cup), Skittles — $29.97", or "No concessions
-yet"); tapping it opens that seat's cart, where every menu item has a −/+
-stepper, a dropdown per unit for anything that comes with a choice, and
-an optional per-item note ("no ice", "extra butter"). The order is saved
+Tenders (BBQ Sauce), Chicken Tenders (Ranch), Skittles — $29.97", or "No
+concessions yet"); tapping it opens that seat's cart. The order is saved
 against the seat, so it's there when they come back on another device or
 another day.
+
+**The cart is a catalog and a list.** The scrolling part is the menu:
+each item shows its price and a single **+**, nothing else. Tapping it
+drops a line into **Your order**, which sits just above the totals and
+stays in view while the catalog scrolls. One tap, one line — there's no
+quantity control anywhere, deliberately. A quantity can only carry one
+idea of what an order is, and "popcorn chicken with ranch and another
+with bbq" is two ideas. Two taps, two lines, two sauces.
+
+The order list is compact and read-only: item, its pick, the price, and
+an **×** to remove it. Changing your mind is remove-and-re-add, which is
+what keeps it a list you can read at a glance instead of a dozen rows of
+dropdowns and text boxes.
 
 **The menu ships filled in.** AMC's own list — drinks, the food page, and
 candy as individual items — is hardcoded in `lib/concessionMenu.js` and
@@ -180,16 +191,25 @@ fried-thing. The host adds, renames and fills groups from the same panel,
 and each one shows how many items use it so it's clear what a deletion
 would affect.
 
-Friends pick **one per unit ordered**: order two chicken tenders and you
-get two dropdowns, because that's two sauce cups and quite possibly two
-different ones. **A cart won't save while any of those picks is empty** —
-Save is held closed, the unchosen dropdowns are outlined, and the footer
-names what's outstanding ("Still to choose: Chicken Tenders (sauce)"),
-since an order reaching you as "Chicken Tenders ×2" with no sauces named
-is one you can't actually place. The pay buttons are withheld too: an
-incomplete cart can't have been saved, so its total isn't one you've
-agreed to. Setting the item back to zero clears the requirement, and an
-item whose group the host hasn't filled in yet never triggers it.
+The pick is made **on the catalog row, before the line exists** — an
+item with a group shows its dropdown under the **+**, and the **+** stays
+disabled until something is chosen. That's the other half of the order
+list being read-only: a line can't be created half-finished, so there's
+nothing to go back and fix. After each add the dropdown resets to blank,
+so two tenders with the same sauce are as explicit as two with different
+ones.
+
+Orders saved before this existed can still be short a pick (a line from
+the old quantity UI, or an item that gained a group afterwards). Those
+show in red as "no sauce", hold the save closed, and the footer says what
+to do — "Remove and re-add to pick a sauce for Popcorn Chicken". The pay
+buttons are withheld on the same condition: an incomplete order can't
+have been saved, so its total isn't one you've agreed to. An item whose
+group the host hasn't filled in yet never triggers any of this.
+
+Per-item notes ("no ice") are no longer editable from the cart — that was
+the cost of making the list compact — but any note saved earlier still
+shows on its line and still reaches you.
 
 Candy is deliberately *not* an option group — it's a flat list of
 individual items, so two different candies are just two lines.

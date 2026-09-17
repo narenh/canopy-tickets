@@ -498,52 +498,35 @@
   .ci-name{font-size:14px;color:#fff;overflow-wrap:anywhere;}
   .ci-price{font-size:12px;color:var(--muted);margin-top:1px;}
   .ci-off-menu{color:#e2857a;}
-  .ci-stepper{
-    display:flex;
-    align-items:center;
-    gap:6px;
+  /* One tap, one line. No quantity control: a quantity can only carry
+     one idea of what the order is, and two popcorn chickens may well
+     want two different sauces. */
+  .ci-add{
     flex:0 0 auto;
-  }
-  .ci-stepper button{
     width:30px;
     height:30px;
     border-radius:50%;
-    border:1px solid #3a3a3a;
-    background:#1e1e1e;
-    color:#fff;
-    font-size:17px;
-    line-height:1;
-    cursor:pointer;
-    padding:0;
-  }
-  .ci-stepper button:disabled{opacity:.35;cursor:not-allowed;}
-  .ci-stepper .ci-plus{background:var(--gold);color:#241c07;border:none;font-weight:700;}
-  .ci-qty{
-    min-width:18px;
-    text-align:center;
-    font-size:14px;
+    border:none;
+    background:var(--gold);
+    color:#241c07;
+    font-size:18px;
     font-weight:700;
+    line-height:1;
+    padding:0;
+    cursor:pointer;
   }
-  .ci-qty.is-zero{color:var(--muted);font-weight:400;}
-  /* Same reasoning as the note below: only present once this item is
-     actually in the cart, so the menu reads as a list of things rather
-     than a wall of dropdowns. */
-  .ci-choices{margin-top:6px;}
-  .ci-choice{
-    display:flex;
-    align-items:center;
-    gap:7px;
-    margin-top:5px;
-  }
-  .ci-choice-num{
+  .ci-add:disabled{opacity:.35;cursor:not-allowed;}
+  .ci-count{
     flex:0 0 auto;
-    font-size:11px;
-    color:var(--muted);
+    font-size:12px;
+    font-weight:700;
+    color:var(--gold);
     min-width:16px;
+    text-align:right;
   }
   .ci-choice-select{
-    flex:1 1 auto;
-    min-width:0;
+    width:100%;
+    margin-top:7px;
     background:#0f0f10;
     color:#fff;
     border:1px solid #2f2f2f;
@@ -552,14 +535,58 @@
     font-size:12.5px;
     font-family:inherit;
   }
-  .ci-choice-select:disabled{opacity:.6;}
-  /* Amber, not red: nothing is wrong yet, there's just a pick still to
-     make. Marks the exact dropdown so the hint in the footer doesn't send
-     someone hunting. */
+  /* Amber, not red: nothing is wrong yet, there's just a pick to make
+     before the "+" will do anything. */
   .ci-choice-select.needs-choice{
     border-color:var(--gold-dark);
     color:var(--gold);
   }
+
+  /* ---------- ORDER LIST ---------- */
+  .cart-order{
+    margin-bottom:10px;
+    /* Capped and scrollable so a long order can't push the totals and
+       the Save button off the bottom of the card. */
+    max-height:34vh;
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+  }
+  .cart-order-head{
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:1px;
+    color:var(--muted);
+    margin-bottom:5px;
+  }
+  .order-row{
+    display:flex;
+    align-items:baseline;
+    gap:8px;
+    padding:4px 0;
+    font-size:13px;
+  }
+  .order-main{flex:1;min-width:0;overflow-wrap:anywhere;}
+  .order-name{color:#fff;}
+  .order-option{color:var(--gold);}
+  .order-option.is-missing{color:#e2857a;}
+  .order-line-note{color:var(--muted);font-size:11.5px;}
+  .order-price{flex:0 0 auto;color:var(--muted);font-size:12px;}
+  .order-remove{
+    flex:0 0 auto;
+    width:22px;
+    height:22px;
+    border-radius:50%;
+    border:1px solid #3a3a3a;
+    background:#1e1e1e;
+    color:var(--muted);
+    font-size:14px;
+    line-height:1;
+    padding:0;
+    cursor:pointer;
+  }
+  .order-remove:disabled{opacity:.35;cursor:not-allowed;}
+  /* Amber rather than red: nothing is broken, there's just a pick still
+     owed before this will save. */
   .cart-hint{
     background:#241c07;
     border:1px solid var(--gold-dark);
@@ -569,25 +596,6 @@
     font-size:11.5px;
     margin-bottom:10px;
     overflow-wrap:anywhere;
-  }
-  /* Only shown once something's actually in the cart for this item --
-     an empty note field against every one of 20 menu rows would bury
-     the items themselves. */
-  .ci-note{
-    width:100%;
-    background:#0f0f10;
-    color:#fff;
-    border:1px solid #2f2f2f;
-    border-radius:8px;
-    padding:6px 9px;
-    font-size:12.5px;
-    font-family:inherit;
-    margin-top:6px;
-  }
-  .cart-line-total{
-    font-size:12px;
-    color:var(--gold);
-    margin-top:3px;
   }
   .cart-totals{
     font-size:13px;
@@ -753,6 +761,13 @@
       </div>
       <div class="cart-body" id="cartBody"></div>
       <div class="cart-foot">
+        <!-- Above the totals on purpose: this is the bit someone is
+             actually building, so it stays in view while the catalog
+             above it scrolls. -->
+        <div class="cart-order hidden" id="cartOrderWrap">
+          <div class="cart-order-head">Your order</div>
+          <div class="cart-order-list" id="cartOrderList"></div>
+        </div>
         <div class="cart-hint hidden" id="cartHint"></div>
         <div class="cart-totals" id="cartTotals"></div>
         <div class="claim-actions">
@@ -1329,7 +1344,15 @@ let concessionMenu = [];   // [{id, name, price, note, section, optionGroup}] fr
 let optionGroups = [];     // [{id, label, options[]}] -- the choice lists items point at
 let cartShowtimeId = null;
 let cartSeatId = null;
-let cartRows = [];         // [{itemId, name, price, qty, note, offMenu}]
+// The order, one entry per unit ordered -- NOT one per menu item with a
+// quantity. That's what lets popcorn chicken with ranch and another with
+// bbq be two separate things rather than one row that can only hold one
+// answer.
+let cartOrder = [];        // [{uid, itemId, name, price, option, note}]
+let cartUid = 0;           // per-line handle, so a row can be removed without index maths
+const menuRowEls = new Map();   // itemId -> { count } in the catalog
+const orderRowEls = new Map();  // uid -> { el } in the order list
+let sectionEls = [];            // collapsed catalog sections, for live counts
 let cartLocked = false;    // past the cutoff -- read-only
 let cartDirty = false;     // unsaved edits on screen
 let cartSaved = false;     // a save went through since this cart was opened
@@ -1406,110 +1429,87 @@ function optionLabelForItem(itemId){
   return group ? group.label : 'Choice';
 }
 
-// Merges the seat's saved cart onto the current menu: every menu item
-// gets a row (quantity 0 = not ordered), and anything in the cart whose
-// item has since left the menu gets a flagged row at the bottom so it's
-// still visible and still removable.
-function buildCartRows(lines){
-  const byItem = new Map();
-  (lines || []).forEach(l => {
-    const key = l.itemId || null;
-    if (key && byItem.has(key)){
-      // Shouldn't happen from this page (one row per item), but summing
-      // beats silently dropping one if some older/other client wrote two
-      // lines for the same item.
-      const prev = byItem.get(key);
-      prev.qty += l.qty;
-      if (!prev.note && l.note) prev.note = l.note;
-      if (!(prev.options || []).length && (l.options || []).length) prev.options = l.options;
-      return;
-    }
-    if (key) byItem.set(key, { ...l });
-  });
-
-  const rows = concessionMenu.map(item => {
-    const existing = byItem.get(item.id);
-    return {
-      itemId: item.id,
-      // Current menu name/price for an item still on the menu -- a
-      // repriced item should show today's price to someone ordering it
-      // now; the snapshot only protects orders already placed.
-      name: item.name,
-      price: item.price,
-      note: item.note || '',
-      section: item.section || '',
-      qty: existing ? existing.qty : 0,
-      lineNote: existing && existing.note ? existing.note : '',
-      options: existing && Array.isArray(existing.options) ? existing.options.slice() : [],
-      offMenu: false
-    };
-  });
-
-  const menuIds = new Set(concessionMenu.map(i => i.id));
-  const pushed = new Set();
-  (lines || []).forEach(l => {
-    if (l.itemId && menuIds.has(l.itemId)) return;  // already has a menu row above
-    if (l.itemId && pushed.has(l.itemId)) return;   // merged into the row already pushed
-    if (l.itemId) pushed.add(l.itemId);
-    // Name and price here are the snapshot taken when this was ordered --
-    // there's no menu entry left to read a current one from, which is
-    // exactly why the snapshot exists.
-    const merged = (l.itemId && byItem.get(l.itemId)) || l;
-    rows.push({
-      itemId: l.itemId || '',
-      name: merged.name,
-      price: merged.price,
-      note: '',
-      // An item that's left the menu has no section to sit in, so it
-      // shows in the main list where it can't be missed.
-      section: '',
-      qty: merged.qty,
-      lineNote: merged.note || '',
-      options: Array.isArray(merged.options) ? merged.options.slice() : [],
-      offMenu: true
-    });
-  });
-
-  return rows;
+// The menu body is a catalog: one row per item, a single "+" and nothing
+// else. Everything a friend has actually chosen lives in its own list
+// above the totals, one row per unit.
+//
+// It reads as a small thing but it's the difference between being able to
+// express "popcorn chicken with ranch AND another with bbq" and not: a
+// quantity of 2 on a single row can only carry one idea of what that
+// order is. One line per unit means each one carries its own choice.
+function buildMenuRows(){
+  return concessionMenu.map(item => ({
+    itemId: item.id,
+    name: item.name,
+    price: item.price,
+    note: item.note || '',
+    section: item.section || ''
+  }));
 }
 
-// Every unit of an item that comes with a choice has to have one picked
-// before the cart will save. An order reaching the host as "Chicken
-// Tenders x2" with no sauces named is one they can't actually place --
-// they'd be standing at the counter texting to ask.
+// Expands the seat's saved cart into one order line per unit, taking that
+// unit's pick off the stored options array.
 //
-// Only rows that are in the cart AND whose group actually has options
-// count: an item whose group the host hasn't filled in yet can't be
-// picked from, so it would otherwise block saving forever. Off-menu lines
-// are exempt for the same reason -- there's no group left to pick from.
-function missingChoices(){
+// This is also the migration path for carts saved by the old quantity UI:
+// a stored { qty: 2, options: ['BBQ', 'Ranch'] } becomes two lines, which
+// is what it always meant. Lines whose item has since left the menu come
+// through as ordinary order lines -- still visible, still removable, just
+// with nothing in the catalog to add another from.
+function buildCartOrder(lines){
   const out = [];
-  cartRows.forEach(row => {
-    if (row.qty === 0) return;
-    const choices = optionsForItem(row.itemId);
-    if (!choices.length) return;
-    let missing = 0;
-    for (let unit = 0; unit < row.qty; unit++){
-      if (!row.options[unit]) missing++;
+  (lines || []).forEach(l => {
+    const options = l.options || [];
+    const qty = Math.max(1, l.qty || 0);
+    for (let unit = 0; unit < qty; unit++){
+      out.push({
+        uid: ++cartUid,
+        itemId: l.itemId || '',
+        name: l.name,
+        price: l.price,
+        option: options[unit] || '',
+        note: l.note || ''
+      });
     }
-    if (missing) out.push({ name: row.name, label: optionLabelForItem(row.itemId).toLowerCase(), missing });
   });
   return out;
 }
 
+// One wire line per order line. Coalescing identical ones back into a
+// quantity would just have to be undone on the next open, and 50 lines
+// (MAX_CART_LINES server-side) is a lot of concessions for one seat.
 function cartLines(){
-  return cartRows
-    .filter(r => r.qty > 0)
-    .map(r => ({
-      itemId: r.itemId,
-      name: r.name,
-      price: r.price,
-      qty: r.qty,
-      note: r.lineNote || '',
-      // Trimmed to qty here as well as server-side, so what gets sent
-      // matches what the dropdowns on screen actually showed.
-      options: (r.options || []).slice(0, r.qty)
-    }));
+  return cartOrder.map(l => ({
+    itemId: l.itemId,
+    name: l.name,
+    price: l.price,
+    qty: 1,
+    note: l.note || '',
+    options: l.option ? [l.option] : []
+  }));
+}
+
+// Every order line for an item that comes with a choice has to have one
+// picked before the cart will save. An order reaching the host as
+// "Popcorn Chicken" with no sauce named is one they can't actually place.
+//
+// Only items whose group actually has options count: an item whose group
+// the host hasn't filled in yet can't be picked from, so it would
+// otherwise block saving forever. Lines whose item has left the menu are
+// exempt for the same reason -- there's no group left to pick from.
+function missingChoices(){
+  const byName = new Map();
+  cartOrder.forEach(l => {
+    if (l.option) return;
+    if (!optionsForItem(l.itemId).length) return;
+    const prev = byName.get(l.name) || { name: l.name, label: optionLabelForItem(l.itemId).toLowerCase(), missing: 0 };
+    prev.missing++;
+    byName.set(l.name, prev);
+  });
+  return Array.from(byName.values());
+}
+
+function orderCountFor(itemId){
+  return cartOrder.filter(l => l.itemId === itemId).length;
 }
 
 function currentCartShowtime(){
@@ -1533,22 +1533,21 @@ function hasPeanutNeighbor(showtime, seatId){
   return neighborSeatIds(seatId).some(id => seats[id] && PEANUT_NEIGHBOR.test(seats[id].name || ''));
 }
 
-// Returns the rows to leave out of the rendered menu, and never touches
-// cartRows itself -- what gets saved is still whatever is in the cart.
-// Silent by design: the people this applies to are in on the joke, and a
-// banner explaining the bit is worse than the bit.
+// Menu items to leave out of the catalog. Silent by design: the people
+// this applies to are in on the joke, and a banner explaining the bit is
+// worse than the bit.
 //
-// Two things this deliberately does not do:
-//  - it won't hide a peanut item that's ALREADY in this cart. Hiding a
-//    line someone is being charged for would make it invisible and
-//    un-removable, which is worse than showing it.
-//  - it isn't enforcement. It's a nudge on one screen; the host still
-//    sees every order in full, which is the copy that matters at the
-//    counter.
-function hiddenPeanutRows(){
-  const showtime = currentCartShowtime();
-  if (!hasPeanutNeighbor(showtime, cartSeatId)) return new Set();
-  return new Set(cartRows.filter(r => r.qty === 0 && PEANUT_ITEM.test(r.name || '')));
+// It deliberately does not touch the order list. A peanut item already
+// ordered stays visible and removable there -- hiding a line someone is
+// being charged for would be worse than showing it -- and only its "+"
+// in the catalog goes away. Nor is any of this enforcement: the host sees
+// every order in full, which is the copy that matters at the counter.
+function hiddenPeanutItemIds(){
+  if (!hasPeanutNeighbor(currentCartShowtime(), cartSeatId)) return new Set();
+  const ordered = new Set(cartOrder.map(l => l.itemId));
+  return new Set(
+    concessionMenu.filter(i => PEANUT_ITEM.test(i.name || '') && !ordered.has(i.id)).map(i => i.id)
+  );
 }
 
 // ---------------- CART OVERLAY ----------------
@@ -1595,7 +1594,7 @@ async function openCart(showtimeId, seatId){
   const freshSeat = current && (current.seats || {})[seatId];
   if (!freshSeat || !freshSeat.name){ closeCartOverlay(); return; }
 
-  cartRows = buildCartRows(freshSeat.concessions);
+  cartOrder = buildCartOrder(freshSeat.concessions);
   renderCart();
 }
 
@@ -1608,7 +1607,8 @@ function openCartFromSuccess(){
 function closeCartOverlay(){
   cartShowtimeId = null;
   cartSeatId = null;
-  cartRows = [];
+  cartOrder = [];
+  orderRowEls.clear();
   cartDirty = false;
   document.getElementById('cartOverlay').classList.add('hidden');
 }
@@ -1616,23 +1616,26 @@ function closeCartOverlay(){
 function renderCart(){
   const body = document.getElementById('cartBody');
   body.innerHTML = '';
+  menuRowEls.clear();
+  sectionEls = [];
 
-  if (cartRows.length === 0){
+  const menuRows = buildMenuRows();
+  if (menuRows.length === 0){
     const empty = document.createElement('div');
     empty.className = 'cart-empty-menu';
     empty.textContent = "The host hasn't put up a concessions menu yet. Check back later.";
     body.appendChild(empty);
   } else {
-    const hidden = hiddenPeanutRows();
+    const hidden = hiddenPeanutItemIds();
 
     // Unsectioned items inline, then each named section folded away
     // behind a header. 25 candy bars sitting above the eight things
     // people usually want is the whole reason this exists.
     const sections = new Map();
-    cartRows.forEach(row => {
-      if (hidden.has(row)) return;
+    menuRows.forEach(row => {
+      if (hidden.has(row.itemId)) return;
       if (!row.section){
-        body.appendChild(buildCartRowEl(row));
+        body.appendChild(buildMenuRowEl(row));
         return;
       }
       if (!sections.has(row.section)) sections.set(row.section, []);
@@ -1641,6 +1644,7 @@ function renderCart(){
     sections.forEach((rows, name) => body.appendChild(buildCartSectionEl(name, rows)));
   }
 
+  renderOrderList();
   renderCartFoot();
 }
 
@@ -1650,11 +1654,10 @@ function buildCartSectionEl(name, rows){
   const wrap = document.createElement('details');
   wrap.className = 'cart-section';
 
-  const chosen = rows.filter(r => r.qty > 0);
+  const inOrder = rows.reduce((n, r) => n + orderCountFor(r.itemId), 0);
   // Opens itself when something in it is already ordered -- a friend
-  // reopening their cart should see their Skittles, not have to know to
-  // go looking for them.
-  wrap.open = chosen.length > 0;
+  // reopening their cart should see where their Skittles came from.
+  wrap.open = inOrder > 0;
 
   const summary = document.createElement('summary');
   const label = document.createElement('span');
@@ -1663,30 +1666,22 @@ function buildCartSectionEl(name, rows){
 
   const count = document.createElement('span');
   count.className = 'cart-section-count';
-  count.textContent = chosen.length
-    ? chosen.reduce((n, r) => n + r.qty, 0) + ' in cart'
-    : rows.length + ' item' + (rows.length === 1 ? '' : 's');
+  count.textContent = inOrder ? inOrder + ' in order' : rows.length + ' item' + (rows.length === 1 ? '' : 's');
+  count.dataset.total = String(rows.length);
   summary.appendChild(count);
   wrap.appendChild(summary);
 
   const inner = document.createElement('div');
   inner.className = 'cart-section-body';
-  rows.forEach(row => inner.appendChild(buildCartRowEl(row)));
+  rows.forEach(row => inner.appendChild(buildMenuRowEl(row)));
   wrap.appendChild(inner);
 
-  // Kept live as the stepper changes, so the header still reads right
-  // while the section is open and after it's folded back up.
-  wrap.addEventListener('cart-qty-changed', () => {
-    const now = rows.filter(r => r.qty > 0);
-    count.textContent = now.length
-      ? now.reduce((n, r) => n + r.qty, 0) + ' in cart'
-      : rows.length + ' item' + (rows.length === 1 ? '' : 's');
-  });
-
+  sectionEls.push({ el: wrap, count, rows });
   return wrap;
 }
 
-function buildCartRowEl(row){
+// One catalog row: what it is, what it costs, and a "+".
+function buildMenuRowEl(row){
   const el = document.createElement('div');
   el.className = 'cart-item';
 
@@ -1702,172 +1697,210 @@ function buildCartRowEl(row){
   main.appendChild(nameEl);
 
   const priceEl = document.createElement('div');
-  priceEl.className = 'ci-price' + (row.offMenu ? ' ci-off-menu' : '');
+  priceEl.className = 'ci-price';
   priceEl.textContent = [
     row.price > 0 ? formatPrice(row.price) : 'No price set',
     // The host's own label for this item ("50c off"), not a discount the
     // app applies -- the price to its left is what gets charged.
-    row.note || '',
-    row.offMenu ? 'no longer on the menu' : ''
+    row.note || ''
   ].filter(Boolean).join(' · ');
   main.appendChild(priceEl);
 
-  const lineTotal = document.createElement('div');
-  lineTotal.className = 'cart-line-total hidden';
-  main.appendChild(lineTotal);
-
   rowEl.appendChild(main);
 
-  const stepper = document.createElement('div');
-  stepper.className = 'ci-stepper';
+  // How many of this are already down in the order below. Without it,
+  // tapping "+" on a row 30 items up the list gives no sign it landed.
+  const count = document.createElement('span');
+  count.className = 'ci-count';
+  rowEl.appendChild(count);
 
-  const minus = document.createElement('button');
-  minus.type = 'button';
-  minus.textContent = '−';
-  minus.setAttribute('aria-label', 'Remove one ' + row.name);
-
-  const qtyEl = document.createElement('span');
-  qtyEl.className = 'ci-qty';
-
-  const plus = document.createElement('button');
-  plus.type = 'button';
-  plus.className = 'ci-plus';
-  plus.textContent = '+';
-  plus.setAttribute('aria-label', 'Add one ' + row.name);
-
-  stepper.appendChild(minus);
-  stepper.appendChild(qtyEl);
-  stepper.appendChild(plus);
-  rowEl.appendChild(stepper);
+  const add = document.createElement('button');
+  add.type = 'button';
+  add.className = 'ci-add';
+  add.textContent = '+';
+  add.setAttribute('aria-label', 'Add ' + row.name);
+  rowEl.appendChild(add);
   el.appendChild(rowEl);
 
-  // One dropdown per unit ordered, rebuilt whenever the quantity changes:
-  // two orders of tenders are two sauce cups, and which two is exactly
-  // what the host reads off at the counter. Empty for an item with no
-  // choices, and for one whose group the host hasn't filled in yet.
+  // The choice is made HERE, before the line exists, because the order
+  // list below is deliberately not editable -- changing your mind is
+  // remove and re-add. That also means "+" can't be pressed until there's
+  // something to add: half an order of popcorn chicken with no sauce
+  // named isn't a thing the host can go and buy.
   const choices = optionsForItem(row.itemId);
-  const choiceLabel = optionLabelForItem(row.itemId);
-  const choiceWrap = document.createElement('div');
-  choiceWrap.className = 'ci-choices hidden';
+  let select = null;
+  if (choices.length){
+    select = document.createElement('select');
+    select.className = 'ci-choice-select needs-choice';
+    const label = optionLabelForItem(row.itemId);
+    select.setAttribute('aria-label', label + ' for ' + row.name);
 
-  function renderChoices(){
-    choiceWrap.innerHTML = '';
-    if (!choices.length || row.qty === 0){
-      choiceWrap.classList.add('hidden');
-      return;
-    }
-    choiceWrap.classList.remove('hidden');
-    for (let unit = 0; unit < row.qty; unit++){
-      const line = document.createElement('div');
-      line.className = 'ci-choice';
+    const blank = document.createElement('option');
+    blank.value = '';
+    blank.textContent = 'Choose ' + label.toLowerCase() + '...';
+    select.appendChild(blank);
+    choices.forEach(name => {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      select.appendChild(opt);
+    });
 
-      if (row.qty > 1){
-        const num = document.createElement('span');
-        num.className = 'ci-choice-num';
-        num.textContent = '#' + (unit + 1);
-        line.appendChild(num);
-      }
-
-      const select = document.createElement('select');
-      select.className = 'ci-choice-select';
-      select.disabled = cartLocked;
-      select.setAttribute('aria-label', choiceLabel + ' for ' + row.name + (row.qty > 1 ? ' #' + (unit + 1) : ''));
-
-      const blank = document.createElement('option');
-      blank.value = '';
-      blank.textContent = 'Choose ' + choiceLabel.toLowerCase() + '...';
-      select.appendChild(blank);
-
-      // A pick the host has since removed from the group still needs to
-      // show as the current value, or reopening the cart would silently
-      // reset it to unchosen.
-      const current = row.options[unit] || '';
-      const known = choices.slice();
-      if (current && !known.includes(current)) known.push(current);
-      known.forEach(name => {
-        const opt = document.createElement('option');
-        opt.value = name;
-        opt.textContent = name;
-        select.appendChild(opt);
-      });
-      select.value = current;
-
-      select.classList.toggle('needs-choice', !current);
-      select.addEventListener('change', () => {
-        row.options[unit] = select.value;
-        select.classList.toggle('needs-choice', !select.value);
-        markCartDirty();
-        renderCartFoot();
-      });
-
-      line.appendChild(select);
-      choiceWrap.appendChild(line);
-    }
+    select.addEventListener('change', () => {
+      select.classList.toggle('needs-choice', !select.value);
+      add.disabled = cartLocked || !select.value;
+    });
+    el.appendChild(select);
   }
 
-  const note = document.createElement('input');
-  note.type = 'text';
-  note.className = 'ci-note hidden';
-  note.placeholder = 'Note for this item (e.g. no ice)';
-  note.maxLength = 200;
-  note.value = row.lineNote || '';
-
-  // Updates only this row plus the totals, rather than re-rendering the
-  // whole list -- a full re-render on every tap would drop focus out of
-  // a note field someone is in the middle of typing into.
-  function sync(){
-    qtyEl.textContent = String(row.qty);
-    qtyEl.classList.toggle('is-zero', row.qty === 0);
-    minus.disabled = cartLocked || row.qty === 0;
-    plus.disabled = cartLocked || row.qty >= MAX_CART_QTY;
-    note.classList.toggle('hidden', row.qty === 0);
-    note.readOnly = cartLocked;
-    const showTotal = row.qty > 0 && row.price > 0;
-    lineTotal.classList.toggle('hidden', !showTotal);
-    if (showTotal) lineTotal.textContent = row.qty + ' × ' + formatPrice(row.price) + ' = ' + formatPrice(row.price * row.qty);
-    renderChoices();
-  }
-
-  function bump(delta){
-    if (cartLocked) return;
-    const next = Math.max(0, Math.min(MAX_CART_QTY, row.qty + delta));
-    if (next === row.qty) return;
-    row.qty = next;
-    // Dropping to zero drops the note with it -- the note described an
-    // order that no longer exists, and silently keeping it would make it
-    // reappear if the item got added back later.
-    if (row.qty === 0){
-      row.lineNote = '';
-      note.value = '';
-      row.options = [];
+  add.disabled = cartLocked || !!(select && !select.value);
+  add.addEventListener('click', () => {
+    if (select && !select.value) return;
+    addOrderLine(row, select ? select.value : '');
+    if (select){
+      // Back to blank so the next one is a deliberate pick rather than a
+      // silent repeat of the last -- two tenders with the same sauce
+      // should be as explicit as two with different ones.
+      select.value = '';
+      select.classList.add('needs-choice');
+      add.disabled = true;
     }
-    // Picks past the new quantity go with the units they belonged to --
-    // dropping from 3 to 1 shouldn't leave two orphaned sauces to
-    // reappear if it goes back up.
-    if (row.options.length > row.qty) row.options.length = row.qty;
-    markCartDirty();
-    sync();
-    renderCartFoot();
-    // Lets the section header above update its count without this row
-    // needing a reference to it.
-    el.dispatchEvent(new CustomEvent('cart-qty-changed', { bubbles: true }));
-  }
-
-  minus.addEventListener('click', () => bump(-1));
-  plus.addEventListener('click', () => bump(1));
-  note.addEventListener('input', () => {
-    row.lineNote = note.value;
-    // Only the first keystroke changes anything in the foot (Save goes
-    // from disabled to enabled, pay links hide); redrawing it on every
-    // subsequent one would be pure churn.
-    const wasDirty = cartDirty;
-    markCartDirty();
-    if (!wasDirty) renderCartFoot();
   });
 
-  el.appendChild(choiceWrap);
-  el.appendChild(note);
-  sync();
+  menuRowEls.set(row.itemId, { count });
+  syncMenuRowCount(row.itemId);
+  return el;
+}
+
+function syncMenuRowCount(itemId){
+  const refs = menuRowEls.get(itemId);
+  if (!refs) return;
+  const n = orderCountFor(itemId);
+  refs.count.textContent = n ? '×' + n : '';
+}
+
+function syncSectionCounts(){
+  sectionEls.forEach(({ count, rows }) => {
+    const inOrder = rows.reduce((n, r) => n + orderCountFor(r.itemId), 0);
+    count.textContent = inOrder
+      ? inOrder + ' in order'
+      : count.dataset.total + ' item' + (count.dataset.total === '1' ? '' : 's');
+  });
+}
+
+// ---------------- ORDER LIST ----------------
+function renderOrderList(){
+  const list = document.getElementById('cartOrderList');
+  list.innerHTML = '';
+  orderRowEls.clear();
+
+  document.getElementById('cartOrderWrap').classList.toggle('hidden', cartOrder.length === 0);
+  cartOrder.forEach(line => list.appendChild(buildOrderRowEl(line)));
+  syncSectionCounts();
+}
+
+function addOrderLine(row, option){
+  if (cartLocked) return;
+  const line = {
+    uid: ++cartUid,
+    itemId: row.itemId,
+    name: row.name,
+    price: row.price,
+    option: option || '',
+    note: ''
+  };
+  cartOrder.push(line);
+
+  // Appended rather than re-rendering the whole list, so a note someone
+  // is part-way through typing on another line keeps its focus.
+  document.getElementById('cartOrderWrap').classList.remove('hidden');
+  document.getElementById('cartOrderList').appendChild(buildOrderRowEl(line));
+
+  markCartDirty();
+  syncMenuRowCount(row.itemId);
+  syncSectionCounts();
+  renderCartFoot();
+
+  // The new line is in the footer, which may already be scrolled; bring
+  // it into view so "+" visibly does something.
+  const refs = orderRowEls.get(line.uid);
+  if (refs) refs.el.scrollIntoView({ block: 'nearest' });
+}
+
+function removeOrderLine(uid){
+  if (cartLocked) return;
+  const idx = cartOrder.findIndex(l => l.uid === uid);
+  if (idx === -1) return;
+  const [gone] = cartOrder.splice(idx, 1);
+
+  const refs = orderRowEls.get(uid);
+  if (refs) refs.el.remove();
+  orderRowEls.delete(uid);
+
+  document.getElementById('cartOrderWrap').classList.toggle('hidden', cartOrder.length === 0);
+  markCartDirty();
+  syncMenuRowCount(gone.itemId);
+  syncSectionCounts();
+  renderCartFoot();
+}
+
+// One line, read-only. Changing a pick is remove-and-re-add, which keeps
+// the list scannable -- a dozen rows each carrying a dropdown and a text
+// box is a form, not an order.
+function buildOrderRowEl(line){
+  const el = document.createElement('div');
+  el.className = 'order-row';
+
+  const main = document.createElement('div');
+  main.className = 'order-main';
+
+  const nameEl = document.createElement('span');
+  nameEl.className = 'order-name';
+  nameEl.textContent = line.name;
+  main.appendChild(nameEl);
+
+  const choices = optionsForItem(line.itemId);
+  if (line.option){
+    const opt = document.createElement('span');
+    opt.className = 'order-option';
+    opt.textContent = ' · ' + line.option;
+    main.appendChild(opt);
+  } else if (choices.length){
+    // Only reachable for a line saved before this item had a choice (or
+    // before this UI asked for one up front). It can't be fixed in place,
+    // so it says what to do about it.
+    const opt = document.createElement('span');
+    opt.className = 'order-option is-missing';
+    opt.textContent = ' · no ' + optionLabelForItem(line.itemId).toLowerCase();
+    main.appendChild(opt);
+  }
+
+  // Notes aren't editable here any more, but one saved earlier is still
+  // part of the order and still has to reach the host.
+  if (line.note){
+    const note = document.createElement('span');
+    note.className = 'order-line-note';
+    note.textContent = ' · ' + line.note;
+    main.appendChild(note);
+  }
+
+  el.appendChild(main);
+
+  const priceEl = document.createElement('span');
+  priceEl.className = 'order-price';
+  priceEl.textContent = line.price > 0 ? formatPrice(line.price) : '';
+  el.appendChild(priceEl);
+
+  const remove = document.createElement('button');
+  remove.type = 'button';
+  remove.className = 'order-remove';
+  remove.textContent = '×';
+  remove.disabled = cartLocked;
+  remove.setAttribute('aria-label', 'Remove ' + line.name);
+  remove.addEventListener('click', () => removeOrderLine(line.uid));
+  el.appendChild(remove);
+
+  orderRowEls.set(line.uid, { el });
   return el;
 }
 
@@ -1908,10 +1941,10 @@ function renderCartFoot(){
   const hint = document.getElementById('cartHint');
   hint.classList.toggle('hidden', missing.length === 0);
   if (missing.length){
-    // Names the items rather than just refusing: the offending dropdown
-    // can be a long way up a 39-row list.
-    hint.textContent = 'Still to choose: ' +
-      missing.map(m => m.name + ' (' + m.label + (m.missing > 1 ? ' ×' + m.missing : '') + ')').join(', ');
+    // Names them and says what to do: these lines can't be edited in
+    // place, so "still to choose" on its own would be a dead end.
+    hint.textContent = 'Remove and re-add to pick ' +
+      missing.map(m => 'a ' + m.label + ' for ' + m.name + (m.missing > 1 ? ' (×' + m.missing + ')' : '')).join(', ') + '.';
   }
 
   // Kept on screen (disabled) rather than hidden when there's nothing to
