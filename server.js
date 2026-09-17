@@ -10,7 +10,7 @@ const sharedPasswordStore = require('./lib/sharedPassword');
 const concessionMenuStore = require('./lib/concessionMenu');
 const { createTextSettingStore } = require('./lib/textSetting');
 const { createPasswordAuth } = require('./lib/auth');
-const { normalizeSeats, normalizeSeatEntry } = require('./lib/seats');
+const { normalizeSeats, normalizeSeatEntry, isHostSeat } = require('./lib/seats');
 
 const ogImageStore = createImageStore('og');
 const logoImageStore = createImageStore('logo');
@@ -271,7 +271,15 @@ function publicShowtimeView(s) {
       // their own endpoint: the reservation page shows every reserved
       // seat's order inline on the list, so a separate fetch per seat
       // would just be the same data in N round-trips.
-      blockSeats[id] = { name: seats[id].name, paid: seats[id].paid, concessions: seats[id].concessions };
+      blockSeats[id] = {
+        name: seats[id].name,
+        paid: seats[id].paid,
+        // The host's own seat owes nothing at all -- not the ticket and
+        // not the concessions -- because they're the one paying for the
+        // lot. `paid` alone only covers the ticket.
+        host: isHostSeat(seats[id].name),
+        concessions: seats[id].concessions
+      };
     }
   });
   return {

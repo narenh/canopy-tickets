@@ -1125,6 +1125,13 @@ function todayISO(){
   return d.getFullYear() + '-' + month + '-' + day;
 }
 
+// The host's name, hardcoded for now in both here and lib/seats.js (see
+// the comment on HOST_SEAT_NAME there). They buy every ticket and every
+// tray, so a seat with their name on it is settled by definition -- if
+// the editor showed those as unpaid it would be arguing with the server
+// about money that doesn't exist.
+const HOST_SEAT_NAME = /\bnaren\b/i;
+
 // Normalizes a raw seat entry -- handles the legacy string format
 // ('selected' / 'occupied') from before per-seat names/paid tracking
 // existed, alongside the current object format. Returns null for
@@ -1145,12 +1152,13 @@ function normalizeSeatEntry(raw){
   }
   if (typeof raw === 'object'){
     if (raw.status === 'assigned'){
+      const name = raw.name || '';
       return {
         status: 'assigned',
-        name: raw.name || '',
-        paid: !!raw.paid,
+        name,
+        paid: !!raw.paid || HOST_SEAT_NAME.test(name),
         // A seat with nobody's name on it has nobody to order for it.
-        concessions: raw.name && Array.isArray(raw.concessions) ? raw.concessions : []
+        concessions: name && Array.isArray(raw.concessions) ? raw.concessions : []
       };
     }
     if (raw.status === 'occupied') return { status: 'occupied' };

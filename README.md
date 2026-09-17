@@ -139,11 +139,15 @@ access, not already-granted access.
 
 ## Add to calendar
 
-Right after claiming a seat, the first button on the confirmation card is
-**Add to calendar** — the one thing on that card that stops mattering the
-moment it's dismissed, since the money can be sorted out later but nobody
-re-opens a reservation page to find out what time the film was. It points
-at `/api/public/showtimes/:id/calendar.ics?seat=G15`, which builds a real
+The confirmation card after a claim asks one thing at a time — settle up,
+then put it in the calendar, then order something — each with its own way
+out, and skipping one moves to the next rather than dismissing the lot. A
+step that can't do anything is never offered: no payment handles set, no
+usable date to build an event from, no menu to order off. That's what the
+"Step 2 of 3" line is for, so Skip doesn't look like Close.
+
+The **Add to calendar** step points at
+`/api/public/showtimes/:id/calendar.ics?seat=G15`, which builds a real
 `.ics` on the fly: title, theater as the location, and the seat, format
 and price in the description.
 
@@ -220,6 +224,16 @@ Rapid taps are debounced into one request and writes are serialised, so
 they can't land out of order; closing the card flushes anything still
 pending. A failed write says so and offers a retry, because silent loss
 is the one thing autosave must not do.
+
+**The host owes nothing.** A seat whose name matches `HOST_SEAT_NAME` in
+`lib/seats.js` reads as paid everywhere and its cart totals to nothing —
+they buy every ticket and every tray on their own card, so there's nobody
+for them to pay, and the reservation page stops offering to send them
+money. It's derived rather than stored, so it holds however the name got
+onto the seat: claimed from the reservation page, or typed into the
+editor. Hardcoded to one name for now, deliberately in one place so
+generalising it is a matter of replacing that constant rather than
+hunting the idea through the views.
 
 **Sales tax** is added on the concessions, at `CONCESSION_TAX_RATE` in
 `server.js` — San Francisco's combined rate, served to both the cart and

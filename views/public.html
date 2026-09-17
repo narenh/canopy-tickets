@@ -425,7 +425,15 @@
   .success-sub{
     color:#e8e8e8;
     font-size:14px;
-    margin-bottom:16px;
+    margin-bottom:10px;
+  }
+  .success-step{
+    color:var(--muted);
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    min-height:14px;
+    margin-bottom:10px;
   }
   .claim-error{
     color:#e2857a;
@@ -902,24 +910,13 @@
   <!-- ===================== SUCCESS / PAY OVERLAY ===================== -->
   <div class="claim-overlay hidden" id="successOverlay">
     <div class="claim-card">
-      <div class="claim-title">You're in! 🎬</div>
+      <div class="claim-title">You're in! &#127916;</div>
       <div class="success-sub" id="successSub"></div>
-      <div class="claim-actions">
-        <!-- First, because it's the one thing here that stops mattering
-             the moment this card is dismissed: the money can be sorted
-             out later, but nobody re-opens a reservation page to find out
-             what time the film was. No target=_blank -- iOS shows the
-             Add to Calendar sheet over the page, and a blank tab is what
-             you get if you fight it. -->
-        <a class="cal-btn hidden" id="successCalLink" href="#">&#128197; Add to calendar</a>
-        <!-- Ahead of the pay buttons on purpose: ordering first means the
-             amount those buttons pre-fill is the whole bill, not a ticket
-             the friend then owes a second payment on top of. -->
-        <button type="button" id="successConcessionsBtn" onclick="openCartFromSuccess()">&#127871; Add concessions</button>
-        <a class="venmo-btn hidden" id="venmoLink" href="#" target="_blank" rel="noopener">Pay via Venmo</a>
-        <a class="cashapp-btn hidden" id="cashappLink" href="#" target="_blank" rel="noopener">Pay via Cash App</a>
-        <button type="button" onclick="closeSuccessOverlay()">Skip</button>
-      </div>
+      <div class="success-step" id="successStep"></div>
+      <!-- Built a step at a time by renderSuccessStep(): one decision on
+           screen, its skip underneath, then the next one. A column of
+           five buttons made every one of them look optional. -->
+      <div class="claim-actions" id="successActions"></div>
     </div>
   </div>
 
@@ -1433,48 +1430,121 @@ function closeClaimOverlay(){
 }
 
 // ---------------- SUCCESS / PAY OVERLAY ----------------
+// The card after a seat is claimed asks one thing at a time: settle up,
+// then put it in the calendar, then order something. Each has its own way
+// out, and skipping one moves to the next rather than dismissing the lot.
+//
+// A step that can't do anything is never offered -- no payment handles
+// set, no usable date to build an event from, no menu to order off.
+let successSteps = [];
+let successStepTotal = 0;  // fixed at open, so "2 of 3" doesn't renumber as steps are consumed
+let successShowtime = null;
+let successSeatId = null;
+
 function openSuccessOverlay(showtime, seatId){
+  successShowtime = showtime;
+  successSeatId = seatId;
+
   document.getElementById('successSub').textContent =
     'Seat ' + seatId + ' for ' + (showtime.title || 'this showtime') + (typeof showtime.price === 'number' ? ' -- ' + formatPrice(showtime.price) : '') + '.';
 
-  const venmoLink = document.getElementById('venmoLink');
-  const venmoNote = (showtime.title || 'Movie') + ' (' + formatDateShort(showtime.date) + ', ' + seatId + ')';
-  const link = buildVenmoLink(showtime.price, venmoNote);
-  if (link){
-    venmoLink.href = link;
-    venmoLink.textContent = typeof showtime.price === 'number' ? ('Pay ' + formatPrice(showtime.price) + ' via Venmo') : 'Pay via Venmo';
-    venmoLink.classList.remove('hidden');
-  } else {
-    venmoLink.classList.add('hidden');
-  }
+  const seat = (showtime.seats || {})[seatId];
+  // Nobody for the host to pay, so don't offer to send them money.
+  const isHost = !!(seat && seat.host);
+  const canPay = !isHost && !!(buildVenmoLink(showtime.price, '') || buildCashAppLink(showtime.price));
 
-  const cashappLink = document.getElementById('cashappLink');
-  const cashLink = buildCashAppLink(showtime.price);
-  if (cashLink){
-    cashappLink.href = cashLink;
-    cashappLink.textContent = typeof showtime.price === 'number' ? ('Pay ' + formatPrice(showtime.price) + ' via Cash App') : 'Pay via Cash App';
-    cashappLink.classList.remove('hidden');
-  } else {
-    cashappLink.classList.add('hidden');
-  }
+  successSteps = [];
+  if (canPay) successSteps.push('pay');
+  if (showtimeStart(showtime)) successSteps.push('calendar');
+  if (concessionMenu.length) successSteps.push('concessions');
+  successStepTotal = successSteps.length;
 
-  // Hidden rather than broken when a showtime has no usable date or time
-  // -- there's no event to build, and the server would say so with a 400
-  // after the tap rather than before it.
-  const calLink = document.getElementById('successCalLink');
-  if (showtimeStart(showtime)){
-    calLink.href = '/api/public/showtimes/' + encodeURIComponent(showtime.id) +
-      '/calendar.ics?seat=' + encodeURIComponent(seatId);
-    calLink.classList.remove('hidden');
-  } else {
-    calLink.classList.add('hidden');
-  }
-
-  // Only offered when the host actually has a menu up -- otherwise the
-  // button leads straight to an empty "no menu yet" card.
-  document.getElementById('successConcessionsBtn').classList.toggle('hidden', concessionMenu.length === 0);
-
+  renderSuccessStep();
   document.getElementById('successOverlay').classList.remove('hidden');
+}
+
+function successButton(label, className, onClick){
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  if (className) btn.className = className;
+  btn.textContent = label;
+  btn.addEventListener('click', onClick);
+  return btn;
+}
+
+function renderSuccessStep(){
+  const actions = document.getElementById('successActions');
+  const stepEl = document.getElementById('successStep');
+  actions.innerHTML = '';
+  stepEl.textContent = '';
+
+  const step = successSteps[0];
+  if (!step){
+    // Nothing this showtime can offer -- one way out rather than an
+    // empty card.
+    actions.appendChild(successButton('Done', '', closeSuccessOverlay));
+    return;
+  }
+
+  // Only worth saying when there's more than one, and it's what tells
+  // someone that "Skip" moves on rather than closing the card.
+  if (successStepTotal > 1){
+    stepEl.textContent = 'Step ' + (successStepTotal - successSteps.length + 1) + ' of ' + successStepTotal;
+  }
+
+  if (step === 'pay'){
+    const price = successShowtime.price;
+    const note = (successShowtime.title || 'Movie') + ' (' + formatDateShort(successShowtime.date) + ', ' + successSeatId + ')';
+    const venmo = buildVenmoLink(price, note);
+    const cash = buildCashAppLink(price);
+    // Both open in a new tab, so advancing straight away leaves the next
+    // step waiting when they come back rather than the one they just did.
+    if (venmo) actions.appendChild(successLink(
+      typeof price === 'number' ? ('Pay ' + formatPrice(price) + ' via Venmo') : 'Pay via Venmo', 'venmo-btn', venmo, true));
+    if (cash) actions.appendChild(successLink(
+      typeof price === 'number' ? ('Pay ' + formatPrice(price) + ' via Cash App') : 'Pay via Cash App', 'cashapp-btn', cash, true));
+    actions.appendChild(successButton('Skip', '', advanceSuccessStep));
+    return;
+  }
+
+  if (step === 'calendar'){
+    const href = '/api/public/showtimes/' + encodeURIComponent(successShowtime.id) +
+      '/calendar.ics?seat=' + encodeURIComponent(successSeatId);
+    // No target: iOS shows the Add to Calendar sheet over the page, and a
+    // blank tab is what you get if you fight it.
+    actions.appendChild(successLink('\uD83D\uDCC5 Add to calendar', 'cal-btn', href, false));
+    actions.appendChild(successButton('Skip', '', advanceSuccessStep));
+    return;
+  }
+
+  // concessions
+  actions.appendChild(successButton('\uD83C\uDF7F Add concessions', '', openCartFromSuccess));
+  actions.appendChild(successButton('Later', '', advanceSuccessStep));
+}
+
+function successLink(label, className, href, newTab){
+  const a = document.createElement('a');
+  a.className = className;
+  a.href = href;
+  a.textContent = label;
+  if (newTab){
+    a.target = '_blank';
+    a.rel = 'noopener';
+  }
+  a.addEventListener('click', () => {
+    // Doing the thing counts as finishing the step.
+    setTimeout(advanceSuccessStep, 0);
+  });
+  return a;
+}
+
+function advanceSuccessStep(){
+  successSteps.shift();
+  if (!successSteps.length){
+    closeSuccessOverlay();
+    return;
+  }
+  renderSuccessStep();
 }
 
 function closeSuccessOverlay(){
@@ -2295,7 +2365,10 @@ function renderCartFoot(){
   const tax = concessionTax(concessions);
   const ticketPrice = obj && typeof obj.price === 'number' ? obj.price : 0;
   const ticketPaid = !!(seat && seat.paid);
-  const owed = Math.round(((ticketPaid ? 0 : ticketPrice) + concessions + tax) * 100) / 100;
+  // The host's seat settles itself: they bought the tickets and they're
+  // buying the concessions, so there's nobody for them to pay.
+  const isHost = !!(seat && seat.host);
+  const owed = isHost ? 0 : Math.round(((ticketPaid ? 0 : ticketPrice) + concessions + tax) * 100) / 100;
 
   totals.innerHTML = '';
   if (ticketPrice > 0){
@@ -2310,7 +2383,11 @@ function renderCartFoot(){
   if (tax > 0){
     totals.appendChild(cartTotalRow('Tax (' + formatTaxRate(concessionTaxRate) + ')', escapeHtml(formatPrice(tax))));
   }
-  const owedRow = cartTotalRow('You owe', escapeHtml(formatPrice(owed)));
+  // "$0.00" would read as a rounding accident. Say why it's nothing.
+  const owedRow = cartTotalRow(
+    isHost ? 'You owe' : 'You owe',
+    isHost ? '<span class="paid-note">nothing &mdash; you\'re buying</span>' : escapeHtml(formatPrice(owed))
+  );
   owedRow.classList.add('is-owed');
   totals.appendChild(owedRow);
 
@@ -2331,7 +2408,7 @@ function renderCartFoot(){
   // Note carries the seat so the host can tell two friends' payments
   // apart in a Venmo feed; Cash App has no note param at all (see
   // buildCashAppLink).
-  const note = (obj && obj.title ? obj.title : 'Movie') +
+  const payNote = (obj && obj.title ? obj.title : 'Movie') +
     ' (' + formatDateShort(obj ? obj.date : '') + ', ' + cartSeatId + ')' +
     (concessions > 0 ? ' + concessions' : '');
   // Withheld while a write is in flight or has failed (the figure on the
@@ -2340,7 +2417,7 @@ function renderCartFoot(){
   const showPay = saveState === 'idle' && missing.length === 0 && owed > 0;
 
   const venmoEl = document.getElementById('cartVenmoLink');
-  const venmoUrl = showPay ? buildVenmoLink(owed, note) : null;
+  const venmoUrl = showPay ? buildVenmoLink(owed, payNote) : null;
   venmoEl.classList.toggle('hidden', !venmoUrl);
   if (venmoUrl){
     venmoEl.href = venmoUrl;
