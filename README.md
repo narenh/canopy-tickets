@@ -170,7 +170,8 @@ is a label on an already-discounted price, not arithmetic the app
 performs.
 
 **Option groups** are named lists of choices an item comes with —
-`Sauce`, `Pretzel Flavor`, `Pizza`. An item points at one group by id, so
+`Sauce`, `Pretzel Flavor`, `Pizza Flavor`, all transcribed from AMC's own
+ordering screens. An item points at one group by id, so
 a group can be shared by several items (chicken tenders, popcorn chicken
 and IMPOSSIBLE nuggets all take the same sauce cups) or belong to exactly
 one (a pizza's toppings) — same mechanism either way, which is what makes
@@ -184,12 +185,19 @@ get two dropdowns, because that's two sauce cups and quite possibly two
 different ones. Candy is deliberately *not* an option group — it's a flat
 list of individual items, so two different candies are just two lines.
 
-The sauce list is transcribed from AMC's ordering screen. The pretzel and
-pizza groups ship **empty** on purpose: those items do have their own
-choices, but a made-up list of flavors and toppings that reads as
-authoritative and is wrong is worse than a group sitting ready to fill
-in. An item whose group has no options behaves exactly like an item with
-no group until someone fills it.
+A group the host creates and hasn't filled in yet is still legal: an item
+whose group has no options behaves exactly like an item with no group
+until someone fills it.
+
+**Sections** keep the list readable. An item can carry a section name,
+and a named section is folded behind a collapsed header in the cart
+instead of sitting inline — that's what keeps 25 candy bars from burying
+the eight things people usually want. It's presentation only; a section
+has no bearing on price, options or what lands in an order. A section
+opens itself when it holds something already in the cart, so reopening a
+cart never hides what's in it, and its header shows how much is. The
+admin panel files rows the same way (a row moves to its new section on
+the next save, not mid-keystroke).
 
 **What the host sees.** Open a showtime in the editor and, under the seat
 summary, there's what everyone ordered: a line per seat (with their picks
@@ -234,6 +242,17 @@ A few things worth knowing about how this actually works:
   longer on the menu", and can still be edited down to zero). Same for
   options: a sauce the host has since deleted still shows as the pick on
   an order that chose it.
+- **Nobody sitting next to Naren is offered peanut candy.** Played for a
+  laugh, built to fail safe: when a neighbouring seat in the same row is
+  reserved by a Naren (matched on a word boundary, any capitalization),
+  peanut items drop out of that seat's menu with a line saying why. It
+  will *not* hide a peanut item already in the cart — an invisible line
+  someone is still being charged for is worse than a visible one — and it
+  isn't enforcement: the host still sees every order in full, which is
+  the copy that matters at the counter. Only same-row neighbours count,
+  because seat numbers don't line up across rows (row A is offset, see
+  `padStart` in `seat-layout.js`), so "same number, next row" isn't the
+  seat behind you.
 - **Clearing a seat's name clears its order.** The order belonged to the
   person whose name was on the seat, so freeing the seat for someone else
   starts them from an empty cart. Fixing a typo in a name, or ticking

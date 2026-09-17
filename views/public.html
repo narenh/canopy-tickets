@@ -592,6 +592,50 @@
     padding-top:7px;
   }
   .cart-total-row .paid-note{color:var(--green);}
+  .cart-peanut-note{
+    background:#151517;
+    border:1px solid #2a2a2a;
+    border-radius:8px;
+    color:var(--muted);
+    font-size:11.5px;
+    padding:7px 10px;
+    margin:8px 0 4px;
+  }
+  .cart-section{
+    border-top:1px solid #202023;
+    margin-top:4px;
+  }
+  .cart-section summary{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:10px;
+    padding:11px 0;
+    font-size:14px;
+    font-weight:700;
+    color:#fff;
+    cursor:pointer;
+    list-style:none;
+  }
+  .cart-section summary::-webkit-details-marker{display:none;}
+  .cart-section summary::before{
+    content:'\25b8';
+    display:inline-block;
+    margin-right:2px;
+    color:var(--muted);
+    font-weight:400;
+    transition:transform .15s;
+  }
+  .cart-section[open] summary::before{transform:rotate(90deg);}
+  /* The label sits between the caret and the count, so it gets the slack. */
+  .cart-section summary span:first-of-type{flex:1;}
+  .cart-section-count{
+    flex:0 0 auto;
+    font-size:11.5px;
+    font-weight:400;
+    color:var(--muted);
+  }
+  .cart-section-body{padding-bottom:4px;}
   .cart-empty-menu{
     color:var(--muted);
     font-size:13px;
@@ -1260,7 +1304,19 @@ const MAX_CART_QTY = 99;
 // people honest, and the host can still sort anything out by text.
 const CONCESSION_CUTOFF_HOURS = 2;
 
-let concessionMenu = [];   // [{id, name, price, note, optionGroup}] from /api/public/concession-menu
+// Nobody sitting next to Naren gets offered peanut candy. Played for a
+// laugh, but it's an allergy, so it's built to fail safe rather than to
+// be cute: see hidePeanutRows() for what it deliberately does NOT do.
+//
+// Matched on a word boundary so "Naren", "naren" and "Naren H" all count
+// while a "Karen" two seats over doesn't.
+const PEANUT_NEIGHBOR = /\bnaren\b/i;
+// Name-matched rather than by a list of ids, so it keeps working after
+// the host renames an item or adds one of their own. Reese's is on here
+// by brand: the word "peanut" isn't in the name, the peanut butter is.
+const PEANUT_ITEM = /peanut|reese/i;
+
+let concessionMenu = [];   // [{id, name, price, note, section, optionGroup}] from /api/public/concession-menu
 let optionGroups = [];     // [{id, label, options[]}] -- the choice lists items point at
 let cartShowtimeId = null;
 let cartSeatId = null;
@@ -1372,6 +1428,7 @@ function buildCartRows(lines){
       name: item.name,
       price: item.price,
       note: item.note || '',
+      section: item.section || '',
       qty: existing ? existing.qty : 0,
       lineNote: existing && existing.note ? existing.note : '',
       options: existing && Array.isArray(existing.options) ? existing.options.slice() : [],
@@ -1394,6 +1451,9 @@ function buildCartRows(lines){
       name: merged.name,
       price: merged.price,
       note: '',
+      // An item that's left the menu has no section to sit in, so it
+      // shows in the main list where it can't be missed.
+      section: '',
       qty: merged.qty,
       lineNote: merged.note || '',
       options: Array.isArray(merged.options) ? merged.options.slice() : [],
@@ -1421,6 +1481,39 @@ function cartLines(){
 
 function currentCartShowtime(){
   return allShowtimes.find(s => s.id === cartShowtimeId) || null;
+}
+
+// Seats either side of this one in the same row. Deliberately NOT the
+// rows in front or behind: seat numbers don't line up across rows (row A
+// is offset -- see padStart in seat-layout.js), so "same number, next
+// row" is not the seat behind you, and guessing wrong here would be
+// worse than the narrower answer.
+function neighborSeatIds(seatId){
+  const m = /^([A-Za-z]+)(\d+)$/.exec(seatId || '');
+  if (!m) return [];
+  const n = Number(m[2]);
+  return [m[1] + (n - 1), m[1] + (n + 1)];
+}
+
+function hasPeanutNeighbor(showtime, seatId){
+  const seats = (showtime && showtime.seats) || {};
+  return neighborSeatIds(seatId).some(id => seats[id] && PEANUT_NEIGHBOR.test(seats[id].name || ''));
+}
+
+// Returns the rows to leave out of the rendered menu, and never touches
+// cartRows itself -- what gets saved is still whatever is in the cart.
+//
+// Two things this deliberately does not do:
+//  - it won't hide a peanut item that's ALREADY in this cart. Hiding a
+//    line someone is being charged for would make it invisible and
+//    un-removable, which is worse than showing it.
+//  - it isn't enforcement. It's a nudge on one screen; the host still
+//    sees every order in full, which is the copy that matters at the
+//    counter.
+function hiddenPeanutRows(){
+  const showtime = currentCartShowtime();
+  if (!hasPeanutNeighbor(showtime, cartSeatId)) return new Set();
+  return new Set(cartRows.filter(r => r.qty === 0 && PEANUT_ITEM.test(r.name || '')));
 }
 
 // ---------------- CART OVERLAY ----------------
@@ -1495,10 +1588,73 @@ function renderCart(){
     empty.textContent = "The host hasn't put up a concessions menu yet. Check back later.";
     body.appendChild(empty);
   } else {
-    cartRows.forEach(row => body.appendChild(buildCartRowEl(row)));
+    const hidden = hiddenPeanutRows();
+    if (hidden.size){
+      const why = document.createElement('div');
+      why.className = 'cart-peanut-note';
+      why.textContent = "\uD83E\uDD5C Peanut candy is hidden \u2014 you're sitting next to Naren.";
+      body.appendChild(why);
+    }
+
+    // Unsectioned items inline, then each named section folded away
+    // behind a header. 25 candy bars sitting above the eight things
+    // people usually want is the whole reason this exists.
+    const sections = new Map();
+    cartRows.forEach(row => {
+      if (hidden.has(row)) return;
+      if (!row.section){
+        body.appendChild(buildCartRowEl(row));
+        return;
+      }
+      if (!sections.has(row.section)) sections.set(row.section, []);
+      sections.get(row.section).push(row);
+    });
+    sections.forEach((rows, name) => body.appendChild(buildCartSectionEl(name, rows)));
   }
 
   renderCartFoot();
+}
+
+// A collapsed section. Native <details>, so the open/closed state is the
+// browser's to keep and there's nothing to wire up for the keyboard.
+function buildCartSectionEl(name, rows){
+  const wrap = document.createElement('details');
+  wrap.className = 'cart-section';
+
+  const chosen = rows.filter(r => r.qty > 0);
+  // Opens itself when something in it is already ordered -- a friend
+  // reopening their cart should see their Skittles, not have to know to
+  // go looking for them.
+  wrap.open = chosen.length > 0;
+
+  const summary = document.createElement('summary');
+  const label = document.createElement('span');
+  label.textContent = name;
+  summary.appendChild(label);
+
+  const count = document.createElement('span');
+  count.className = 'cart-section-count';
+  count.textContent = chosen.length
+    ? chosen.reduce((n, r) => n + r.qty, 0) + ' in cart'
+    : rows.length + ' item' + (rows.length === 1 ? '' : 's');
+  summary.appendChild(count);
+  wrap.appendChild(summary);
+
+  const inner = document.createElement('div');
+  inner.className = 'cart-section-body';
+  rows.forEach(row => inner.appendChild(buildCartRowEl(row)));
+  wrap.appendChild(inner);
+
+  // Kept live as the stepper changes, so the header still reads right
+  // while the section is open and after it's folded back up.
+  wrap.addEventListener('cart-qty-changed', () => {
+    const now = rows.filter(r => r.qty > 0);
+    count.textContent = now.length
+      ? now.reduce((n, r) => n + r.qty, 0) + ' in cart'
+      : rows.length + ' item' + (rows.length === 1 ? '' : 's');
+  });
+
+  return wrap;
 }
 
 function buildCartRowEl(row){
@@ -1661,6 +1817,9 @@ function buildCartRowEl(row){
     markCartDirty();
     sync();
     renderCartFoot();
+    // Lets the section header above update its count without this row
+    // needing a reference to it.
+    el.dispatchEvent(new CustomEvent('cart-qty-changed', { bubbles: true }));
   }
 
   minus.addEventListener('click', () => bump(-1));

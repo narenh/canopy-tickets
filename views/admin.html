@@ -652,6 +652,41 @@
     font-family:inherit;
     max-width:48%;
   }
+  .menu-row input.menu-section-input{
+    flex:0 1 96px;
+    min-width:70px;
+    background:#0f0f10;
+    color:#ccc;
+    border:1px solid #2f2f2f;
+    border-radius:10px;
+    padding:6px 10px;
+    font-size:12px;
+  }
+  .menu-section{
+    border:1px solid #232326;
+    border-radius:10px;
+    padding:0 10px;
+    margin-bottom:12px;
+  }
+  .menu-section summary{
+    cursor:pointer;
+    color:#ccc;
+    font-size:12.5px;
+    font-weight:700;
+    padding:9px 0;
+    list-style:none;
+  }
+  .menu-section summary::-webkit-details-marker{display:none;}
+  .menu-section summary::before{
+    content:'\25b8';
+    display:inline-block;
+    margin-right:6px;
+    color:var(--muted);
+    font-weight:400;
+    transition:transform .15s;
+  }
+  .menu-section[open] summary::before{transform:rotate(90deg);}
+  .menu-section .menu-row:last-child{border-bottom:none;}
   .group-row{
     margin-bottom:12px;
     padding-bottom:12px;
@@ -869,8 +904,11 @@
 
     <div class="og-section">
       <h3>Concessions Menu</h3>
-      <p>What friends can order from the reservation page. Ships with the AMC staples already filled in -- edit, reprice, add or remove anything and save, and your version takes over. One list for every showtime; orders are attached to each reserved seat, and friends can change theirs until 2 hours before showtime. Removing an item here doesn't disturb orders already placed -- those keep the name and price they were placed at.</p>
+      <p>What friends can order from the reservation page. Ships with the AMC menu already filled in -- edit, reprice, add or remove anything and save, and your version takes over. One list for every showtime; orders are attached to each reserved seat, and friends can change theirs until 2 hours before showtime. Removing an item here doesn't disturb orders already placed -- those keep the name and price they were placed at.</p>
       <div id="menuRows"></div>
+      <!-- Every section name already in use, so filing an item under one
+           is a pick rather than a retype (sections match on exact text). -->
+      <datalist id="sectionSuggestions"></datalist>
       <div class="og-controls">
         <button type="button" onclick="addMenuRow()">+ Add item</button>
       </div>
@@ -1901,13 +1939,14 @@ async function saveSharedPassword(){
 // across saves so editing an item is an edit rather than a delete plus a
 // re-add (which would orphan it from carts that reference it).
 
-let menuItems = [];     // [{id, name, price, note, optionGroup}] -- id is '' for a row added here and not yet saved
+let menuItems = [];     // [{id, name, price, note, section, optionGroup}] -- id is '' for a row added here and not yet saved
 let optionGroups = [];  // [{id, label, options[]}] -- the choice lists items point at
 let menuIsDefault = true;  // true while the built-in AMC menu is what's in effect
 
 function renderMenuRows(){
   const container = document.getElementById('menuRows');
   container.innerHTML = '';
+  refreshSectionSuggestions();
   if (menuItems.length === 0){
     const empty = document.createElement('div');
     empty.className = 'menu-empty';
@@ -1915,7 +1954,42 @@ function renderMenuRows(){
     container.appendChild(empty);
     return;
   }
-  menuItems.forEach((item, idx) => container.appendChild(buildMenuRow(item, idx)));
+
+  // Same split the reservation page makes: unsectioned rows inline,
+  // named sections folded away. 25 candy bars between the food and the
+  // option groups is a lot of scrolling past on the way to anything else.
+  //
+  // Rows are filed by whatever the section field said at render time and
+  // do NOT jump between sections as it's typed -- re-rendering on every
+  // keystroke would yank focus out of the field mid-word. A row lands in
+  // its new section on the next save.
+  const sections = new Map();
+  menuItems.forEach((item, idx) => {
+    if (!item.section){
+      container.appendChild(buildMenuRow(item, idx));
+      return;
+    }
+    if (!sections.has(item.section)) sections.set(item.section, []);
+    sections.get(item.section).push({ item, idx });
+  });
+  sections.forEach((entries, name) => {
+    const wrap = document.createElement('details');
+    wrap.className = 'menu-section';
+    const summary = document.createElement('summary');
+    summary.textContent = name + ' (' + entries.length + ')';
+    wrap.appendChild(summary);
+    entries.forEach(({ item, idx }) => wrap.appendChild(buildMenuRow(item, idx)));
+    container.appendChild(wrap);
+  });
+}
+
+// Feeds the datalist behind each row's section field, so filing an item
+// under an existing section is a pick rather than a retype it can only
+// get subtly wrong (a section is matched by its exact text).
+function refreshSectionSuggestions(){
+  const list = document.getElementById('sectionSuggestions');
+  const names = Array.from(new Set(menuItems.map(i => i.section).filter(Boolean))).sort();
+  list.innerHTML = names.map(n => '<option value="' + escapeHtml(n) + '"></option>').join('');
 }
 
 function buildMenuRow(item, idx){
@@ -1977,6 +2051,18 @@ function buildMenuRow(item, idx){
   note.value = item.note || '';
   note.addEventListener('input', () => { menuItems[idx].note = note.value; });
   bottom.appendChild(note);
+
+  // Presentation only: a named section is collapsed behind a header both
+  // here and in the friend's cart. Blank keeps the item in the main list.
+  const section = document.createElement('input');
+  section.type = 'text';
+  section.className = 'menu-section-input';
+  section.setAttribute('list', 'sectionSuggestions');
+  section.placeholder = 'Section';
+  section.maxLength = 60;
+  section.value = item.section || '';
+  section.addEventListener('input', () => { menuItems[idx].section = section.value; });
+  bottom.appendChild(section);
 
   // Which list of choices this item comes with, if any. Rebuilt from
   // optionGroups every render, so adding a group makes it selectable on
@@ -2095,7 +2181,7 @@ function addOptionGroup(){
 }
 
 function addMenuRow(){
-  menuItems.push({ id: '', name: '', price: '', note: '', optionGroup: '' });
+  menuItems.push({ id: '', name: '', price: '', note: '', section: '', optionGroup: '' });
   renderMenuRows();
   const inputs = document.querySelectorAll('#menuRows input.menu-name');
   if (inputs.length) inputs[inputs.length - 1].focus();
