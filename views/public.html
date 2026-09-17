@@ -154,7 +154,14 @@
     margin-bottom:3px;
   }
   .seat-line b{color:var(--gold);}
-  .seat-line .seat-id{color:var(--muted);font-size:11px;}
+  /* Same size and weight as the name beside it -- only the colour sets
+     it back, so the two read as one label rather than a name with a
+     footnote. The margin is the breathing room between them. */
+  .seat-line .seat-id{
+    color:var(--muted);
+    font-weight:700;
+    margin-right:9px;
+  }
   .seat-line .unpaid-tag{color:#e2857a;font-size:11px;margin-left:6px;}
   .claimed-list{margin-bottom:10px;}
   .claim-btn{
@@ -1175,7 +1182,10 @@ function buildClaimedSeatLine(obj, seatId, ordersOpen){
   who.className = 'seat-line-who';
   // Paid seats show just the name -- only unpaid ones get a tag, so this
   // list reads as "who still owes" rather than a payment log.
-  who.innerHTML = '<b>' + escapeHtml(seat.name || '') + '</b> <span class="seat-id">(' + escapeHtml(seatId) + ')</span>' +
+  // Seat first, then who's in it: the seat is what you're scanning for
+  // when you're looking down a row, and it's the shorter of the two so
+  // the names line up.
+  who.innerHTML = '<span class="seat-id">' + escapeHtml(seatId) + '</span><b>' + escapeHtml(seat.name || '') + '</b>' +
     (seat.paid ? '' : '<span class="unpaid-tag">unpaid</span>');
   main.appendChild(who);
 
