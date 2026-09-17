@@ -901,6 +901,12 @@ let allShowtimes = [];     // last-loaded list from /api/public/showtimes
 let currentShowtimeId = null;
 let claimingSeatId = null;
 let seatEls = {};          // seatId -> DOM element, populated by buildSeatmap
+// Applied to the concessions subtotal only -- California doesn't tax
+// admissions, and cinema food is taxable even where the same item bought
+// in a shop wouldn't be. Served by the server so this page and the
+// editor can't drift apart on it; 0 until config loads, so a cart drawn
+// before then quotes the untaxed total rather than a wrong one.
+let concessionTaxRate = 0;
 let venmoHandle = null;    // loaded once from /api/public/config
 let cashappHandle = null;  // loaded once from /api/public/config
 
@@ -938,6 +944,7 @@ async function loadConfig(){
     const data = await res.json();
     venmoHandle = data.venmoHandle || null;
     cashappHandle = data.cashappHandle || null;
+    concessionTaxRate = typeof data.concessionTaxRate === 'number' ? data.concessionTaxRate : 0;
   }catch(e){
     // Non-fatal -- the claim flow just skips both pay links.
   }
@@ -1503,6 +1510,17 @@ async function loadConcessionMenu(){
 function concessionsTotal(lines){
   const total = (lines || []).reduce((sum, l) => sum + (l.price || 0) * (l.qty || 0), 0);
   return Math.round(total * 100) / 100;
+}
+
+function concessionTax(subtotal){
+  if (!(subtotal > 0) || !(concessionTaxRate > 0)) return 0;
+  return Math.round(subtotal * concessionTaxRate * 100) / 100;
+}
+
+// "8.625%" rather than "8.62%" -- the rate really does carry a third
+// decimal, and rounding the label makes the arithmetic look wrong.
+function formatTaxRate(rate){
+  return (rate * 100).toFixed(3).replace(/0+$/, '').replace(/\.$/, '') + '%';
 }
 
 // Local Date for a showtime's start, or null if it hasn't got a usable
@@ -2167,9 +2185,10 @@ function renderCartFoot(){
   const totals = document.getElementById('cartTotals');
   const lines = cartLines();
   const concessions = concessionsTotal(lines);
+  const tax = concessionTax(concessions);
   const ticketPrice = obj && typeof obj.price === 'number' ? obj.price : 0;
   const ticketPaid = !!(seat && seat.paid);
-  const owed = Math.round(((ticketPaid ? 0 : ticketPrice) + concessions) * 100) / 100;
+  const owed = Math.round(((ticketPaid ? 0 : ticketPrice) + concessions + tax) * 100) / 100;
 
   totals.innerHTML = '';
   if (ticketPrice > 0){
@@ -2179,6 +2198,11 @@ function renderCartFoot(){
     ));
   }
   totals.appendChild(cartTotalRow('Concessions', escapeHtml(concessions > 0 ? formatPrice(concessions) : '--')));
+  // Only when there's something to tax -- a row of "Tax $0.00" above an
+  // empty order is noise.
+  if (tax > 0){
+    totals.appendChild(cartTotalRow('Tax (' + formatTaxRate(concessionTaxRate) + ')', escapeHtml(formatPrice(tax))));
+  }
   const owedRow = cartTotalRow('You owe', escapeHtml(formatPrice(owed)));
   owedRow.classList.add('is-owed');
   totals.appendChild(owedRow);

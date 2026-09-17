@@ -1131,6 +1131,15 @@ function concessionsTotal(lines){
   return Math.round(total * 100) / 100;
 }
 
+function concessionTax(subtotal){
+  if (!(subtotal > 0) || !(concessionTaxRate > 0)) return 0;
+  return Math.round(subtotal * concessionTaxRate * 100) / 100;
+}
+
+function formatTaxRate(rate){
+  return (rate * 100).toFixed(3).replace(/0+$/, '').replace(/\.$/, '') + '%';
+}
+
 // "Chicken Tenders x2 (BBQ, Ranch)" -- one cart line in words. The
 // the picks are part of the item's identity at the counter, not a
 // footnote, so they ride along everywhere the line is named.
@@ -1684,8 +1693,14 @@ function renderOrders(){
       const note = l.note ? ' \u2014 ' + escapeHtml(l.note) : '';
       return escapeHtml(concessionLineLabel(l)) + note;
     }).join(', ');
+    // Tax included, because this is the figure that person was quoted and
+    // so the figure they'll hand over. (Rounding each seat separately can
+    // leave the seats summing a cent or two from the tax on the whole
+    // order below -- which is real, not a bug: the counter taxes one
+    // receipt, four friends each round their own.)
+    const seatSubtotal = concessionsTotal(lines);
     return '<div class="order-line"><b>' + escapeHtml(seat.name) + '</b> <span class="seat-id">(' + escapeHtml(id) + ')</span>' +
-      ' &mdash; ' + formatPrice(concessionsTotal(lines)) +
+      ' &mdash; ' + formatPrice(Math.round((seatSubtotal + concessionTax(seatSubtotal)) * 100) / 100) +
       '<div class="order-items">' + detail + '</div></div>';
   }).join('');
 
@@ -1726,12 +1741,22 @@ function renderOrders(){
       '</span></div>'
     : '';
 
+  // The roll-up is what gets handed over at the counter, so it carries
+  // tax -- a shopping list that adds up to less than the receipt is the
+  // one way this panel could mislead.
+  const subtotal = Math.round(grand * 100) / 100;
+  const tax = concessionTax(subtotal);
+  const taxRow = tax > 0
+    ? '<div class="rollup-line"><span>Tax (' + escapeHtml(formatTaxRate(concessionTaxRate)) + ')</span><span>' +
+      escapeHtml(formatPrice(tax)) + '</span></div>'
+    : '';
+
   el.innerHTML =
     '<h4>Concessions (' + ordered.length + ' seat' + (ordered.length === 1 ? '' : 's') + ')</h4>' +
     perSeat +
-    '<div class="order-rollup">' + rollupLines + optionRollup +
+    '<div class="order-rollup">' + rollupLines + optionRollup + taxRow +
     '<div class="rollup-line is-total"><span>Total to buy</span><span>' +
-    escapeHtml(formatPrice(Math.round(grand * 100) / 100)) + '</span></div></div>';
+    escapeHtml(formatPrice(Math.round((subtotal + tax) * 100) / 100)) + '</span></div></div>';
 }
 
 // ---------------- SAVE / DELETE ----------------
@@ -1945,6 +1970,10 @@ async function saveSharedPassword(){
 let menuItems = [];     // [{id, name, price, note, section, optionGroup}] -- id is '' for a row added here and not yet saved
 let optionGroups = [];  // [{id, label, options[]}] -- the choice lists items point at
 let menuIsDefault = true;  // true while the built-in AMC menu is what's in effect
+// Served alongside the menu so this panel and the reservation page can't
+// drift apart on it. Applies to concessions only -- the tickets aren't
+// taxed, and they're already paid for by the time this matters.
+let concessionTaxRate = 0;
 
 function renderMenuRows(){
   const container = document.getElementById('menuRows');
@@ -2194,6 +2223,7 @@ function addMenuRow(){
 // the whole panel, so load, save and reset all land the same way.
 function applyMenuPayload(data){
   menuItems = Array.isArray(data.items) ? data.items : [];
+  if (typeof data.taxRate === 'number') concessionTaxRate = data.taxRate;
   optionGroups = Array.isArray(data.optionGroups) ? data.optionGroups : [];
   menuIsDefault = !!data.isDefault;
   // Nothing to restore to while the built-ins are already what's showing.

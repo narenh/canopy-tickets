@@ -130,6 +130,23 @@ function parsePrice(raw) {
   return Math.round(n * 100) / 100;
 }
 
+// California normally exempts cold food to go -- a candy bar or a bottled
+// drink from a shop isn't taxed. Concessions at a cinema are the
+// exception: food sold where admission is charged is taxable regardless
+// of what it is or whether it's hot (Reg. 1603). So this applies to the
+// whole concessions subtotal rather than trying to sort popcorn from
+// candy, which is both simpler and closer to what the receipt says.
+//
+// The ticket itself isn't in it -- California doesn't tax admissions, and
+// the price on a showtime is what the host already paid AMC anyway.
+//
+// APPROXIMATE, and meant to be: it's San Francisco's combined state,
+// county and district rate, which moves every few years and is one number
+// to edit here when it does. It exists so nobody is surprised at the
+// counter by a bill a few dollars over what the app quoted, not to be an
+// accounting system.
+const CONCESSION_TAX_RATE = 0.08625; // San Francisco, CA
+
 // Every showtime needs an auditorium/seat-map now, keyed by a
 // theater+auditorium id (see public/seat-layout.js -- SEAT_LAYOUTS keys
 // look like "amc-metreon-16", since a bare auditorium number only means
@@ -357,7 +374,10 @@ app.post('/api/payment-handles', adminAuth.requireAuth('/'), (req, res) => {
 // operation.
 
 app.get('/api/concession-menu', adminAuth.requireAuth('/'), (req, res) => {
-  res.json(concessionMenuStore.get());
+  // The rate rides along with the menu rather than getting an endpoint of
+  // its own: the editor already fetches this at load, and the only thing
+  // it needs the rate for is the order roll-up's total.
+  res.json({ ...concessionMenuStore.get(), taxRate: CONCESSION_TAX_RATE });
 });
 
 app.post('/api/concession-menu', adminAuth.requireAuth('/'), (req, res) => {
@@ -371,7 +391,7 @@ app.post('/api/concession-menu', adminAuth.requireAuth('/'), (req, res) => {
   // Echoing the saved list back matters: brand-new rows get their ids
   // assigned server-side, and the editor needs them to keep editing the
   // same row instead of creating a duplicate on the next save.
-  res.json({ ok: true, ...concessionMenuStore.set(items || [], optionGroups || []) });
+  res.json({ ok: true, ...concessionMenuStore.set(items || [], optionGroups || []), taxRate: CONCESSION_TAX_RATE });
 });
 
 // Throws away the saved menu so the built-in AMC list takes over again
@@ -379,7 +399,7 @@ app.post('/api/concession-menu', adminAuth.requireAuth('/'), (req, res) => {
 // anyone's existing orders -- those carry their own copy of whatever
 // they were placed against.
 app.post('/api/concession-menu/reset', adminAuth.requireAuth('/'), (req, res) => {
-  res.json({ ok: true, ...concessionMenuStore.reset() });
+  res.json({ ok: true, ...concessionMenuStore.reset(), taxRate: CONCESSION_TAX_RATE });
 });
 
 // ---------------- Showtimes API (admin auth required) ----------------
@@ -498,7 +518,11 @@ app.delete('/api/showtimes/:id', async (req, res) => {
 app.use('/api/public', sharedAuth.requireAuth('/'));
 
 app.get('/api/public/config', (req, res) => {
-  res.json({ venmoHandle: venmoHandleStore.get(), cashappHandle: cashappHandleStore.get() });
+  res.json({
+    venmoHandle: venmoHandleStore.get(),
+    cashappHandle: cashappHandleStore.get(),
+    concessionTaxRate: CONCESSION_TAX_RATE
+  });
 });
 
 app.get('/api/public/showtimes', (req, res) => {
@@ -529,6 +553,10 @@ app.post('/api/public/showtimes/:id/claim', async (req, res) => {
 // every phone knows what to do with (iOS offers "Add to Calendar", Android
 // hands it to whichever calendar app is installed), and it doesn't assume
 // anyone's calendar lives at a particular provider.
+//
+// Times are resolved against San Francisco's own clock, so a January
+// showtime lands on PST and a July one on PDT with nobody picking which
+// -- see showtimeInstantMs below.
 
 // Three hours: long enough for trailers, the film and getting out, which
 // is what the block on someone's calendar is actually for. Nothing here
@@ -566,31 +594,79 @@ function icsFold(line) {
   return out.join('\r\n');
 }
 
-// A FLOATING local timestamp (no Z, no TZID): a showtime's date and time
-// are stored as bare local strings with no timezone -- see the cutoff
-// comment on the concessions route -- so the only honest thing to put in
-// the file is "7pm wherever you are", which is what everyone means. The
-// alternative is guessing a timezone and being an hour out twice a year.
-function icsLocalStamp(date, time, addMinutes) {
+// Every screen this app knows about is at AMC Metreon in San Francisco
+// (see SEAT_LAYOUTS in public/seat-layout.js). When that stops being
+// true, a showtime will need to carry its own timezone and this becomes
+// a per-showtime lookup rather than a constant.
+const SHOWTIME_TIMEZONE = 'America/Los_Angeles';
+
+// How far the named zone was from UTC at a given instant, in ms.
+// Formatting the instant AS that zone and reading the wall-clock fields
+// back is the one way to get this without shipping a timezone database:
+// Intl already has one.
+function zoneOffsetMs(instantMs, timeZone) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  }).formatToParts(new Date(instantMs));
+  const get = (type) => Number(parts.find((p) => p.type === type).value);
+  // hour comes back as 24 rather than 0 at midnight under hour12:false.
+  return Date.UTC(get('year'), get('month') - 1, get('day'), get('hour') % 24, get('minute'), get('second')) - instantMs;
+}
+
+// A showtime's date and time are a wall clock in San Francisco. Resolve
+// them to the actual instant, so the file says 7pm PST in January and 7pm
+// PDT in July without anyone choosing which -- the zone's own rules pick.
+//
+// Two passes, because the offset needed to do the conversion is itself a
+// function of the result: guess using the offset at the wall time read as
+// UTC, then re-read the offset at the instant that produced and correct
+// if the guess landed on the other side of a DST change.
+function showtimeInstantMs(date, time) {
   const d = String(date || '').split('-').map(Number);
   const t = String(time || '').split(':').map(Number);
   if (d.length < 3 || t.length < 2 || d.some((n) => !Number.isFinite(n)) || t.some((n) => !Number.isFinite(n))) {
     return null;
   }
-  const dt = new Date(d[0], d[1] - 1, d[2], t[0], t[1], 0, 0);
-  if (!Number.isFinite(dt.getTime())) return null;
-  if (addMinutes) dt.setMinutes(dt.getMinutes() + addMinutes);
+  const wallAsUtc = Date.UTC(d[0], d[1] - 1, d[2], t[0], t[1], 0, 0);
+  if (!Number.isFinite(wallAsUtc)) return null;
+  try {
+    const firstGuess = wallAsUtc - zoneOffsetMs(wallAsUtc, SHOWTIME_TIMEZONE);
+    const corrected = wallAsUtc - zoneOffsetMs(firstGuess, SHOWTIME_TIMEZONE);
+    return corrected;
+  } catch (e) {
+    // No usable timezone data in this runtime. Better a calendar entry an
+    // hour out than no calendar entry at all -- the caller falls back to
+    // writing the wall time as UTC, which is right for anyone in UTC and
+    // wrong by the offset for everyone else.
+    return wallAsUtc;
+  }
+}
+
+// UTC form, with the trailing Z that tells a calendar this is a real
+// instant rather than "whatever 7pm means where you're standing".
+function icsUtcStamp(instantMs, addMinutes) {
+  const dt = new Date(instantMs + (addMinutes || 0) * 60000);
   const p = (n) => String(n).padStart(2, '0');
-  return `${dt.getFullYear()}${p(dt.getMonth() + 1)}${p(dt.getDate())}T${p(dt.getHours())}${p(dt.getMinutes())}00`;
+  return `${dt.getUTCFullYear()}${p(dt.getUTCMonth() + 1)}${p(dt.getUTCDate())}T${p(dt.getUTCHours())}${p(
+    dt.getUTCMinutes()
+  )}00Z`;
 }
 
 app.get('/api/public/showtimes/:id/calendar.ics', (req, res) => {
   const show = store.getShowtime(req.params.id);
   if (!show) return res.status(404).json({ error: 'not found' });
 
-  const start = icsLocalStamp(show.date, show.time);
-  const end = icsLocalStamp(show.date, show.time, CALENDAR_EVENT_MINUTES);
-  if (!start || !end) return res.status(400).json({ error: 'this showtime has no usable date and time' });
+  const instant = showtimeInstantMs(show.date, show.time);
+  if (instant === null) return res.status(400).json({ error: 'this showtime has no usable date and time' });
+  const start = icsUtcStamp(instant);
+  const end = icsUtcStamp(instant, CALENDAR_EVENT_MINUTES);
 
   const seatId = typeof req.query.seat === 'string' ? req.query.seat.trim().slice(0, 12) : '';
   const title = show.title || 'Movie';

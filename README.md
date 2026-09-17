@@ -153,14 +153,19 @@ it doesn't assume anyone's calendar lives at a particular provider. The
 `UID` is stable per seat, so adding it twice replaces the event rather
 than leaving someone with two of them.
 
-Two things it deliberately doesn't do. The timestamps are **floating
-local** (no `Z`, no `TZID`): a showtime's date and time are stored as bare
-local strings with no timezone (same reason the concessions cutoff is
-enforced in the page), so "7pm wherever you are" is the only honest thing
-to write — the alternative is guessing a timezone and being an hour out
-twice a year. And the event is a flat **3 hours**; nothing here knows a
-film's real runtime, and the block on someone's calendar is for trailers,
-the film and getting out.
+Times are resolved against **San Francisco's own clock** and written as
+real UTC instants, so a January showtime lands on PST and a July one on
+PDT without anyone picking which — the zone's rules decide, from `Intl`'s
+timezone data. That's a two-pass conversion (the offset needed to do the
+conversion depends on the result), which gets the hour either side of a
+DST change right rather than approximately right. `SHOWTIME_TIMEZONE` in
+`server.js` is a constant today because every screen this app knows about
+is at Metreon; when that stops being true, a showtime will need to carry
+its own zone.
+
+The event is a flat **3 hours**. Nothing here knows a film's real runtime,
+and what the block on someone's calendar is for is trailers, the film and
+getting out.
 
 ## Concessions
 
@@ -216,11 +221,22 @@ they can't land out of order; closing the card flushes anything still
 pending. A failed write says so and offers a retry, because silent loss
 is the one thing autosave must not do.
 
-**A price is what a friend actually owes**, with nothing added on top.
-You buy the whole order on your own AMC Stubs account, which waives the
-$1.99-per-order service fee AMC's app charges and passes your Stubs
-discount on to everyone — so there's no fee, surcharge or markup for this
-app to model, and a cart total is exactly the sum of its lines.
+**Sales tax** is added on the concessions, at `CONCESSION_TAX_RATE` in
+`server.js` — San Francisco's combined rate, served to both the cart and
+the editor so the two can't drift apart. California normally exempts cold
+food to go, but concessions at a cinema are the exception: food sold
+where admission is charged is taxable whatever it is, so this applies to
+the whole subtotal rather than trying to sort popcorn from candy. The
+ticket isn't taxed (California doesn't tax admissions, and it's already
+paid for). The rate is approximate and meant to be — it moves every few
+years and it's one number to edit; it exists so nobody is surprised at
+the counter by a bill a few dollars over what the app quoted.
+
+**A menu price is what AMC charges before tax**, with nothing else added
+on top. You buy the whole order on your own AMC Stubs account, which
+waives the $1.99-per-order service fee AMC's app charges and passes your
+Stubs discount on to everyone — so tax aside, there's no fee, surcharge or
+markup for this app to model.
 
 That's also why some of these sit below the price on the board: the soda
 and popcorn are discounted, the food isn't. Each item has a free-text
