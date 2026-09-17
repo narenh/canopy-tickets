@@ -845,9 +845,20 @@ function backToList(){
   loadList();
 }
 
+// Today's date as the calendar on the wall has it, NOT as UTC has it.
+//
+// This used to be toISOString().slice(0,10), which is UTC -- so from 5pm
+// Pacific (midnight UTC) onwards it returned TOMORROW, and every showtime
+// dated today started comparing as past. Tonight's movie would drop off
+// the friend list and into the collapsed Past section exactly when people
+// were opening the page to use it. A showtime's `date` comes from an
+// <input type="date">, which is local, so the thing it's compared against
+// has to be local too.
 function todayISO(){
   const d = new Date();
-  return d.toISOString().slice(0,10);
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return d.getFullYear() + '-' + month + '-' + day;
 }
 
 // A showtime disappears from the friend-facing list starting the day
