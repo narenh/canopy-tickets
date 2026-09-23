@@ -1831,8 +1831,12 @@ function renderSuccessStep(){
   }
 
   if (step === 'calendar'){
-    const href = '/api/public/showtimes/' + encodeURIComponent(successShowtime.id) +
-      '/calendar.ics?seat=' + encodeURIComponent(successSeatId);
+    // Carries its own token rather than relying on the login cookie,
+    // which Chrome on iOS doesn't send with a calendar download -- see
+    // calendarToken() in server.js.
+    const href = '/calendar/' + encodeURIComponent(successShowtime.id) +
+      '.ics?seat=' + encodeURIComponent(successSeatId) +
+      '&t=' + encodeURIComponent(successShowtime.calendarToken || '');
     // No target: iOS shows the Add to Calendar sheet over the page, and a
     // blank tab is what you get if you fight it.
     actions.appendChild(successLink(t('friend.success.addCalendar'), 'cal-btn', href, false));
