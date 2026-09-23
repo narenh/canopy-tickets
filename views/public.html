@@ -1215,7 +1215,8 @@ async function loadConfig(){
 // Location header), so the note arrived full of plus signs anyway. On a
 // phone this links to that venmo:// URL directly, skipping the redirect.
 // Anywhere else it stays the web link, since a desktop browser has
-// nothing to open venmo:// with.
+// nothing to open venmo:// with. A phone without the app falls back to
+// the web link too -- see venmoWebFallback() below.
 function buildVenmoLink(amount, note){
   if (!venmoHandle) return null;
   const parts = ['txn=pay', 'note=' + encodeURIComponent(note)];
@@ -1225,6 +1226,48 @@ function buildVenmoLink(amount, note){
   }
   return 'https://venmo.com/' + encodeURIComponent(venmoHandle) + '?' + parts.join('&');
 }
+
+// The web version of a venmo://paycharge link, for when the app isn't
+// installed. Same query, just moved onto venmo.com/<handle>. The website
+// still turns the note's spaces into "+", but a pay page with odd
+// spaces beats a phone that can't open the link at all.
+function venmoWebFallback(appHref){
+  const m = /^venmo:\/\/paycharge\?(.*)$/i.exec(appHref || '');
+  if (!m) return null;
+  let handle = '';
+  const rest = m[1].split('&').filter(p => {
+    if (p.startsWith('recipients=')){ handle = p.slice('recipients='.length); return false; }
+    return true;
+  });
+  if (!handle) return null;
+  return 'https://venmo.com/' + handle + '?' + rest.join('&');
+}
+
+// A venmo:// link does nothing useful without the app -- Chrome just sits
+// there, Safari says the address is invalid. So after the tap, if the
+// page is still in front a couple of seconds later (the app would have
+// taken over by then), go to the website instead. Leaving the page
+// (hidden, blurred, unloaded) cancels it, which is also what should stop
+// it firing while iOS shows its "Open in Venmo?" prompt -- though that's
+// the part that can only really be checked on a phone.
+document.addEventListener('click', (e) => {
+  const a = e.target.closest && e.target.closest('a[href^="venmo:"]');
+  if (!a) return;
+  const web = venmoWebFallback(a.getAttribute('href'));
+  if (!web) return;
+  let left = false;
+  const mark = () => { left = true; };
+  const onVis = () => { if (document.hidden) left = true; };
+  window.addEventListener('pagehide', mark);
+  window.addEventListener('blur', mark);
+  document.addEventListener('visibilitychange', onVis);
+  setTimeout(() => {
+    window.removeEventListener('pagehide', mark);
+    window.removeEventListener('blur', mark);
+    document.removeEventListener('visibilitychange', onVis);
+    if (!left && !document.hidden) window.location.href = web;
+  }, 2000);
+});
 
 // iPadOS reports itself as a Mac, so a touch-capable "Mac" counts too.
 function isPhone(){
