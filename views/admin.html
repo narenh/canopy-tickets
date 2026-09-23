@@ -1634,6 +1634,13 @@ function buildSeatGrid(){
       seatEl.addEventListener('click', () => seatTap(seatId));
       rowEl.appendChild(seatEl);
       seatEls[seatId] = seatEl;
+      // Blank slots between this seat and the next one -- see
+      // seat-layout.js's `blankAfter` comment.
+      for (let p = 0; p < ((row.blankAfter || {})[i] || 0); p++){
+        const filler = document.createElement('div');
+        filler.className = 'seat-filler';
+        rowEl.appendChild(filler);
+      }
     }
     seatmap.appendChild(rowEl);
   });

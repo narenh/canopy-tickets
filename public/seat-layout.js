@@ -27,6 +27,12 @@
 // have a few rows of flat seating up front before the raised rows start
 // (Dolby here: rows A-C are flat, D onward is stadium).
 //
+// A row can set `blankAfter: {seatNumber: n}` to render n blank,
+// non-interactive slots right after that seat (i.e. to its right on the
+// map, before the next-lower number) -- for gaps in the middle of a row,
+// the way `padStart` handles one at its left edge. Auditorium 9's rows C
+// and H use it.
+//
 // To add another auditorium later (more Metreon screens, a different
 // theater entirely -- Apple Van Ness IMAX, Alamo New Mission, whatever):
 // just add another entry below. The admin editor's screen picker is
@@ -114,6 +120,47 @@ const SEAT_LAYOUTS = {
       { letter: 'G', count: 22, special: {} },
       { letter: 'H', count: 22, special: {} },
       { letter: 'J', count: 16, special: {7:'comp', 8:'comp', 9:'wc', 10:'wc', 11:'comp', 12:'comp', 13:'wc', 14:'wc', 15:'comp'} },
+    ]
+  },
+
+  // Auditorium 9 (AMC Signature Recliners). Read off three overlapping
+  // screenshots of the real map, lined up by the seats they share. The
+  // room is 18 columns wide (row B fills all of them); every other row
+  // is placed on that same grid with padStart/blankAfter. Occupied seats
+  // show no number on AMC's map, so their numbers are inferred from the
+  // labeled seats on either side in the same row -- rows D-G run 13 down
+  // to 1 with no breaks, so e.g. D13-D5 are unambiguous.
+  //
+  // Row C is all wheelchair/companion spots with no labels at all, so
+  // its numbering (C11 down to C1, skipping the two empty columns) is a
+  // guess at the scheme, not a read. Row H's H5 and H4 are split by
+  // three empty columns, confirmed by H8/H3 being labeled.
+  //
+  // The narrow aisles between each pair of recliners aren't modeled,
+  // same as the other rooms here.
+  'amc-metreon-9': {
+    theater: 'AMC Metreon',
+    auditorium: '9',
+    name: 'Signature Recliners',
+    rows: [
+      { letter: 'A', count: 14, special: {}, padStart: 2 },
+      { letter: 'B', count: 18, special: {} },
+      {
+        letter: 'C',
+        count: 11,
+        padStart: 3,
+        special: {
+          11:'comp', 10:'comp', 9:'wc',
+          8:'wc', 7:'comp', 6:'comp', 5:'wc',
+          4:'wc', 3:'comp', 2:'comp', 1:'wc'
+        },
+        blankAfter: {9: 1, 5: 1}
+      },
+      { letter: 'D', count: 13, special: {}, padStart: 3 },
+      { letter: 'E', count: 13, special: {}, padStart: 3 },
+      { letter: 'F', count: 13, special: {}, padStart: 3 },
+      { letter: 'G', count: 13, special: {}, padStart: 3 },
+      { letter: 'H', count: 10, special: {}, padStart: 3, blankAfter: {5: 3} },
     ]
   }
 };
