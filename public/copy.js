@@ -99,7 +99,8 @@ const COPY = {
       // comma-joined list of `missingItem` below.
       missingHint: 'Remove and re-add to pick {items}.',
       missingItem: 'a {label} for {name}',
-      missingItemMany: 'a {label} for {name} (×{count})'
+      missingItemMany: 'a {label} for {name} (×{count})',
+      addCalendar: '📅 Add to calendar'
     },
 
     totals: {
@@ -111,7 +112,8 @@ const COPY = {
       settled: 'All settled',
       paidNote: '✓ paid',
       undo: 'undo',
-      markPaid: 'I’ve paid {amount}',
+      markPaid: 'I’ve paid',
+      markPaidFull: 'I’ve paid {amount}',
       venmo: 'Venmo {amount}',
       cashApp: 'Cash App {amount}',
       foodPending: 'Concessions settle after order is placed.'

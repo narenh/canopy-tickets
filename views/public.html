@@ -780,7 +780,11 @@
     padding-bottom:6px;
   }
   .cart-pay-row{display:flex;gap:8px;}
-  .cart-pay-row a{flex:1 1 0;min-width:0;font-size:13px;}
+  .cart-pay-links{flex:2 1 0;min-width:0;display:flex;gap:8px;}
+  .cart-pay-links a{flex:1 1 0;min-width:0;font-size:13px;}
+  /* Beats both `.claim-actions button`'s full width and the stacked
+     layout's margin-top below. */
+  .cart-pay-row .mark-paid-btn{flex:1 1 0;min-width:0;width:auto;margin-top:0;font-size:13px;}
   .order-row{
     display:flex;
     align-items:baseline;
@@ -1113,16 +1117,21 @@
         <div class="claim-actions">
           <!-- Side by side rather than stacked: stacking every button
                made this footer most of the card's height, and on a short
-               phone that came straight out of the menu above. -->
+               phone that came straight out of the menu above. The pay
+               links take two thirds, "I've paid" the last third. -->
           <div class="cart-pay-row">
-            <a class="venmo-btn hidden" id="cartVenmoLink" href="#" target="_blank" rel="noopener">Venmo</a>
-            <a class="cashapp-btn hidden" id="cartCashappLink" href="#" target="_blank" rel="noopener">Cash App</a>
+            <div class="cart-pay-links" id="cartPayLinks">
+              <a class="venmo-btn hidden" id="cartVenmoLink" href="#" target="_blank" rel="noopener">Venmo</a>
+              <a class="cashapp-btn hidden" id="cartCashappLink" href="#" target="_blank" rel="noopener">Cash App</a>
+            </div>
+            <!-- The payment links go off to another app and nothing comes
+                 back, so this is the only way the app can ever learn that
+                 someone settled up. -->
+            <button type="button" class="mark-paid-btn hidden" id="cartMarkPaid" onclick="markCartPaid()"></button>
           </div>
-          <!-- The payment links above go off to another app and nothing
-               comes back, so this is the only way the app can ever learn
-               that someone settled up. -->
-          <button type="button" class="mark-paid-btn hidden" id="cartMarkPaid" onclick="markCartPaid()"></button>
           <div class="food-pending hidden" id="cartFoodPending"></div>
+          <!-- No target: see the same link on the post-claim card. -->
+          <a class="cart-cal-btn" id="cartCalLink" href="#" data-copy="friend.cart.addCalendar"></a>
           <button type="button" id="cartCloseBtn" onclick="closeCartOverlay()">Close</button>
         </div>
       </div>
@@ -2922,8 +2931,16 @@ function renderCartFoot(){
   // on. Nothing payable, nothing to mark.
   const markEl = document.getElementById('cartMarkPaid');
   markEl.classList.toggle('hidden', !(showPay && !isHost));
-  markEl.textContent = t('friend.totals.markPaid', { amount: formatPrice(payable) });
+  // Short on the button (it's a third of the row); the amount is right
+  // beside it on the pay link, and stays in the accessible name.
+  markEl.textContent = t('friend.totals.markPaid');
+  markEl.setAttribute('aria-label', t('friend.totals.markPaidFull', { amount: formatPrice(payable) }));
   markEl.disabled = paidInFlight;
+  // An empty two-thirds would leave "I've paid" floating right.
+  document.getElementById('cartPayLinks').classList.toggle('hidden', !venmoUrl && !cashUrl);
+
+  document.getElementById('cartCalLink').href = '/calendar/' + encodeURIComponent(cartShowtimeId) +
+    '.ics?seat=' + encodeURIComponent(cartSeatId);
 
   // Says why the button is asking for less than the row above it does.
   // Without it that gap reads as a bug.
