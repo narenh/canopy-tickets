@@ -88,26 +88,6 @@ if (!process.env.SESSION_SECRET) {
 const adminAuth = createPasswordAuth('canopy_admin', SESSION_SECRET);
 const sharedAuth = createPasswordAuth('canopy_shared', SESSION_SECRET);
 
-// A per-showtime signature that lets a calendar link work without the
-// session cookie. Chrome on iOS hands an .ics download to the system
-// (that's its "Calendar file available" prompt), and that request goes
-// out without the page's cookies -- so the cookie-guarded route answered
-// {"error":"unauthorized"} instead of an event. Safari fetches it itself
-// and was fine. The token only ever unlocks that one showtime's .ics
-// (title, time, theater), and only someone already logged in is handed
-// it -- see publicShowtimeView. The seat on the link isn't signed: it's
-// just a label in the event's description.
-const calendarKey = crypto.createHmac('sha256', SESSION_SECRET).update('calendar-link').digest();
-function calendarToken(showtimeId) {
-  return crypto.createHmac('sha256', calendarKey).update(String(showtimeId)).digest('hex').slice(0, 32);
-}
-function calendarTokenValid(showtimeId, token) {
-  if (typeof token !== 'string') return false;
-  const expected = Buffer.from(calendarToken(showtimeId));
-  const given = Buffer.from(token);
-  return given.length === expected.length && crypto.timingSafeEqual(given, expected);
-}
-
 app.disable('x-powered-by');
 app.use(express.json());
 
@@ -321,8 +301,6 @@ function publicShowtimeView(s) {
     // Set by the host when they go and place the order -- see the
     // orders-closed route below for why it isn't a clock.
     ordersClosed: !!s.ordersClosed,
-    // See calendarToken() above.
-    calendarToken: calendarToken(s.id),
     seats: blockSeats
   };
 }
@@ -735,14 +713,13 @@ function icsUtcStamp(instantMs, addMinutes) {
   )}00Z`;
 }
 
-// Outside /api/public so it can be reached without the session cookie,
-// given the showtime's calendar token -- see calendarToken() above. A
-// logged-in friend without a token still gets through, and the old
-// cookie-guarded path is kept for any page still holding it.
-app.get('/calendar/:id.ics', (req, res, next) => {
-  if (calendarTokenValid(req.params.id, req.query.t) || sharedAuth.isAuthed(req)) return next();
-  res.status(401).json({ error: 'unauthorized' });
-}, sendCalendar);
+// Deliberately no login. Chrome on iOS hands an .ics download to the
+// system (its "Calendar file available" prompt), and that request goes
+// out without the page's cookies, so behind /api/public it only ever got
+// {"error":"unauthorized"} (Safari fetches it itself and was fine). The
+// file is a title, a time and a theater -- nothing that needs guarding.
+// The old cookie-guarded path stays for any page still holding it.
+app.get('/calendar/:id.ics', sendCalendar);
 app.get('/api/public/showtimes/:id/calendar.ics', sendCalendar);
 
 function sendCalendar(req, res) {
