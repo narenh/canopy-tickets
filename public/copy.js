@@ -209,7 +209,9 @@ const COPY = {
     deleteFailed: 'Could not delete. Try again.',
     openFailed: 'Could not open that showtime.',
     notFound: 'Could not find that showtime.',
-    auditorium: 'Auditorium {number} ({name})'
+    auditorium: 'Auditorium {number} ({name})',
+    // For a screen with no `name` in seat-layout.js.
+    auditoriumUnnamed: 'Auditorium {number}'
   },
 
   // Shown on both pages when the session is gone and bouncing to the

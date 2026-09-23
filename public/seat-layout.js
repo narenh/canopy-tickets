@@ -136,12 +136,12 @@ const SEAT_LAYOUTS = {
     ]
   },
 
-  // Auditorium 9 (AMC Signature Recliners). Read off three overlapping
-  // screenshots of the real map, lined up by the seats they share. The
-  // room is 18 columns wide (row B fills all of them); every other row
-  // is placed on that same grid with padStart/blankAfter/skip. Occupied seats
-  // show no number on AMC's map, so their numbers are inferred from the
-  // labeled seats on either side in the same row -- rows D-G run 13 down
+  // Auditorium 9. No `name`, so it's listed as plain "Auditorium 9".
+  // Read off three overlapping screenshots of the real map, lined up by
+  // the seats they share. The room is 18 columns wide (row B fills all
+  // of them); every other row is placed on that same grid with
+  // padStart/blankAfter/skip. Occupied seats show no number on AMC's
+  // map, so their numbers are inferred from the labeled seats on either side in the same row -- rows D-G run 13 down
   // to 1 with no breaks, so e.g. D13-D5 are unambiguous.
   //
   // Row C is all wheelchair/companion spots with no labels on the map;
@@ -156,7 +156,6 @@ const SEAT_LAYOUTS = {
   'amc-metreon-9': {
     theater: 'AMC Metreon',
     auditorium: '9',
-    name: 'Signature Recliners',
     formats: ['Single Laser'],
     rows: [
       { letter: 'A', count: 14, special: {}, padStart: 2 },

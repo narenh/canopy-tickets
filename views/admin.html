@@ -2592,7 +2592,9 @@ function populateScreenOptions(){
     groups[theaterName].forEach(({ screenId, layout }) => {
       const option = document.createElement('option');
       option.value = screenId;
-      option.textContent = t('admin.auditorium', { number: layout.auditorium, name: layout.name });
+      option.textContent = layout.name
+        ? t('admin.auditorium', { number: layout.auditorium, name: layout.name })
+        : t('admin.auditoriumUnnamed', { number: layout.auditorium });
       optgroup.appendChild(option);
     });
     select.appendChild(optgroup);
