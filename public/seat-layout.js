@@ -30,8 +30,13 @@
 // A row can set `blankAfter: {seatNumber: n}` to render n blank,
 // non-interactive slots right after that seat (i.e. to its right on the
 // map, before the next-lower number) -- for gaps in the middle of a row,
-// the way `padStart` handles one at its left edge. Auditorium 9's rows C
-// and H use it.
+// the way `padStart` handles one at its left edge. Auditorium 9's row H
+// uses it.
+//
+// A row can also set `skip: [numbers]` for seat numbers that don't
+// exist: each renders as one blank slot in its place, and no seat ID is
+// created for it. Unlike blankAfter, the numbering around the gap jumps
+// (Auditorium 9's row C goes C11, gap, C9).
 //
 // To add another auditorium later (more Metreon screens, a different
 // theater entirely -- Apple Van Ness IMAX, Alamo New Mission, whatever):
@@ -126,15 +131,17 @@ const SEAT_LAYOUTS = {
   // Auditorium 9 (AMC Signature Recliners). Read off three overlapping
   // screenshots of the real map, lined up by the seats they share. The
   // room is 18 columns wide (row B fills all of them); every other row
-  // is placed on that same grid with padStart/blankAfter. Occupied seats
+  // is placed on that same grid with padStart/blankAfter/skip. Occupied seats
   // show no number on AMC's map, so their numbers are inferred from the
   // labeled seats on either side in the same row -- rows D-G run 13 down
   // to 1 with no breaks, so e.g. D13-D5 are unambiguous.
   //
-  // Row C is all wheelchair/companion spots with no labels at all, so
-  // its numbering (C11 down to C1, skipping the two empty columns) is a
-  // guess at the scheme, not a read. Row H's H5 and H4 are split by
-  // three empty columns, confirmed by H8/H3 being labeled.
+  // Row C is all wheelchair/companion spots with no labels on the map;
+  // its numbers come from the host: numbered by column like D-G (13 down
+  // to 1), with C10 and C5 not existing -- those are the two empty
+  // columns. Wheelchair spots are C11, C9, C6, C4, C1; companion seats
+  // C13, C12, C8, C7, C3, C2. Row H's H5 and H4 are split by three empty
+  // columns, confirmed by H8/H3 being labeled.
   //
   // The narrow aisles between each pair of recliners aren't modeled,
   // same as the other rooms here.
@@ -147,14 +154,14 @@ const SEAT_LAYOUTS = {
       { letter: 'B', count: 18, special: {} },
       {
         letter: 'C',
-        count: 11,
+        count: 13,
         padStart: 3,
         special: {
-          11:'comp', 10:'comp', 9:'wc',
-          8:'wc', 7:'comp', 6:'comp', 5:'wc',
+          13:'comp', 12:'comp', 11:'wc',
+          9:'wc', 8:'comp', 7:'comp', 6:'wc',
           4:'wc', 3:'comp', 2:'comp', 1:'wc'
         },
-        blankAfter: {9: 1, 5: 1}
+        skip: [10, 5]
       },
       { letter: 'D', count: 13, special: {}, padStart: 3 },
       { letter: 'E', count: 13, special: {}, padStart: 3 },

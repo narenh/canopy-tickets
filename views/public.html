@@ -1643,6 +1643,13 @@ function buildSeatmap(obj){
       rowEl.appendChild(filler);
     }
     for (let i = row.count; i >= 1; i--){
+      // A number this row skips -- see seat-layout.js's `skip` comment.
+      if ((row.skip || []).includes(i)){
+        const filler = document.createElement('div');
+        filler.className = 'seat-filler';
+        rowEl.appendChild(filler);
+        continue;
+      }
       const seatId = row.letter + i;
       const type = row.special[i] || 'seat';
       const seatEl = document.createElement('div');
