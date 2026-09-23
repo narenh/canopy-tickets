@@ -1043,15 +1043,13 @@
         <span class="sep">|</span>
         <input type="time" id="showTime">
         <span class="sep">|</span>
-        <select id="format">
-          <option>IMAX with Laser</option>
-          <option>IMAX 70mm</option>
-          <option>Dolby Cinema</option>
-        </select>
+        <!-- Options follow the selected screen's `formats` (seat-layout.js)
+             -- see syncFormatOptions(). -->
+        <select id="format"></select>
         <span class="sep">|</span>
         <!-- Options populated at load time from SEAT_LAYOUTS (seat-layout.js),
              grouped by theater -- see populateScreenOptions(). -->
-        <select id="screen" onchange="buildSeatGrid()"></select>
+        <select id="screen" onchange="syncFormatOptions(); buildSeatGrid()"></select>
         <span class="sep">|</span>
         <span class="price-field">$<input type="number" id="price" step="0.01" min="0" placeholder="17.49"></span>
       </div>
@@ -1519,8 +1517,8 @@ function openNew(){
   document.getElementById('theaterField').textContent = 'AMC Metreon 16';
   document.getElementById('showDate').value = todayISO();
   document.getElementById('showTime').value = '19:00';
-  document.getElementById('format').value = 'IMAX with Laser';
   document.getElementById('screen').value = DEFAULT_SCREEN;
+  syncFormatOptions();
   document.getElementById('price').value = '17.49';
   seatStates = {};
   document.getElementById('deleteBtn').classList.add('hidden');
@@ -1548,8 +1546,8 @@ async function openExisting(id){
     document.getElementById('theaterField').textContent = obj.theater || 'AMC Metreon 16';
     document.getElementById('showDate').value = obj.date || todayISO();
     document.getElementById('showTime').value = obj.time || '19:00';
-    document.getElementById('format').value = obj.format || 'IMAX with Laser';
     document.getElementById('screen').value = obj.screen || DEFAULT_SCREEN;
+    syncFormatOptions(obj.format);
     document.getElementById('price').value = (typeof obj.price === 'number') ? obj.price.toFixed(2) : '';
     seatStates = normalizeSeats(obj.seats);
     document.getElementById('deleteBtn').classList.remove('hidden');
@@ -2550,6 +2548,28 @@ async function savePaymentHandles(){
   }
 }
 
+// Rebuilds the Format dropdown from the selected screen's `formats`
+// (seat-layout.js), keeping `preferred` -- or failing that, whatever was
+// picked before -- if this screen offers it, else its first format. A
+// showtime saved with a format its screen doesn't offer (from before
+// formats were tied to screens) opens on the screen's default instead,
+// and saving writes that. A screen with a single format gets a disabled
+// dropdown: it still shows the format, there's just nothing to pick.
+function syncFormatOptions(preferred){
+  const select = document.getElementById('format');
+  const layout = SEAT_LAYOUTS[document.getElementById('screen').value] || SEAT_LAYOUTS[DEFAULT_SCREEN];
+  const formats = layout.formats || [];
+  const want = preferred !== undefined ? preferred : select.value;
+  select.innerHTML = '';
+  formats.forEach(f => {
+    const option = document.createElement('option');
+    option.textContent = f;
+    select.appendChild(option);
+  });
+  select.value = formats.includes(want) ? want : (formats[0] || '');
+  select.disabled = formats.length < 2;
+}
+
 // Builds the Screen dropdown's options from SEAT_LAYOUTS (seat-layout.js),
 // grouped by theater, so adding a new auditorium there is the only thing
 // that's ever needed -- nothing here to keep in sync by hand.
@@ -2581,6 +2601,7 @@ function populateScreenOptions(){
 
 // ---------------- INIT ----------------
 populateScreenOptions();
+syncFormatOptions();
 loadList();
 loadSharedPassword();
 loadOgPreview();

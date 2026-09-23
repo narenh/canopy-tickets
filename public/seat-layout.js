@@ -38,6 +38,12 @@
 // created for it. Unlike blankAfter, the numbering around the gap jumps
 // (Auditorium 9's row C goes C11, gap, C9).
 //
+// `formats` lists the projection formats a showtime in that auditorium
+// can be sold as -- the admin's Format dropdown shows only these once the
+// screen is picked, and the first is the default. What's stored on the
+// showtime is the string itself (e.g. "IMAX 70mm"), so renaming one
+// follows the same rule as seat IDs: saved showtimes keep the old text.
+//
 // To add another auditorium later (more Metreon screens, a different
 // theater entirely -- Apple Van Ness IMAX, Alamo New Mission, whatever):
 // just add another entry below. The admin editor's screen picker is
@@ -62,6 +68,7 @@ const SEAT_LAYOUTS = {
     theater: 'AMC Metreon',
     auditorium: '16',
     name: 'IMAX',
+    formats: ['IMAX with Laser', 'IMAX 70mm'],
     rows: [
       // Real seats stop at A29, but the physical room continues -- two
       // more seat-widths' worth of space exist where A30/A31 would be
@@ -115,6 +122,7 @@ const SEAT_LAYOUTS = {
     theater: 'AMC Metreon',
     auditorium: '13',
     name: 'Dolby Cinema',
+    formats: ['Dolby Cinema'],
     rows: [
       { letter: 'A', count: 20, special: {} },
       { letter: 'B', count: 22, special: {} },
@@ -149,6 +157,7 @@ const SEAT_LAYOUTS = {
     theater: 'AMC Metreon',
     auditorium: '9',
     name: 'Signature Recliners',
+    formats: ['Single Laser'],
     rows: [
       { letter: 'A', count: 14, special: {}, padStart: 2 },
       { letter: 'B', count: 18, special: {} },
