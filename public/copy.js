@@ -74,7 +74,10 @@ const COPY = {
 
     // One film's showtimes, after tapping its poster.
     film: {
-      intro: 'Reserve a spot below. Order concessions for your seats from My showtimes.'
+      intro: 'Reserve a spot below. Order concessions for your seats from My showtimes.',
+      // On a showtime you already have your seat in.
+      going: 'Going',
+      addPlusOne: 'Add +1'
     },
 
     // A poster tile on the landing grid.

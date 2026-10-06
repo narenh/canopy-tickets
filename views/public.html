@@ -402,6 +402,10 @@
     color:var(--muted);
     cursor:not-allowed;
   }
+  /* Going: "Going" (two thirds, inert) beside "Add +1" (one third). */
+  .claim-btn-row{display:flex;gap:8px;}
+  .claim-btn-row .going-btn{flex:2 1 0;width:auto;cursor:default;}
+  .claim-btn-row .plus-one-btn{flex:1 1 0;width:auto;}
   /* ---------- MOVIE GRID (landing) ---------- */
   /* One tile per film rather than one card per showtime: with several
      films each showing several times, the flat list was a long scroll
@@ -2512,16 +2516,38 @@ function buildCard(obj){
       card.appendChild(claimedList);
     }
 
-    const pickBtn = document.createElement('button');
-    pickBtn.className = 'claim-btn';
-    if (availCount > 0){
-      pickBtn.textContent = 'Reserve';
-      pickBtn.onclick = () => openSeatPicker(obj.id);
+    // Already going (your own seat here): one seat each, so Reserve becomes
+    // a "Going" that does nothing, beside "Add +1" for someone you're
+    // bringing -- the same seat picker, and the form then only asks
+    // their name (see openClaimOverlay).
+    const going = Object.values(obj.seats || {}).some(x => x.mine && !x.guest);
+    if (going){
+      const row = document.createElement('div');
+      row.className = 'claim-btn-row';
+      const goingBtn = document.createElement('button');
+      goingBtn.className = 'claim-btn going-btn';
+      goingBtn.textContent = t('friend.film.going');
+      goingBtn.disabled = true;
+      const plusBtn = document.createElement('button');
+      plusBtn.className = 'claim-btn plus-one-btn';
+      plusBtn.textContent = t('friend.film.addPlusOne');
+      if (availCount > 0) plusBtn.onclick = () => openSeatPicker(obj.id);
+      else plusBtn.disabled = true;
+      row.appendChild(goingBtn);
+      row.appendChild(plusBtn);
+      card.appendChild(row);
     } else {
-      pickBtn.textContent = 'Sold Out';
-      pickBtn.disabled = true;
+      const pickBtn = document.createElement('button');
+      pickBtn.className = 'claim-btn';
+      if (availCount > 0){
+        pickBtn.textContent = 'Reserve';
+        pickBtn.onclick = () => openSeatPicker(obj.id);
+      } else {
+        pickBtn.textContent = 'Sold Out';
+        pickBtn.disabled = true;
+      }
+      card.appendChild(pickBtn);
     }
-    card.appendChild(pickBtn);
   }
 
   return card;
