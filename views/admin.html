@@ -229,7 +229,7 @@
     border-radius:8px;
     padding:1px 7px;
   }
-  .person-meta{color:var(--muted);font-size:12.5px;margin-top:2px;overflow-wrap:anywhere;}
+  .person-meta{color:var(--muted);font-size:12.5px;margin-top:3px;overflow-wrap:anywhere;}
   .person-edit{margin-top:10px;}
   .person-edit-row{display:flex;gap:8px;margin-bottom:8px;}
   .person-edit-row input{
@@ -243,7 +243,26 @@
     font-size:16px;
   }
   .person-edit-actions{display:flex;gap:8px;flex-wrap:wrap;}
-  .pe-open{flex:0 0 auto;}
+  /* A quiet "more" (three dots) rather than a full button: it only opens
+     the row's editing. */
+  .person-row .pe-open{
+    flex:0 0 auto;
+    width:32px;
+    height:32px;
+    margin:-4px -4px 0 0;
+    padding:0;
+    background:none;
+    border:none;
+    border-radius:50%;
+    color:var(--muted);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+  }
+  .person-row .pe-open:hover{background:#222226;color:#ddd;}
+  .person-row .pe-open svg{width:18px;height:18px;display:block;}
+  .person-email{color:#bbb;font-size:13px;margin-top:2px;overflow-wrap:anywhere;}
   /* Only takes room when it has something to say (a rename's result). */
   #movieTitleStatus{min-height:0;margin-top:4px;}
   #movieTitleStatus:empty{display:none;}
@@ -1856,20 +1875,22 @@ async function loadPeople(){
       list.innerHTML = '<div class="empty-state">' + escapeHtml(t('admin.people.none')) + '</div>';
       return;
     }
+    // You first, then everyone else (already in name order).
+    people.sort((a, b) => (b.id === adminPersonId) - (a.id === adminPersonId));
     people.forEach(p => list.appendChild(buildPersonRow(p)));
   }catch(e){
     list.innerHTML = '<div class="empty-state">' + escapeHtml(t('admin.people.loadFailed')) + '</div>';
   }
 }
 
-// One person: photo, full name (and what friends see), email, how many
-// seats. Edit opens the name fields in place.
+// One person: photo, full name, email, then reservations and passkeys.
+// The three dots open the name fields and actions in place.
 function buildPersonRow(p){
   const row = document.createElement('div');
   row.className = 'person-row';
   const photo = p.photoUrl ? '<img class="person-photo" src="' + escapeHtml(p.photoUrl) + '" alt="">' : '<div class="person-photo"></div>';
   row.innerHTML = photo +
-    '<div class="person-main"><div class="person-name"></div><div class="person-meta"></div>' +
+    '<div class="person-main"><div class="person-name"></div><div class="person-email"></div><div class="person-meta"></div>' +
     '<div class="person-edit hidden"><div class="person-edit-row">' +
     '<input type="text" class="pe-first" maxlength="60" placeholder="First name">' +
     '<input type="text" class="pe-last" maxlength="60" placeholder="Last name"></div>' +
@@ -1878,7 +1899,8 @@ function buildPersonRow(p){
     '<button type="button" class="pe-reset"></button>' +
     '<button type="button" class="delete-btn pe-delete">Delete</button></div>' +
     '<div class="og-status pe-status"></div></div></div>' +
-    '<button type="button" class="pe-open">Edit</button>';
+    '<button type="button" class="pe-open" aria-label="Edit"><svg viewBox="0 0 24 24" aria-hidden="true">' +
+    '<circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor"/><circle cx="19" cy="12" r="2" fill="currentColor"/></svg></button>';
   // The admin (you): tagged, and neither deletable nor resettable from
   // here -- either would lock you out. A lost passkey is ADMIN_RECOVERY.
   const isAdmin = p.id === adminPersonId;
@@ -1906,13 +1928,11 @@ function buildPersonRow(p){
     }
     loadPeople();
   });
+  row.querySelector('.person-email').textContent = p.email;
   row.querySelector('.person-meta').textContent = [
-    t('admin.people.shownAs', { name: p.shortName }),
-    p.email,
-    p.venmo ? 'Venmo @' + p.venmo : '',
-    t(p.passkeyCount ? (p.passkeyCount === 1 ? 'admin.people.passkeysOne' : 'admin.people.passkeysMany') : 'admin.people.noPasskey', { count: p.passkeyCount }),
-    t(p.seatCount === 1 ? 'admin.people.seatsOne' : 'admin.people.seatsMany', { count: p.seatCount })
-  ].filter(Boolean).join(' · ');
+    t(p.seatCount === 1 ? 'admin.people.seatsOne' : 'admin.people.seatsMany', { count: p.seatCount }),
+    t(p.passkeyCount ? (p.passkeyCount === 1 ? 'admin.people.passkeysOne' : 'admin.people.passkeysMany') : 'admin.people.noPasskey', { count: p.passkeyCount })
+  ].join(' \u00b7 ');
   const edit = row.querySelector('.person-edit');
   row.querySelector('.pe-first').value = p.firstName;
   row.querySelector('.pe-last').value = p.lastName;

@@ -286,13 +286,12 @@ const COPY = {
     people: {
       none: 'Nobody has set up a profile yet.',
       loadFailed: 'Could not load people. Try again.',
-      shownAs: 'shown as {name}',
-      seatsOne: '{count} seat',
-      seatsMany: '{count} seats',
+      seatsOne: '{count} Reservation',
+      seatsMany: '{count} Reservations',
       deleteConfirm: 'Delete {name} ({email})? Their seats stay reserved under the same names; they just stop being linked to a profile.',
-      noPasskey: 'no passkey yet',
-      passkeysOne: '{count} passkey',
-      passkeysMany: '{count} passkeys',
+      noPasskey: 'No Passkey',
+      passkeysOne: '{count} Passkey',
+      passkeysMany: '{count} Passkeys',
       resetPasskeys: 'Reset passkeys',
       resetConfirm: "Reset {name}'s passkeys? They'll be signed out everywhere and set up a new passkey with any movie's password, like the first time.",
       // On the admin's own row (you; also the host, whose seats owe nothing).
