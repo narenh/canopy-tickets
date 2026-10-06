@@ -966,12 +966,15 @@ app.post('/api/auth/register/new', attachDevice(true), async (req, res) => {
   const names = cleanNames(body);
   if (names.error) return res.status(400).json({ error: names.error });
   if (store.getPersonByEmail(email)) return res.status(409).json({ error: 'that email already has a profile', reason: 'conflict' });
+  // Optional; checked now so a bad one is said before the passkey prompt.
+  const venmo = cleanVenmo(body.venmoHandle);
+  if (venmo === false) return res.status(400).json({ error: 'a Venmo username is letters, numbers, - and _ only', reason: 'bad_venmo' });
   const id = crypto.randomUUID();
   const options = await registrationOptions(req, rp, {
     userId: id, email, displayName: `${names.firstName} ${names.lastName}`
   });
   store.setPending(req.device.id, {
-    challenge: options.challenge, kind: 'register', profile: { id, email, ...names }
+    challenge: options.challenge, kind: 'register', profile: { id, email, ...names, venmo }
   });
   res.json({ options });
 });

@@ -77,6 +77,30 @@
     margin-bottom:12px;
   }
   .name-row{display:flex;gap:10px;}
+  /* Lined up on the text baseline, so the @ (which hangs below the
+     line) sits level with the name. */
+  .venmo-field{
+    display:flex;
+    align-items:baseline;
+    background:#0f0f10;
+    border:1px solid #3a3a3a;
+    border-radius:10px;
+    padding:0 14px;
+    margin-bottom:12px;
+    cursor:text;
+  }
+  .venmo-at{color:var(--muted);font-size:16px;flex:0 0 auto;}
+  .venmo-field input[type="text"]{
+    border:none;
+    background:none;
+    padding:12px 0 12px 2px;
+    margin:0;
+    outline:none;
+    flex:1;
+    min-width:0;
+  }
+  body.has-backdrop .venmo-field{background:rgba(0,0,0,0.35);border-color:rgba(255,255,255,0.18);}
+  body.has-backdrop .venmo-field input[type="text"]{background:none;}
   .name-row input{min-width:0;}
   button{
     width:100%;
@@ -151,7 +175,8 @@
   }
   .photo-pick.has-photo .photo-circle{border:2px solid var(--gold);}
   .photo-circle img{width:100%;height:100%;object-fit:cover;display:block;}
-  .photo-circle svg{width:78%;height:78%;display:block;}
+  /* Big enough that the head sits up in the circle, like a contact photo. */
+  .photo-circle svg{width:96%;height:96%;display:block;}
   .photo-badge{
     position:absolute;
     right:2px;
@@ -307,7 +332,7 @@
         <img id="photoPreview" class="hidden" alt="">
         <!-- Placeholder silhouette until a photo is picked. -->
         <svg id="photoPrompt" viewBox="0 0 64 64" aria-hidden="true">
-          <circle cx="32" cy="25" r="12" fill="#6e6e74"/>
+          <circle cx="32" cy="24" r="13" fill="#6e6e74"/>
           <path d="M8 64c0-14 10.7-24 24-24s24 10 24 24z" fill="#6e6e74"/>
         </svg>
       </span>
@@ -321,6 +346,12 @@
       <input type="text" id="firstName" placeholder="First name" autocomplete="given-name" maxlength="60">
       <input type="text" id="lastName" placeholder="Last name" autocomplete="family-name" maxlength="60">
     </div>
+    <!-- Optional. The @ is part of the box, like Edit profile's. -->
+    <label class="venmo-field">
+      <span class="venmo-at" aria-hidden="true">@</span>
+      <input type="text" id="venmoHandle" placeholder="Venmo username (optional)" maxlength="30"
+        autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Venmo username (optional)">
+    </label>
     <div class="error" id="profileError"></div>
     <button type="submit" id="profileBtn">Sign up</button>
     <p class="hint" data-copy="welcome.signUpHint"></p>
@@ -630,6 +661,15 @@ document.getElementById('setupForm').addEventListener('submit', async (e) => {
 // ---------------- New profile: name + photo, then the passkey ----------------
 let photoBlob = null;
 
+// Typing or pasting an @ does nothing -- the box already shows one.
+document.getElementById('venmoHandle').addEventListener('input', (e) => {
+  const v = e.target.value.replace(/@/g, '');
+  if (v !== e.target.value) e.target.value = v;
+  // A complaint about the handle goes once it's being fixed.
+  const errorEl = document.getElementById('profileError');
+  if (errorEl.textContent === t('friend.profile.badVenmo')) errorEl.textContent = '';
+});
+
 // Sign up stays tappable; what's missing is said when it's tapped.
 function missingForProfile(){
   if (!photoBlob) return t('welcome.photoRequired');
@@ -678,9 +718,11 @@ document.getElementById('profileForm').addEventListener('submit', async (e) => {
     const { res, data } = await postJson('/api/auth/register/new', {
       email,
       firstName: document.getElementById('firstName').value,
-      lastName: document.getElementById('lastName').value
+      lastName: document.getElementById('lastName').value,
+      venmoHandle: document.getElementById('venmoHandle').value
     });
     if (res.status === 409){ errorEl.textContent = t('welcome.emailTaken'); return; }
+    if (data.reason === 'bad_venmo'){ errorEl.textContent = t('friend.profile.badVenmo'); return; }
     if (!res.ok){ errorEl.textContent = data.error || t('welcome.failed'); return; }
     if (!(await finishRegistration(data.options, errorEl))) return;
     const form = new FormData();
