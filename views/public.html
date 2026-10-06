@@ -169,6 +169,10 @@
     border-radius:16px;
     padding:7px 16px;
   }
+  /* No close button on this one: it goes away by itself once you have a
+     seat. */
+  .claim-banner{padding-right:14px;}
+  button.cal-banner-btn{border:none;font-family:inherit;cursor:pointer;}
   .cal-banner-close{
     position:absolute;
     top:6px;
@@ -1453,6 +1457,20 @@
         </div>
         <button type="button" class="cal-banner-close" onclick="dismissCalBanner()" aria-label="Dismiss">&#215;</button>
       </div>
+      <!-- Instead of the calendar banner, while you have no showtimes and
+           there are seats reserved before profiles still waiting to be
+           claimed. Goes away once you have a seat. -->
+      <div class="cal-banner claim-banner hidden" id="claimBanner">
+        <svg class="cal-banner-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M3.5 8.5V6.5a1.5 1.5 0 0 1 1.5-1.5h14a1.5 1.5 0 0 1 1.5 1.5v2a2.5 2.5 0 0 0 0 5v2a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5v-2a2.5 2.5 0 0 0 0-5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+          <path d="M14.5 5.5v13" stroke="currentColor" stroke-width="1.8" stroke-dasharray="2 2"/>
+        </svg>
+        <div class="cal-banner-body">
+          <div class="cal-banner-title" data-copy="friend.claimBanner.title"></div>
+          <div class="cal-banner-text" data-copy="friend.claimBanner.text"></div>
+          <button type="button" class="cal-banner-btn" onclick="openExisting(true)" data-copy="friend.claimBanner.button"></button>
+        </div>
+      </div>
       <div class="cards" id="mineCards"><div class="loading-state">Loading...</div></div>
     </div>
 
@@ -2026,7 +2044,13 @@ async function loadList(){
     allMovies = (await moviesRes.json()).movies || [];
     allShowtimes = ((await showtimesRes.json()).showtimes || []).filter(obj => !isPastShowtime(obj));
     mineItems = ((await mineRes.json()).items || []).filter(item => !isPastShowtime(item.showtime));
-    if (!currentTab) setTab(savedTab() || (mineItems.length ? 'mine' : 'all'));
+    const claimCheck = updateClaimBanner();
+    // First visit opens on My showtimes if you have any -- or if there
+    // are old reservations to claim, so that banner is the first thing seen.
+    if (!currentTab){
+      await claimCheck;
+      setTab(savedTab() || (mineItems.length || showClaimBanner ? 'mine' : 'all'));
+    }
     renderCards();
     // The film that was open has nothing upcoming left (its last showing
     // was yesterday, or the host deleted it) -- nothing to show there.
@@ -3155,6 +3179,25 @@ document.getElementById('profilePhotoInput').addEventListener('change', async (e
   }
 });
 
+// ---------------- "CLAIM YOUR PREVIOUS RESERVATIONS" BANNER ----------------
+// In the calendar banner's place while you have no showtimes and there are
+// seats reserved before profiles still unclaimed. Checked after every
+// list load, so claiming (or reserving) a seat makes it go away.
+let showClaimBanner = false;
+
+async function updateClaimBanner(){
+  let show = false;
+  if (!mineItems.length){
+    try{
+      const res = await fetch('/api/public/claimable');
+      if (res.ok) show = !!(await res.json()).anyUnclaimed;
+    }catch(e){}
+  }
+  showClaimBanner = show;
+  document.getElementById('claimBanner').classList.toggle('hidden', !show);
+  renderCalBanner();
+}
+
 // ---------------- "SUBSCRIBE TO YOUR SHOWTIMES" BANNER ----------------
 // Top of My showtimes until the person dismisses it or taps Subscribe --
 // remembered on them (calendarPromptDone), so it doesn't come back on
@@ -3163,7 +3206,8 @@ document.getElementById('profilePhotoInput').addEventListener('change', async (e
 // the link is ready by the time anyone taps it.
 async function renderCalBanner(){
   const banner = document.getElementById('calBanner');
-  if (!me || me.calendarPromptDone){ banner.classList.add('hidden'); return; }
+  // The claim banner takes its place while it's showing.
+  if (!me || me.calendarPromptDone || showClaimBanner){ banner.classList.add('hidden'); return; }
   banner.classList.remove('hidden');
   if (!calendarFeed){
     try{

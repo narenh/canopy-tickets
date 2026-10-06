@@ -1272,10 +1272,12 @@ function seatNameMatches(seatName, firstName) {
 // plus every one in the movies you've unlocked, for a seat under a
 // nickname. Claiming still takes each movie's password, so all this
 // shows of a locked movie is that a seat under your name exists.
+// anyUnclaimed: whether any such seat exists at all, for the "Claim your
+// previous reservations" banner (shown to someone with no showtimes yet).
 app.get('/api/public/claimable', (req, res) => {
-  const seats = store.claimableSeats()
-    .filter((x) => req.unlocked.has(x.movieId) || seatNameMatches(x.name, req.person.firstName));
-  res.json({ seats });
+  const all = store.claimableSeats();
+  const seats = all.filter((x) => req.unlocked.has(x.movieId) || seatNameMatches(x.name, req.person.firstName));
+  res.json({ seats, anyUnclaimed: all.length > 0 });
 });
 
 // Claims seats reserved before profiles, one movie per request, and

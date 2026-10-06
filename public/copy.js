@@ -125,6 +125,14 @@ const COPY = {
       noneFor: 'No concessions for {name}'
     },
 
+    // Replaces the calendar banner while you have no showtimes and there
+    // are seats reserved before profiles still waiting to be claimed.
+    claimBanner: {
+      title: 'Claim your previous reservations',
+      text: "If you signed up for showtimes before creating your account, you'll need to transfer them into your account.",
+      button: 'Claim now'
+    },
+
     // The banner at the top of My showtimes, until dismissed or tapped.
     calBanner: {
       title: 'Subscribe to your showtimes',
