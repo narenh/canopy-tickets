@@ -121,7 +121,7 @@
     border:1px solid #3a3a3a;
   }
   .passkey-btn{display:flex;align-items:center;justify-content:center;gap:8px;}
-  .passkey-btn svg{width:18px;height:18px;flex:0 0 auto;}
+  .passkey-btn svg{width:20px;height:20px;flex:0 0 auto;}
   .or{
     display:flex;
     align-items:center;
@@ -291,7 +291,9 @@
     <p data-copy="welcome.tagline"></p>
     <div class="error" id="emailError"></div>
     <button type="button" class="passkey-btn" id="signInBtn" onclick="signIn('emailError', 'signInBtn')">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="9" r="4.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M11.5 12.5l8.5 8.5M17 18l2-2M15 16l1.6-1.6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+      <!-- A key: solid bow with a hole, blade down to the left, two teeth.
+           Solid rather than outlined so it still reads at 20px. -->
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M15.5 2.75a5.75 5.75 0 1 1-3.1 10.6l-1.15 1.15 1.4 1.4a1 1 0 0 1-1.42 1.42l-1.4-1.4-1.1 1.1 1.9 1.9a1 1 0 0 1-1.42 1.42l-1.9-1.9-2.6 2.6a1 1 0 0 1-1.42-1.42l7.3-7.3A5.75 5.75 0 0 1 15.5 2.75zm1.25 3a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z"/></svg>
       <span data-copy="welcome.signIn"></span>
     </button>
     <div class="or" data-copy="welcome.or"></div>
