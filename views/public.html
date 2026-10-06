@@ -2582,7 +2582,9 @@ function buildMinePayRow(obj, myIds){
   const venmo = owing.length ? buildVenmoLink(amount, note) : null;
   const cash = owing.length ? buildCashAppLink(amount) : null;
   const canPay = !!(venmo || cash);
-  const releasable = myIds.filter(id => seats[id] && seats[id].canRelease);
+  // Nor anything to give back from here: the admin's seats are theirs to
+  // manage in the editor, so the row (and its ⋯) doesn't show for them.
+  const releasable = me.isAdmin ? [] : myIds.filter(id => seats[id] && seats[id].canRelease);
   if (!canPay && !releasable.length) return null;
 
   const vars = { amount: formatPrice(amount) };
