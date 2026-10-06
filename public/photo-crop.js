@@ -9,7 +9,16 @@
 // Used by the welcome page (setting up a profile) and the reservation
 // page (changing the photo later). Brings its own markup and styles;
 // needs cropper.min.js loaded first.
+//
+// The picked photo is shrunk BEFORE Cropper sees it (shrink() below). An
+// iPhone hands over the full camera image -- 12 to 48 megapixels, often
+// HEIC -- and Cropper keeps several full-size copies of it on screen;
+// iOS Safari quietly stops drawing images past a memory budget, which
+// left the framing screen black. A 1600px copy is plenty for a 512px
+// result and cheap everywhere.
 (function(){
+  const MAX_SIDE = 1600;
+  const LOAD_TIMEOUT_MS = 10000;
   const CSS_HREF = '/vendor/cropperjs-1.6.3/cropper.min.css';
 
   function ensureStyles(){
@@ -25,16 +34,45 @@
       'padding:calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));',
       'font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif;}',
       '.pc-hint{color:#ccc;font-size:13px;text-align:center;margin:6px 0 12px;}',
-      '.pc-stage{flex:1;min-height:0;}',
+      // Clipped, and below the buttons: whatever the crop area does, Cancel
+      // stays on top and tappable.
+      '.pc-stage{flex:1;min-height:0;position:relative;overflow:hidden;}',
       '.pc-stage img{display:block;max-width:100%;}',
       '.pc-overlay .cropper-view-box,.pc-overlay .cropper-face{border-radius:50%;}',
       '.pc-overlay .cropper-view-box{outline:2px solid rgba(255,255,255,.85);outline-offset:-2px;}',
-      '.pc-actions{display:flex;gap:10px;margin-top:14px;}',
+      '.pc-actions{display:flex;gap:10px;margin-top:14px;position:relative;z-index:2;}',
+      '.pc-use:disabled{opacity:.45;}',
       '.pc-actions button{flex:1;border:none;border-radius:12px;padding:12px;font-size:15px;font-weight:700;cursor:pointer;}',
       '.pc-cancel{background:#1e1e1e;color:#fff;border:1px solid #3a3a3a !important;}',
       '.pc-use{background:#c9a24b;color:#241c07;}'
     ].join('');
     document.head.appendChild(style);
+  }
+
+  // Decodes the file and redraws it at most MAX_SIDE on its long side, as a
+  // JPEG blob. Drawing to a canvas also applies the photo's EXIF rotation
+  // (browsers do that when drawing), so Cropper doesn't need to.
+  function shrink(file){
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        try{
+          const scale = Math.min(1, MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+          canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+          URL.revokeObjectURL(url);
+          canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('unreadable image')), 'image/jpeg', 0.9);
+        }catch(err){
+          URL.revokeObjectURL(url);
+          reject(err);
+        }
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('unreadable image')); };
+      img.src = url;
+    });
   }
 
   // `hint` is the line above the photo. Rejects if the file can't be read
@@ -48,23 +86,32 @@
         '<div class="pc-hint"></div>' +
         '<div class="pc-stage"><img alt=""></div>' +
         '<div class="pc-actions"><button type="button" class="pc-cancel">Cancel</button>' +
-        '<button type="button" class="pc-use">Use photo</button></div>';
+        '<button type="button" class="pc-use" disabled>Use photo</button></div>';
       overlay.querySelector('.pc-hint').textContent = hint || '';
       document.body.appendChild(overlay);
 
-      const url = URL.createObjectURL(file);
       const img = overlay.querySelector('img');
+      const useBtn = overlay.querySelector('.pc-use');
+      let url = null;
       let cropper = null;
+      let finished = false;
       const done = (value, error) => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timer);
         if (cropper) cropper.destroy();
-        URL.revokeObjectURL(url);
+        if (url) URL.revokeObjectURL(url);
         overlay.remove();
         if (error) reject(error); else resolve(value);
       };
+      // Never leave someone on a screen that isn't going to show anything.
+      const timer = setTimeout(() => { if (!cropper || useBtn.disabled) done(null, new Error('timed out')); }, LOAD_TIMEOUT_MS);
 
       img.onerror = () => done(null, new Error('unreadable image'));
       img.onload = () => {
         cropper = new Cropper(img, {
+          checkOrientation: false,
+          ready(){ useBtn.disabled = false; },
           aspectRatio: 1,
           viewMode: 1,
           dragMode: 'move',
@@ -78,11 +125,15 @@
           background: false
         });
       };
-      img.src = url;
+      shrink(file).then((blob) => {
+        if (finished) return;
+        url = URL.createObjectURL(blob);
+        img.src = url;
+      }, (err) => done(null, err));
 
       overlay.querySelector('.pc-cancel').addEventListener('click', () => done(null));
-      overlay.querySelector('.pc-use').addEventListener('click', () => {
-        if (!cropper) return;
+      useBtn.addEventListener('click', () => {
+        if (!cropper || useBtn.disabled) return;
         const canvas = cropper.getCroppedCanvas({ width: 512, height: 512, fillColor: '#000', imageSmoothingQuality: 'high' });
         if (!canvas){ done(null, new Error('crop failed')); return; }
         canvas.toBlob((blob) => {
