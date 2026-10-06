@@ -45,7 +45,7 @@ const COPY = {
     grid: {
       showtimesOne: '{count} showtime',
       showtimesMany: '{count} showtimes',
-      next: 'Next {when}'
+      next: 'Next: {when}'
     },
 
     list: {
