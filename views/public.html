@@ -2253,8 +2253,10 @@ function renderMe(){
   document.getElementById('meMenuAdmin').classList.toggle('hidden', !me.isAdmin);
   renderCalBanner();
   renderFavBanner();
-  // Pay now depends on who you are (see buildMinePayRow).
+  // Pay now and who shows as unpaid depend on who you are (see
+  // buildMinePayRow, showsOwing).
   if (mineItems.length) renderMine();
+  if (currentFilmTitle) renderFilmShowtimes();
 }
 
 // ---------------- TABS ----------------
@@ -2508,13 +2510,13 @@ function buildMineCard(item){
   }
   goingIds.forEach(seatId => {
     const row = document.createElement('div');
-    row.className = 'mine-seat' + (seats[seatId].mine ? ' is-mine' : '') +
-      (seats[seatId].mine && seatOwesAnything(obj, seats[seatId]) ? ' owes' : '');
+    const owes = showsOwing(obj, seats[seatId]);
+    row.className = 'mine-seat' + (seats[seatId].mine ? ' is-mine' : '') + (owes ? ' owes' : '');
     // Whether you (or your guest) still owe lives here, so the order
     // rows below don't have to repeat who's who.
     row.innerHTML = seatWhoHtml(seatId, seats[seatId]) +
       (seats[seatId].mine && !seats[seatId].guest ? '<span class="you-tag">' + escapeHtml(t('friend.list.you')) + '</span>' : '') +
-      (seats[seatId].mine && seatOwesAnything(obj, seats[seatId]) ? '<span class="unpaid-tag">unpaid</span>' : '');
+      (owes ? '<span class="unpaid-tag">unpaid</span>' : '');
     going.appendChild(row);
   });
   card.appendChild(going);
@@ -2891,6 +2893,12 @@ function seatOwesAnything(obj, seat){
   return !seat.concessionsPaid && (seat.concessions || []).length > 0;
 }
 
+// Red seat number and "unpaid": on your own seats and your guests', and
+// for the admin -- the one being paid -- on everyone's.
+function showsOwing(obj, seat){
+  return !!seat && (seat.mine || !!(me && me.isAdmin)) && seatOwesAnything(obj, seat);
+}
+
 // Seat, photo, name, and for a guest who brought them -- "you" if that
 // was you.
 function seatWhoHtml(seatId, seat){
@@ -2908,7 +2916,7 @@ function seatWhoHtml(seatId, seat){
 
 // One claimed seat on a list card: who's sitting there, the same as
 // Going on My showtimes -- yours in gold with "you", your guests' in gold,
-// and an "unpaid" tag on yours while they owe. Nothing to tap: orders
+// and an "unpaid" tag while they owe (see showsOwing). Nothing to tap: orders
 // live on My showtimes, so reserving and ordering are separate.
 // Seat first, then who's in it: the seat is what you're scanning for
 // when you're looking down a row, and it's the shorter of the two so the
@@ -2916,10 +2924,11 @@ function seatWhoHtml(seatId, seat){
 function buildClaimedSeatLine(obj, seatId){
   const seat = (obj.seats || {})[seatId] || {};
   const row = document.createElement('div');
-  row.className = 'seat-line' + (seat.mine ? '' : ' is-other') + (seat.mine && seatOwesAnything(obj, seat) ? ' owes' : '');
+  const owes = showsOwing(obj, seat);
+  row.className = 'seat-line' + (seat.mine ? '' : ' is-other') + (owes ? ' owes' : '');
   row.innerHTML = '<div class="seat-line-who">' + seatWhoHtml(seatId, seat) +
     (seat.mine && !seat.guest ? '<span class="you-tag">' + escapeHtml(t('friend.list.you')) + '</span>' : '') +
-    (seat.mine && seatOwesAnything(obj, seat) ? '<span class="unpaid-tag">unpaid</span>' : '') +
+    (owes ? '<span class="unpaid-tag">unpaid</span>' : '') +
     '</div>';
   return row;
 }
