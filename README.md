@@ -3,15 +3,15 @@
 A small tool for tracking AMC seat blocks you've bought so friends can
 claim seats.
 
-- Sign in at **`/`** with your passkey and **Ticket Manager** (or `/admin`) is the editor — add
+- Sign in at **`/`** with your passkey and **Manage** (or `/admin`) opens the editor — add
   movies and their showtimes, pick which seats you actually bought on a
   real AMC seat map, give each movie a password, assign seats to specific
   friends, and mark them paid. Friends can mark themselves paid too, for
   tickets and concessions alike.
 - At **`/`**, friends sign in with their **email**. A new email sets up a
   profile: first and last name and a photo, all required (friends see
-  each other as "Matt G"). Then two tabs: **My showtimes** (their seats,
-  and guests they booked) and **All movies**. A movie is locked until its
+  each other as "Matt G"). Then two tabs: **My Showtimes** (their seats,
+  and guests they booked) and **All Movies**. A movie is locked until its
   **password** is typed in, once per phone; after that they see its
   showtimes, pick an open seat off a seat map, reserve it for themselves
   or for someone they're bringing, and get a one-tap Venmo and/or Cash App
@@ -112,7 +112,7 @@ files and images (see "Storage & backups" below).
   authenticated admin requests.
 - `views/public.html` — the friend-facing reservation page. Only served
   to a signed-in browser. Two
-  tabs: **My showtimes** and **All movies**, a poster grid where a locked
+  tabs: **My Showtimes** and **All Movies**, a poster grid where a locked
   movie takes its password over its own (blurred) poster; tapping an
   unlocked one lists that film's showtimes. Shows each showtime's remaining spot count
   (green if any are open, red if sold out), who's already claimed a seat,
@@ -221,7 +221,7 @@ Tapping your photo in the header opens a menu: **Edit profile**,
 
 The admin is a profile like any friend's — same passkey, same sign-in —
 marked in `meta` as `admin_person_id`. Everyone signs in at `/`;
-signed in as the admin, the friend-side menu has **Ticket Manager**, and
+signed in as the admin, the tab bar has **Manage** at its right end, and
 `/admin` is just a shortcut to it (anyone else is sent to `/`). The admin
 is also the host (below).
 
@@ -249,7 +249,7 @@ Each person has a subscribe-once calendar of every showtime they have a
 seat in (theirs and their guests'), at `/calendar/feed/<token>.ics`.
 **Calendar feed** in the profile menu offers "Subscribe in Calendar" (the
 `webcal://` link, which phones hand to their calendar app) and Copy link,
-and a banner at the top of My showtimes points at it until it's tapped or
+and a banner at the top of My Showtimes points at it until it's tapped or
 dismissed. Calendar apps fetch it without cookies, so the random
 per-person token in the URL is the key.
 
@@ -559,12 +559,12 @@ deleted; for the usual only that line goes. Reads are checked against the
 current menu too.
 
 When a line of someone's usual goes, `people.usual_gone` is
-set and My showtimes leads with a red **Item discontinued** banner ("Update
+set and My Showtimes leads with a red **Item discontinued** banner ("Update
 order" opens Favorites), and the cart's "Your usual" row says so too. It
 clears once they open Favorites, save them, or tap ×.
 
 Someone with a showtime but no favorites and no usual gets a **Pick your
-favorite concessions** banner on My showtimes until they tap "Add
+favorite concessions** banner on My Showtimes until they tap "Add
 favorites" or × (`people.favorites_prompt_done`). The cart's
 Favorites header has an **Edit** button that opens the same sheet over the
 cart. The claim banner (no showtimes, unclaimed seats waiting) always
@@ -584,7 +584,7 @@ Cash App's pay links only support pre-filling an amount, not a note —
 Venmo's link includes a note identifying the movie/date/seat, Cash App's
 doesn't, since there's no query param for that on Cash App's side.
 
-On My showtimes, a friend who owes gets that pay button under the poster
+On My Showtimes, a friend who owes gets that pay button under the poster
 (Venmo, or Cash App if it's the only handle) for their seat and their
 guests' together, with a ⋯ menu holding Cash App (when both are set) and
 "I've already paid". Not shown to the admin, who sees every unpaid seat

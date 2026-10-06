@@ -115,8 +115,7 @@
     border-radius:8px;
     cursor:pointer;
   }
-  .me-menu a{text-decoration:none;color:var(--gold);font-weight:600;}
-  .me-menu button:hover, .me-menu button:focus-visible, .me-menu a:hover{background:#2a2a2e;outline:none;}
+  .me-menu button:hover, .me-menu button:focus-visible{background:#2a2a2e;outline:none;}
   .me-menu .me-menu-signout{color:#e2857a;border-top:1px solid #2a2a2e;border-radius:0 0 8px 8px;margin-top:4px;padding-top:13px;}
   .tabs{
     display:flex;
@@ -135,8 +134,27 @@
     padding:12px 10px;
     margin-bottom:-1px;
     cursor:pointer;
+    white-space:nowrap;
   }
   .tabs button.active{color:#fff;border-bottom-color:var(--gold);}
+  /* The admin's way into the editor, at the far end of the tabs. A link,
+     not a tab, so it's gold rather than a tab's grey. */
+  .tabs-manage{
+    margin-left:auto;
+    color:var(--gold);
+    font-size:15px;
+    font-weight:600;
+    text-decoration:none;
+    padding:12px 10px;
+    border-bottom:2px solid transparent;
+    margin-bottom:-1px;
+    white-space:nowrap;
+  }
+  /* Three on one line on the narrowest phones. */
+  @media (max-width:360px){
+    .tabs{padding:0 4px;gap:0;}
+    .tabs button, .tabs-manage{padding-left:7px;padding-right:7px;}
+  }
   .tab-intro{
     margin:14px 20px 0;
     color:var(--muted);
@@ -961,7 +979,7 @@
 
   /* ---------- WHO'S IN A SHOWTIME (list card) ---------- */
   .claimed-list .seat-line{padding:5px 11px;margin-bottom:4px;}
-  /* Gold names mean yours, as on My showtimes. */
+  /* Gold names mean yours, as on My Showtimes. */
   .seat-line.is-other b{color:#eee;font-weight:600;}
   .seat-line .avatar, .mine-seat .avatar{width:22px;height:22px;flex:0 0 auto;}
   .avatar-blank{
@@ -1500,8 +1518,6 @@
           <img class="avatar" id="meAvatar" alt="">
         </button>
         <div class="me-menu hidden" id="meMenu" role="menu">
-          <!-- Only for the admin: their editor. -->
-          <a role="menuitem" class="hidden" id="meMenuAdmin" href="/admin" data-copy="friend.menu.admin"></a>
           <button type="button" role="menuitem" onclick="closeMeMenu(); openProfile()" data-copy="friend.menu.editProfile"></button>
           <button type="button" role="menuitem" onclick="closeMeMenu(); openFavorites()" data-copy="friend.menu.favorites"></button>
           <button type="button" role="menuitem" onclick="closeMeMenu(); openCalendarFeed()" data-copy="friend.menu.calendar"></button>
@@ -1511,8 +1527,10 @@
       </div>
     </div>
     <nav class="tabs" role="tablist">
-      <button type="button" role="tab" data-tab="mine" onclick="setTab('mine')">My showtimes</button>
-      <button type="button" role="tab" data-tab="all" onclick="setTab('all')">All movies</button>
+      <button type="button" role="tab" data-tab="mine" onclick="setTab('mine')" data-copy="friend.tabs.mine"></button>
+      <button type="button" role="tab" data-tab="all" onclick="setTab('all')" data-copy="friend.tabs.all"></button>
+      <!-- Only for the admin: their editor. -->
+      <a class="tabs-manage hidden" id="manageLink" href="/admin" data-copy="friend.tabs.manage"></a>
     </nav>
 
     <!-- Your seats and the guests you booked, in every movie. Read-only
@@ -2136,7 +2154,7 @@ function pushNav(state){
   history.pushState({ ...state, depth: (navState().depth || 0) + 1 }, '');
 }
 
-// Back to the top level, on My showtimes -- where a reservation lands once
+// Back to the top level, on My Showtimes -- where a reservation lands once
 // its pay/concessions steps are done. Goes BACK through history rather
 // than forward, so the back button afterwards doesn't reopen the seat map.
 let navigatingHome = false;
@@ -2230,7 +2248,7 @@ async function loadList(){
     allShowtimes = ((await showtimesRes.json()).showtimes || []).filter(obj => !isPastShowtime(obj));
     mineItems = ((await mineRes.json()).items || []).filter(item => !isPastShowtime(item.showtime));
     updateClaimBanner();
-    // Always opens on My showtimes, empty or not.
+    // Always opens on My Showtimes, empty or not.
     if (!currentTab) setTab('mine');
     renderCards();
     // The film that was open has nothing upcoming left (its last showing
@@ -2261,7 +2279,7 @@ function renderMe(){
   const avatar = document.getElementById('meAvatar');
   if (me.photoUrl) avatar.src = me.photoUrl;
   document.getElementById('claimForMe').textContent = t('friend.claim.forMe', { name: me.shortName });
-  document.getElementById('meMenuAdmin').classList.toggle('hidden', !me.isAdmin);
+  document.getElementById('manageLink').classList.toggle('hidden', !me.isAdmin);
   renderCalBanner();
   renderFavBanner();
   // Pay now and who shows as unpaid depend on who you are (see
@@ -2271,7 +2289,7 @@ function renderMe(){
 }
 
 // ---------------- TABS ----------------
-// The page always opens on My showtimes; switching only lasts until the
+// The page always opens on My Showtimes; switching only lasts until the
 // page is reloaded.
 function setTab(tab){
   currentTab = tab === 'mine' ? 'mine' : 'all';
@@ -2707,7 +2725,7 @@ function buildMinePayRow(obj, myIds){
   return row;
 }
 
-// One of your orders on My showtimes. Nothing in it yet: a single
+// One of your orders on My Showtimes. Nothing in it yet: a single
 // "+ Add concessions". Something in it: "Concessions (2)", the items, and
 // "+ Add / Edit". A guest's reads "Alex's concessions (1)". The seat and
 // person are already in Who's going above, so nothing here repeats them.
@@ -2983,9 +3001,9 @@ function seatWhoHtml(seatId, seat){
 }
 
 // One claimed seat on a list card: who's sitting there, the same as
-// Going on My showtimes -- yours in gold with "you", your guests' in gold,
+// Going on My Showtimes -- yours in gold with "you", your guests' in gold,
 // and an "unpaid" tag while they owe (see showsOwing). Nothing to tap: orders
-// live on My showtimes, so reserving and ordering are separate.
+// live on My Showtimes, so reserving and ordering are separate.
 // Seat first, then who's in it: the seat is what you're scanning for
 // when you're looking down a row, and it's the shorter of the two so the
 // names line up.
@@ -3352,7 +3370,7 @@ function closeSuccessOverlay(){
 }
 
 // Every step done or skipped: the reservation's finished, so show it in
-// My showtimes rather than leaving them on the seat map.
+// My Showtimes rather than leaving them on the seat map.
 function finishSuccessFlow(){
   closeSuccessOverlay();
   returnToMyShowtimes();
@@ -3392,7 +3410,7 @@ async function submitClaim(){
     if (idx !== -1) allShowtimes[idx] = data.showtime;
     buildSeatmap(data.showtime);
     openSuccessOverlay(data.showtime, claimedSeatId);
-    // My showtimes picks up the new seat in the background.
+    // My Showtimes picks up the new seat in the background.
     loadList();
   }catch(e){
     errorEl.textContent = t('friend.claim.unreachable');
@@ -3752,7 +3770,7 @@ async function updateClaimBanner(){
 }
 
 // ---------------- "SUBSCRIBE TO YOUR SHOWTIMES" BANNER ----------------
-// Top of My showtimes until the person dismisses it or taps Subscribe --
+// Top of My Showtimes until the person dismisses it or taps Subscribe --
 // remembered on them (calendarPromptDone), so it doesn't come back on
 // another phone. Subscribe is a real link to the webcal:// feed, so the
 // phone hands it to the calendar app; the feed URL is fetched first so
@@ -4273,7 +4291,7 @@ async function openCart(showtimeId, seatId){
 }
 
 // Opened as the last part of reserving a seat: closing it with × finishes
-// that, so it goes to My showtimes too (see finishSuccessFlow).
+// that, so it goes to My Showtimes too (see finishSuccessFlow).
 let cartFromSuccess = false;
 
 function openCartFromSuccess(){

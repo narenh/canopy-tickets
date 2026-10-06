@@ -69,12 +69,12 @@ const COPY = {
 
   // ---------------- RESERVATION PAGE (what friends see) ----------------
   friend: {
-    // Above the All movies grid.
+    // Above the All Movies grid.
     intro: 'Tap a movie to see its showtimes. Locked ones need their password once.',
 
     // One film's showtimes, after tapping its poster.
     film: {
-      intro: 'Reserve a spot below. Order concessions for your seats from My showtimes.',
+      intro: 'Reserve a spot below. Order concessions for your seats from My Showtimes.',
       // On a showtime you already have your seat in.
       going: 'Going',
       addPlusOne: 'Add +1'
@@ -99,7 +99,7 @@ const COPY = {
       you: 'you'
     },
 
-    // Unlocking a movie, over its poster on the All movies tab.
+    // Unlocking a movie, over its poster on the All Movies tab.
     unlock: {
       placeholder: 'Password',
       button: 'Unlock',
@@ -114,7 +114,7 @@ const COPY = {
       browse: 'Browse movies',
       locked: 'Unlock this movie to make changes',
       going: 'Going ({count})',
-      // Your order (or a guest's) on a My showtimes card.
+      // Your order (or a guest's) on a My Showtimes card.
       add: '+ Add concessions',
       addFor: '+ Add concessions for {name}',
       head: 'Concessions ({count})',
@@ -135,7 +135,7 @@ const COPY = {
       releaseFailed: "Couldn't release it. It may be too late now."
     },
 
-    // A line of your usual order left the menu (red, top of My showtimes).
+    // A line of your usual order left the menu (red, top of My Showtimes).
     usualBanner: {
       title: 'Item discontinued',
       text: 'An item in your usual order is no longer available at this theater.',
@@ -160,7 +160,7 @@ const COPY = {
       button: 'Add favorites'
     },
 
-    // The banner at the top of My showtimes, until dismissed or tapped.
+    // The banner at the top of My Showtimes, until dismissed or tapped.
     calBanner: {
       title: 'Subscribe to your showtimes',
       text: 'Add the subscription link to your calendar app and all your showtimes will appear automatically.',
@@ -201,9 +201,16 @@ const COPY = {
       failed: "Couldn't load your calendar link. Try again."
     },
 
+    // The tab bar under the header. Manage, at its right end, is only
+    // shown to the admin and opens the editor.
+    tabs: {
+      mine: 'My Showtimes',
+      all: 'All Movies',
+      manage: 'Manage'
+    },
+
     // The menu under your photo in the header.
     menu: {
-      admin: 'Ticket Manager',
       editProfile: 'Edit profile',
       favorites: 'Favorites',
       calendar: 'Calendar feed',
@@ -226,7 +233,7 @@ const COPY = {
       hint: "Seats reserved before profiles under your name, and any in movies you've unlocked. Tick yours and they join your showtimes.",
       submit: 'These are mine',
       skip: 'Not now',
-      none: "No unclaimed seats under your name. If yours is under a nickname, unlock its movie in All movies to see everyone's, then try again.",
+      none: "No unclaimed seats under your name. If yours is under a nickname, unlock its movie in All Movies to see everyone's, then try again.",
       failed: "Couldn't save. Try again.",
       // Claiming always takes the movie's password, one movie at a time.
       pwHeading: 'Password for {title}',
@@ -321,7 +328,7 @@ const COPY = {
   // ---------------- EDITOR (what the host sees) ----------------
   admin: {
     // Top right of the Ticket Manager: back to the friend side.
-    backToApp: 'My showtimes',
+    backToApp: 'My Showtimes',
     movies: {
       none: 'No movies yet. Tap "+ Add movie" to start.',
       noneUpcoming: 'Nothing coming up. Add a movie, or a showtime to one below.',

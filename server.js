@@ -1491,7 +1491,7 @@ function icsCalendar(eventLines, extra) {
 //
 // Calendar apps fetch it without cookies, so the URL itself is the key:
 // a random token per person (lib/sqliteStore.js calendarTokenFor). It
-// shows the same thing My showtimes does to anyone signed in as them --
+// shows the same thing My Showtimes does to anyone signed in as them --
 // which showtimes and which seats -- and nothing else.
 app.get('/api/public/calendar-feed', (req, res) => {
   const token = store.calendarTokenFor(req.person.id);
@@ -1505,7 +1505,7 @@ app.get('/api/public/calendar-feed', (req, res) => {
   });
 });
 
-// The "Subscribe to your showtimes" banner on My showtimes: dismissed, or
+// The "Subscribe to your showtimes" banner on My Showtimes: dismissed, or
 // its Subscribe tapped. Either way it stops showing for this person.
 app.post('/api/public/calendar-prompt-done', (req, res) => {
   store.markCalendarPromptDone(req.person.id);
