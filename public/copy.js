@@ -90,8 +90,15 @@ const COPY = {
       browse: 'Browse movies',
       locked: 'Unlock this movie on this phone to make changes',
       going: "Who's going ({count})",
-      // The order line on a My showtimes card when there's nothing in it.
-      noOrder: '🍿 No concessions yet'
+      // Your order (or a guest's) on a My showtimes card.
+      add: '🍿 + Add concessions',
+      addFor: '🍿 + Add concessions for {name}',
+      head: '🍿 My concessions',
+      headFor: "🍿 {name}'s concessions",
+      edit: '+ Add / Edit',
+      view: 'View',
+      none: '🍿 No concessions',
+      noneFor: '🍿 No concessions for {name}'
     },
 
     profile: {

@@ -165,23 +165,24 @@
   .mine-section{margin-top:12px;}
   .mine-seat .unpaid-tag{color:#e2857a;font-size:11px;}
   .mine-orders{border-top:1px solid #26262a;margin-top:10px;padding-top:2px;}
-  .order-row{
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:10px;
-    width:100%;
+  .order-block{padding:10px 0 2px;}
+  .order-block + .order-block{border-top:1px solid #222225;margin-top:6px;}
+  .order-add, .order-edit{
     background:none;
     border:none;
-    color:#ccc;
+    padding:0;
+    color:var(--gold);
     font:inherit;
-    font-size:13.5px;
-    padding:9px 0 3px;
-    text-align:left;
+    font-weight:700;
     cursor:pointer;
+    text-align:left;
   }
-  .order-row b{color:#eee;font-weight:600;}
-  .order-row .concession-cta{flex:0 0 auto;}
+  .order-add{font-size:14.5px;padding:2px 0;}
+  .order-edit{font-size:13.5px;margin:6px 0 0 25px;}
+  .order-head{color:#eee;font-weight:700;font-size:14.5px;}
+  .order-items{color:#ccc;font-size:13.5px;line-height:1.5;margin:4px 0 0 25px;}
+  .order-note{color:var(--muted);}
+  .order-none{color:var(--muted);font-size:13.5px;}
   .mine-section-head{
     color:var(--muted);
     font-size:11px;
@@ -2138,10 +2139,7 @@ function buildMineCard(item){
     const orders = document.createElement('div');
     orders.className = 'mine-section mine-orders';
     const ordersOpen = concessionsOpen(obj);
-    // Just you: one line, no name -- it can only be yours. With guests,
-    // each line says whose it is.
-    const withNames = myIds.length > 1;
-    myIds.forEach(seatId => orders.appendChild(buildOrderRow(obj, seatId, ordersOpen, withNames)));
+    myIds.forEach(seatId => orders.appendChild(buildOrderBlock(obj, seatId, ordersOpen)));
     card.appendChild(orders);
   }
 
@@ -2156,22 +2154,60 @@ function buildMineCard(item){
   return card;
 }
 
-// A light line for one of your orders on My showtimes: what's in it and
-// the way into it. The seat and person are already in Who's going above.
-function buildOrderRow(obj, seatId, ordersOpen, withName){
+// One of your orders on My showtimes. Nothing in it yet: a single
+// "+ Add concessions". Something in it: "My concessions", the items, and
+// "+ Add / Edit". A guest's reads "Alex's concessions". The seat and
+// person are already in Who's going above, so nothing here repeats them.
+function buildOrderBlock(obj, seatId, ordersOpen){
   const seat = (obj.seats || {})[seatId] || {};
   const lines = seat.concessions || [];
-  const row = document.createElement('button');
-  row.type = 'button';
-  row.className = 'order-row';
-  row.addEventListener('click', () => openCart(obj.id, seatId));
-  const what = lines.length
-    ? t(lines.length === 1 ? 'friend.list.concessionsOne' : 'friend.list.concessionsMany', { count: lines.length })
-    : t('friend.mine.noOrder');
-  const who = withName ? '<b>' + escapeHtml((seat.name || '').split(/\s+/)[0]) + '</b> ' : '';
-  row.innerHTML = '<span class="order-row-what">' + who + escapeHtml(what) + '</span>' +
-    '<span class="concession-cta">' + escapeHtml(ordersOpen ? (lines.length ? 'Edit' : '+ Add') : 'View') + '</span>';
-  return row;
+  const vars = { name: (seat.name || '').split(/\s+/)[0] };
+  const block = document.createElement('div');
+  block.className = 'order-block';
+  const open = () => openCart(obj.id, seatId);
+
+  if (!lines.length){
+    if (!ordersOpen){
+      const none = document.createElement('div');
+      none.className = 'order-none';
+      none.textContent = t(seat.guest ? 'friend.mine.noneFor' : 'friend.mine.none', vars);
+      block.appendChild(none);
+      return block;
+    }
+    const add = document.createElement('button');
+    add.type = 'button';
+    add.className = 'order-add';
+    add.textContent = t(seat.guest ? 'friend.mine.addFor' : 'friend.mine.add', vars);
+    add.addEventListener('click', open);
+    block.appendChild(add);
+    return block;
+  }
+
+  const head = document.createElement('div');
+  head.className = 'order-head';
+  head.textContent = t(seat.guest ? 'friend.mine.headFor' : 'friend.mine.head', vars);
+  block.appendChild(head);
+  const items = document.createElement('div');
+  items.className = 'order-items';
+  lines.forEach(l => {
+    const item = document.createElement('div');
+    item.textContent = concessionLineLabel(l);
+    if (l.note){
+      const note = document.createElement('span');
+      note.className = 'order-note';
+      note.textContent = ' \u2014 ' + l.note;
+      item.appendChild(note);
+    }
+    items.appendChild(item);
+  });
+  block.appendChild(items);
+  const edit = document.createElement('button');
+  edit.type = 'button';
+  edit.className = 'order-edit';
+  edit.textContent = t(ordersOpen ? 'friend.mine.edit' : 'friend.mine.view');
+  edit.addEventListener('click', open);
+  block.appendChild(edit);
+  return block;
 }
 
 function openFilm(title){
