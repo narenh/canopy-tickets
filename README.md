@@ -551,6 +551,22 @@ A few things worth knowing about how this actually works:
   `DATA_DIR`, so they need the same persistent volume as everything else
   (see below).
 
+
+### Favorites and "your usual"
+
+Profile menu → **Favorites**. A favorite is an item **and** its option
+(tenders with buffalo and tenders with ranch are two), in an order you set
+(↑ ↓); "your usual" is a whole order's worth of such lines. Both are kept
+on the account (`people.favorites` / `people.usual`, schema v12) and added
+from the same menu and option picker as the cart.
+
+When either exists, the cart opens with a **Favorites** section at the
+top — the only open section — led by "Your usual" (its "+" adds every
+line), then each favorite (one tap, option already chosen). Whenever the
+host saves or resets the menu, a favorite whose item or option is gone is
+deleted; for the usual only that line goes. Reads are checked against the
+current menu too.
+
 ## Payment handles
 
 Like movie passwords, Venmo and Cash App handles are **not**

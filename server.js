@@ -469,7 +469,10 @@ app.post('/api/concession-menu', requireAdmin, (req, res) => {
   // Echoing the saved list back matters: brand-new rows get their ids
   // assigned server-side, and the editor needs them to keep editing the
   // same row instead of creating a duplicate on the next save.
-  res.json({ ok: true, ...concessionMenuStore.set(items || [], optionGroups || []), taxRate: CONCESSION_TAX_RATE });
+  const saved = concessionMenuStore.set(items || [], optionGroups || []);
+  // A favorite whose item or option just left the menu goes for good.
+  if (store.kind === 'sqlite') store.pruneAllFavorites((f) => cleanFavorites(f, saved));
+  res.json({ ok: true, ...saved, taxRate: CONCESSION_TAX_RATE });
 });
 
 // Throws away the saved menu so the built-in AMC list takes over again
@@ -477,7 +480,9 @@ app.post('/api/concession-menu', requireAdmin, (req, res) => {
 // anyone's existing orders -- those carry their own copy of whatever
 // they were placed against.
 app.post('/api/concession-menu/reset', requireAdmin, (req, res) => {
-  res.json({ ok: true, ...concessionMenuStore.reset(), taxRate: CONCESSION_TAX_RATE });
+  const menu = concessionMenuStore.reset();
+  if (store.kind === 'sqlite') store.pruneAllFavorites((f) => cleanFavorites(f, menu));
+  res.json({ ok: true, ...menu, taxRate: CONCESSION_TAX_RATE });
 });
 
 // Image uploads (posters, logo, link preview): in memory, 5MB, images only.
@@ -1507,6 +1512,52 @@ app.get('/calendar/feed/:token.ics', (req, res) => {
     'REFRESH-INTERVAL;VALUE=DURATION:PT1H',
     'X-PUBLISHED-TTL:PT1H'
   ]));
+});
+
+// ---------------- Favorite concessions ----------------
+//
+// A favorite is an item AND its option -- tenders with buffalo and tenders
+// with ranch are two favorites -- kept in the person's own order. The
+// "usual" is a whole order's worth of such lines, added in one go.
+// Checked against the current menu on every read and write: a favorite
+// whose item or option has left the menu is gone (and the menu save
+// above removes it from storage). For the usual, only the missing lines
+// go; it's gone once none are left.
+const MAX_FAVORITES = 40;
+const MAX_USUAL_LINES = 20;
+
+function favoriteLineValid(line, menu) {
+  if (!line || typeof line.itemId !== 'string') return false;
+  const item = menu.items.find((i) => i.id === line.itemId);
+  if (!item) return false;
+  const group = item.optionGroup ? menu.optionGroups.find((g) => g.id === item.optionGroup) : null;
+  const options = group && Array.isArray(group.options) ? group.options : [];
+  const option = typeof line.option === 'string' ? line.option : '';
+  return options.length ? options.includes(option) : !option;
+}
+
+function cleanFavorites(f, menu) {
+  const pick = (l) => ({ itemId: l.itemId, option: typeof l.option === 'string' ? l.option : '' });
+  const seen = new Set();
+  const favorites = (Array.isArray(f.favorites) ? f.favorites : [])
+    .filter((l) => favoriteLineValid(l, menu)).map(pick)
+    // One of each item+option: the same favorite twice is just clutter.
+    .filter((l) => { const k = l.itemId + '\u0000' + l.option; if (seen.has(k)) return false; seen.add(k); return true; })
+    .slice(0, MAX_FAVORITES);
+  const usual = (Array.isArray(f.usual) ? f.usual : [])
+    .filter((l) => favoriteLineValid(l, menu)).map(pick)
+    .slice(0, MAX_USUAL_LINES);
+  return { favorites, usual };
+}
+
+app.get('/api/public/favorites', (req, res) => {
+  res.json(cleanFavorites(store.getFavorites(req.person.id) || {}, concessionMenuStore.get()));
+});
+
+app.put('/api/public/favorites', (req, res) => {
+  const cleaned = cleanFavorites(req.body || {}, concessionMenuStore.get());
+  store.setFavorites(req.person.id, cleaned);
+  res.json(cleaned);
 });
 
 // The menu a friend picks from. Read-only on this side -- only the admin

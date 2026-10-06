@@ -140,6 +140,28 @@ const COPY = {
       subscribe: 'Subscribe'
     },
 
+    // Your usual order and favorite items (profile menu -> Favorites).
+    favorites: {
+      heading: 'Favorites',
+      hint: 'These show first whenever you add concessions.',
+      usualHeading: 'Your usual',
+      usualHint: 'Your whole order, added in one tap.',
+      usualEmpty: 'Nothing yet.',
+      addUsual: '+ Add to your usual',
+      listHeading: 'Favorite items',
+      listEmpty: 'No favorites yet.',
+      addFavorite: '+ Add a favorite',
+      pickUsual: 'Add to your usual',
+      pickFavorite: 'Add a favorite',
+      moveUp: 'Move up',
+      moveDown: 'Move down',
+      remove: 'Remove',
+      failed: "Couldn't save. Try again.",
+      // The cart's section, and the usual's row in it.
+      cartSection: 'Favorites',
+      cartUsual: 'Your usual'
+    },
+
     // Your subscribe-once calendar of every showtime you have a seat in.
     calendar: {
       heading: 'Calendar feed',
@@ -155,6 +177,7 @@ const COPY = {
     menu: {
       admin: 'Ticket Manager',
       editProfile: 'Edit profile',
+      favorites: 'Favorites',
       calendar: 'Calendar feed',
       claimExisting: 'Claim existing seats',
       signOut: 'Sign out'

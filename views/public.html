@@ -1026,6 +1026,58 @@
     min-width:16px;
     text-align:right;
   }
+  /* ---------- FAVORITES ---------- */
+  .fav-card{max-width:420px;max-height:88vh;display:flex;flex-direction:column;}
+  #favListView, #favPickView{display:flex;flex-direction:column;min-height:0;flex:1;}
+  .fav-scroll{overflow-y:auto;min-height:0;flex:1;margin:0 -4px;padding:0 4px;}
+  .fav-group-head{font-size:15px;font-weight:700;color:var(--gold);margin:14px 0 2px;}
+  .fav-group-hint{font-size:12.5px;color:var(--muted);margin-bottom:6px;}
+  .fav-list{display:flex;flex-direction:column;}
+  .fav-row{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:9px 0;
+    border-bottom:1px solid #26262a;
+  }
+  .fav-row-main{flex:1;min-width:0;}
+  .fav-row-name{font-size:15px;color:#fff;overflow-wrap:anywhere;}
+  .fav-row-name .fav-opt{color:var(--gold);}
+  .fav-row-price{font-size:12.5px;color:var(--muted);margin-top:1px;}
+  .fav-icon{
+    flex:0 0 auto;
+    width:30px;
+    height:30px;
+    border-radius:50%;
+    border:1px solid #3a3a3e;
+    background:none;
+    color:#bbb;
+    font-size:15px;
+    line-height:1;
+    padding:0;
+    cursor:pointer;
+  }
+  .fav-icon:disabled{opacity:.25;cursor:default;}
+  .fav-empty{font-size:13px;color:var(--muted);padding:6px 0;}
+  .fav-add{
+    background:none;
+    border:none;
+    color:var(--gold);
+    font:inherit;
+    font-weight:700;
+    font-size:14px;
+    padding:10px 0 4px;
+    text-align:left;
+    cursor:pointer;
+  }
+  .fav-pick-head{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+  .fav-pick-head .claim-title{margin:0;}
+  .fav-back{background:none;border:none;color:#ddd;font-size:22px;padding:0 6px 0 0;cursor:pointer;}
+  .fav-pick-section{font-size:13px;font-weight:700;color:var(--gold);margin:14px 0 2px;}
+  /* The cart's Favorites section: "Your usual" leads it. */
+  .cart-item.is-usual .ci-name{font-weight:700;}
+  .ci-name .fav-opt{color:var(--gold);}
+
   /* An item's options, floating by the "+" that opened it. */
   .option-menu{
     position:fixed;
@@ -1369,6 +1421,7 @@
           <!-- Only for the admin: their editor. -->
           <a role="menuitem" class="hidden" id="meMenuAdmin" href="/admin" data-copy="friend.menu.admin"></a>
           <button type="button" role="menuitem" onclick="closeMeMenu(); openProfile()" data-copy="friend.menu.editProfile"></button>
+          <button type="button" role="menuitem" onclick="closeMeMenu(); openFavorites()" data-copy="friend.menu.favorites"></button>
           <button type="button" role="menuitem" onclick="closeMeMenu(); openCalendarFeed()" data-copy="friend.menu.calendar"></button>
           <button type="button" role="menuitem" onclick="closeMeMenu(); openExisting(true)" data-copy="friend.menu.claimExisting"></button>
           <button type="button" role="menuitem" class="me-menu-signout" onclick="signOut()" data-copy="friend.menu.signOut"></button>
@@ -1473,6 +1526,39 @@
       <div class="claim-actions">
         <button type="button" class="claim-submit-btn" onclick="submitClaim()">Reserve</button>
         <button type="button" onclick="closeClaimOverlay()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== FAVORITES ===================== -->
+  <!-- Your usual order and your favorite items, each an item plus its
+       option. They show first when you add concessions. Two views: the
+       lists, and a menu to add from. -->
+  <div class="claim-overlay hidden" id="favoritesOverlay">
+    <div class="claim-card fav-card">
+      <div id="favListView">
+        <div class="claim-title" data-copy="friend.favorites.heading"></div>
+        <div class="claim-sub" data-copy="friend.favorites.hint"></div>
+        <div class="fav-scroll">
+          <div class="fav-group-head" data-copy="friend.favorites.usualHeading"></div>
+          <div class="fav-group-hint" data-copy="friend.favorites.usualHint"></div>
+          <div class="fav-list" id="favUsualList"></div>
+          <button type="button" class="fav-add" onclick="openFavPicker('usual')" data-copy="friend.favorites.addUsual"></button>
+          <div class="fav-group-head" data-copy="friend.favorites.listHeading"></div>
+          <div class="fav-list" id="favList"></div>
+          <button type="button" class="fav-add" onclick="openFavPicker('favorites')" data-copy="friend.favorites.addFavorite"></button>
+        </div>
+        <div class="claim-error" id="favError"></div>
+        <div class="claim-actions">
+          <button type="button" onclick="closeFavorites()">Done</button>
+        </div>
+      </div>
+      <div class="hidden" id="favPickView">
+        <div class="fav-pick-head">
+          <button type="button" class="fav-back" onclick="showFavList()" aria-label="Back">&#8592;</button>
+          <div class="claim-title" id="favPickTitle"></div>
+        </div>
+        <div class="fav-scroll fav-pick-list" id="favPickList"></div>
       </div>
     </div>
   </div>
@@ -1910,7 +1996,7 @@ function isShowingState(state){
 // open one straight after closing the last), which is why closing checks
 // a tick later whether another sheet took over before stepping back.
 function anyOverlayOpen(){
-  return ['claimOverlay', 'successOverlay', 'cartOverlay', 'profileOverlay', 'existingOverlay', 'calendarOverlay'].some(id =>
+  return ['claimOverlay', 'successOverlay', 'cartOverlay', 'profileOverlay', 'existingOverlay', 'calendarOverlay', 'favoritesOverlay'].some(id =>
     !document.getElementById(id).classList.contains('hidden'));
 }
 function overlayOpened(){
@@ -1951,6 +2037,7 @@ function closeAllOverlays(){
   if (!document.getElementById('profileOverlay').classList.contains('hidden')) closeProfile();
   if (!document.getElementById('existingOverlay').classList.contains('hidden')) closeExisting();
   if (!document.getElementById('calendarOverlay').classList.contains('hidden')) closeCalendarFeed();
+  if (!document.getElementById('favoritesOverlay').classList.contains('hidden')) closeFavorites();
 }
 
 // Today's date as the calendar on the wall has it, NOT as UTC has it.
@@ -3101,6 +3188,177 @@ document.getElementById('profilePhotoInput').addEventListener('change', async (e
   }
 });
 
+// ---------------- FAVORITES ----------------
+// Your usual order and favorite items, each { itemId, option } -- an item
+// AND its option, so tenders with buffalo and tenders with ranch are two.
+// Kept on your account; the server drops any whose item or option has
+// left the menu. They lead the cart (see renderCart).
+let myFavorites = { favorites: [], usual: [] };
+
+async function loadFavorites(){
+  try{
+    const res = await fetch('/api/public/favorites');
+    if (res.ok) myFavorites = await res.json();
+  }catch(e){}
+}
+
+async function saveFavorites(){
+  const errorEl = document.getElementById('favError');
+  errorEl.textContent = '';
+  try{
+    const res = await fetch('/api/public/favorites', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(myFavorites)
+    });
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok) throw new Error('failed');
+    myFavorites = await res.json();
+  }catch(e){
+    errorEl.textContent = t('friend.favorites.failed');
+  }
+  renderFavLists();
+}
+
+// The menu item a favorite line points at, or null if it's gone.
+function favItem(line){
+  return concessionMenu.find(i => i.id === line.itemId) || null;
+}
+
+function favLineHtml(line){
+  const item = favItem(line);
+  return escapeHtml(item ? item.name : '') +
+    (line.option ? '<span class="fav-opt"> · ' + escapeHtml(line.option) + '</span>' : '');
+}
+
+async function openFavorites(){
+  document.getElementById('favError').textContent = '';
+  showFavList();
+  document.getElementById('favoritesOverlay').classList.remove('hidden');
+  overlayOpened();
+  await Promise.all([loadConcessionMenu(), loadFavorites()]);
+  renderFavLists();
+}
+
+function closeFavorites(){
+  closeOptionMenu();
+  document.getElementById('favoritesOverlay').classList.add('hidden');
+  overlayClosed();
+}
+
+function showFavList(){
+  closeOptionMenu();
+  document.getElementById('favPickView').classList.add('hidden');
+  document.getElementById('favListView').classList.remove('hidden');
+}
+
+function renderFavLists(){
+  renderFavList('usual', document.getElementById('favUsualList'), false);
+  renderFavList('favorites', document.getElementById('favList'), true);
+}
+
+// `which` is 'usual' or 'favorites'. Favorites reorder (↑ ↓); the usual
+// is one order, so its lines only come and go.
+function renderFavList(which, el, reorder){
+  const lines = myFavorites[which] || [];
+  el.innerHTML = '';
+  if (!lines.length){
+    const empty = document.createElement('div');
+    empty.className = 'fav-empty';
+    empty.textContent = t(which === 'usual' ? 'friend.favorites.usualEmpty' : 'friend.favorites.listEmpty');
+    el.appendChild(empty);
+    return;
+  }
+  lines.forEach((line, i) => {
+    const item = favItem(line);
+    const row = document.createElement('div');
+    row.className = 'fav-row';
+    row.innerHTML = '<div class="fav-row-main"><div class="fav-row-name">' + favLineHtml(line) + '</div>' +
+      '<div class="fav-row-price">' + escapeHtml(item && item.price > 0 ? formatPrice(item.price) : '') + '</div></div>';
+    const move = (delta) => {
+      const j = i + delta;
+      [lines[i], lines[j]] = [lines[j], lines[i]];
+      saveFavorites();
+    };
+    if (reorder){
+      row.appendChild(favIcon('↑', t('friend.favorites.moveUp'), i === 0, () => move(-1)));
+      row.appendChild(favIcon('↓', t('friend.favorites.moveDown'), i === lines.length - 1, () => move(1)));
+    }
+    row.appendChild(favIcon('×', t('friend.favorites.remove'), false, () => {
+      lines.splice(i, 1);
+      saveFavorites();
+    }));
+    el.appendChild(row);
+  });
+}
+
+function favIcon(text, label, disabled, onClick){
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'fav-icon';
+  b.textContent = text;
+  b.setAttribute('aria-label', label);
+  b.disabled = disabled;
+  b.addEventListener('click', onClick);
+  return b;
+}
+
+// The whole menu, by section, each with a "+": items with options ask
+// for one (the same menu as the cart's), and picking adds the line to
+// `which` and goes back to the lists.
+function openFavPicker(which){
+  document.getElementById('favPickTitle').textContent = t(which === 'usual' ? 'friend.favorites.pickUsual' : 'friend.favorites.pickFavorite');
+  const list = document.getElementById('favPickList');
+  list.innerHTML = '';
+  const add = (row, option) => {
+    const line = { itemId: row.itemId, option: option || '' };
+    const lines = myFavorites[which];
+    // A favorite already there stays where it is rather than doubling up.
+    if (which === 'favorites' && lines.some(l => l.itemId === line.itemId && l.option === line.option)){ showFavList(); return; }
+    lines.push(line);
+    showFavList();
+    saveFavorites();
+  };
+  let section = null;
+  buildMenuRows().forEach(row => {
+    if (row.section !== section){
+      section = row.section;
+      if (section){
+        const head = document.createElement('div');
+        head.className = 'fav-pick-section';
+        head.textContent = section;
+        list.appendChild(head);
+      }
+    }
+    const el = document.createElement('div');
+    el.className = 'cart-item';
+    const choices = optionsForItem(row.itemId);
+    const label = choices.length ? optionLabelForItem(row.itemId) : '';
+    el.innerHTML = '<div class="ci-row"><div class="ci-main"><div class="ci-name"></div><div class="ci-price"></div></div></div>';
+    el.querySelector('.ci-name').textContent = row.name;
+    el.querySelector('.ci-price').textContent = [
+      row.price > 0 ? formatPrice(row.price) : '',
+      choices.length ? t(choices.length === 1 ? 'friend.cart.choicesOne' : 'friend.cart.choicesMany', { count: choices.length, label: label.toLowerCase() }) : ''
+    ].filter(Boolean).join(' · ');
+    const plus = document.createElement('button');
+    plus.type = 'button';
+    plus.className = 'ci-add';
+    plus.textContent = '+';
+    plus.setAttribute('aria-label', 'Add ' + row.name);
+    plus.addEventListener('click', () => {
+      if (!choices.length){ add(row, ''); return; }
+      if (optionMenuFor === plus){ closeOptionMenu(); return; }
+      openOptionMenu(plus, row, label, choices, (name) => add(row, name));
+    });
+    el.querySelector('.ci-row').appendChild(plus);
+    list.appendChild(el);
+  });
+  document.getElementById('favListView').classList.add('hidden');
+  document.getElementById('favPickView').classList.remove('hidden');
+  list.scrollTop = 0;
+}
+document.getElementById('favPickList').addEventListener('scroll', closeOptionMenuOnScroll, { passive: true });
+
 // ---------------- "CLAIM YOUR PREVIOUS RESERVATIONS" BANNER ----------------
 // In the calendar banner's place while you have no showtimes and there are
 // seats reserved before profiles still unclaimed. Checked after every
@@ -3641,7 +3899,7 @@ async function openCart(showtimeId, seatId){
   // Refetched on every open rather than once at page load: the host adds
   // menu items from their own device, and a friend who left this page
   // sitting open all afternoon shouldn't be ordering off yesterday's menu.
-  await loadConcessionMenu();
+  await Promise.all([loadConcessionMenu(), loadFavorites()]);
 
   // Bail out if the overlay got closed (or switched to another seat)
   // while that request was in flight.
@@ -3710,6 +3968,14 @@ function renderCart(){
     const hidden = hiddenPeanutItemIds();
     const visible = menuRows.filter(row => !hidden.has(row.itemId));
 
+    // Your favorites (and usual) first, and then they're the only section
+    // open -- everything else folds away under them.
+    const keep = (l) => favItem(l) && !hidden.has(l.itemId);
+    const favs = (myFavorites.favorites || []).filter(keep);
+    const usual = (myFavorites.usual || []).filter(keep);
+    const haveFavs = favs.length > 0 || usual.length > 0;
+    if (haveFavs) body.appendChild(buildFavoritesSectionEl(favs, usual));
+
     // Unsectioned items inline; a named section folded away behind a
     // header, rendered at the position of its FIRST item rather than
     // always at the end -- that's what lets drinks sit collapsed at the
@@ -3723,7 +3989,7 @@ function renderCart(){
       }
       if (emitted.has(row.section)) return;
       emitted.add(row.section);
-      body.appendChild(buildCartSectionEl(row.section, visible.filter(r => r.section === row.section)));
+      body.appendChild(buildCartSectionEl(row.section, visible.filter(r => r.section === row.section), haveFavs));
     });
   }
 
@@ -3733,7 +3999,8 @@ function renderCart(){
 
 // A collapsed section. Native <details>, so the open/closed state is the
 // browser's to keep and there's nothing to wire up for the keyboard.
-function buildCartSectionEl(name, rows){
+// `allClosed`: you have favorites, so they're the only section open.
+function buildCartSectionEl(name, rows, allClosed){
   const wrap = document.createElement('details');
   wrap.className = 'cart-section';
 
@@ -3742,7 +4009,7 @@ function buildCartSectionEl(name, rows){
   // screen from the start, or when something in it is already ordered --
   // a friend reopening their cart should see where their Skittles came
   // from without hunting for it.
-  wrap.open = inOrder > 0 || openSections.indexOf(name) !== -1;
+  wrap.open = !allClosed && (inOrder > 0 || openSections.indexOf(name) !== -1);
 
   const summary = document.createElement('summary');
   const label = document.createElement('span');
@@ -3765,6 +4032,73 @@ function buildCartSectionEl(name, rows){
 
   sectionEls.push({ el: wrap, count, rows });
   return wrap;
+}
+
+// A menu item as the row shape the cart adds from.
+function menuRowFor(item){
+  return { itemId: item.id, name: item.name, price: item.price, note: item.note || '', section: item.section || '' };
+}
+
+// Your favorites at the top of the menu, open: "Your usual" first (its
+// "+" adds the whole order), then each favorite -- item and option
+// already chosen, so its "+" adds it in one tap.
+function buildFavoritesSectionEl(favs, usual){
+  const wrap = document.createElement('details');
+  wrap.className = 'cart-section';
+  wrap.open = true;
+  const summary = document.createElement('summary');
+  const label = document.createElement('span');
+  label.textContent = t('friend.favorites.cartSection');
+  summary.appendChild(label);
+  wrap.appendChild(summary);
+
+  const inner = document.createElement('div');
+  inner.className = 'cart-section-body';
+  const lineName = (l) => favItem(l).name + (l.option ? ' \u00b7 ' + l.option : '');
+
+  if (usual.length){
+    const total = usual.reduce((n, l) => n + (favItem(l).price || 0), 0);
+    inner.appendChild(favCartRow(
+      t('friend.favorites.cartUsual'),
+      usual.map(lineName).join(', ') + (total > 0 ? ' \u00b7 ' + formatPrice(Math.round(total * 100) / 100) : ''),
+      'is-usual',
+      () => usual.forEach(l => addOrderLine(menuRowFor(favItem(l)), l.option))
+    ));
+  }
+  favs.forEach(l => {
+    const item = favItem(l);
+    inner.appendChild(favCartRow(
+      item.name, item.price > 0 ? formatPrice(item.price) : '', '',
+      () => addOrderLine(menuRowFor(item), l.option),
+      l.option
+    ));
+  });
+  wrap.appendChild(inner);
+  return wrap;
+}
+
+function favCartRow(name, sub, extraClass, onAdd, option){
+  const el = document.createElement('div');
+  el.className = 'cart-item' + (extraClass ? ' ' + extraClass : '');
+  el.innerHTML = '<div class="ci-row"><div class="ci-main"><div class="ci-name"></div><div class="ci-price"></div></div></div>';
+  const nameEl = el.querySelector('.ci-name');
+  nameEl.textContent = name;
+  if (option){
+    const opt = document.createElement('span');
+    opt.className = 'fav-opt';
+    opt.textContent = ' \u00b7 ' + option;
+    nameEl.appendChild(opt);
+  }
+  el.querySelector('.ci-price').textContent = sub;
+  const add = document.createElement('button');
+  add.type = 'button';
+  add.className = 'ci-add';
+  add.textContent = '+';
+  add.setAttribute('aria-label', 'Add ' + name + (option ? ' ' + option : ''));
+  add.disabled = cartLocked;
+  add.addEventListener('click', onAdd);
+  el.querySelector('.ci-row').appendChild(add);
+  return el;
 }
 
 // One catalog row: what it is, what it costs, and a "+".
@@ -3828,7 +4162,7 @@ function buildMenuRowEl(row){
   add.addEventListener('click', () => {
     if (!choices.length){ addOrderLine(row, ''); return; }
     if (optionMenuFor === add){ closeOptionMenu(); return; }
-    openOptionMenu(add, row, optionLabelForItem(row.itemId), choices);
+    openOptionMenu(add, row, optionLabelForItem(row.itemId), choices, (name) => addOrderLine(row, name));
   });
 
   menuRowEls.set(row.itemId, { count });
@@ -3842,8 +4176,19 @@ function buildMenuRowEl(row){
 // pushing rows around. Tapping outside it, scrolling the menu behind it,
 // or Escape closes it.
 let optionMenuFor = null;   // the "+" it's open for
+let optionMenuOpenedAt = 0;
 
-function openOptionMenu(addBtn, row, label, choices){
+// Scrolling the list behind closes the menu -- but not a scroll that was
+// already under way when it opened (the tail of a flick, or the browser
+// bringing the tapped row into view), which would close it at once.
+function closeOptionMenuOnScroll(){
+  if (Date.now() - optionMenuOpenedAt < 400) return;
+  closeOptionMenu();
+}
+
+// `onPick(option)` is what choosing one does (add to the order, add a
+// favorite...).
+function openOptionMenu(addBtn, row, label, choices, onPick){
   closeOptionMenu();
   const menu = document.getElementById('optionMenu');
   document.getElementById('optionMenuTitle').textContent = t('friend.cart.chooseOption', { label: label.toLowerCase() });
@@ -3858,7 +4203,7 @@ function openOptionMenu(addBtn, row, label, choices){
     opt.setAttribute('role', 'menuitem');
     opt.textContent = name;
     opt.addEventListener('click', () => {
-      addOrderLine(row, name);
+      onPick(name);
       closeOptionMenu();
     });
     list.appendChild(opt);
@@ -3867,6 +4212,7 @@ function openOptionMenu(addBtn, row, label, choices){
   addBtn.classList.add('is-open');
   addBtn.setAttribute('aria-expanded', 'true');
   optionMenuFor = addBtn;
+  optionMenuOpenedAt = Date.now();
 
   // Right edge lined up with the "+", below it if it fits, else above.
   const r = addBtn.getBoundingClientRect();
@@ -3898,7 +4244,7 @@ document.addEventListener('pointerdown', (e) => {
   if (optionMenuFor && !e.target.closest('#optionMenu') && e.target !== optionMenuFor) closeOptionMenu();
 }, true);
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeOptionMenu(); });
-document.getElementById('cartBody').addEventListener('scroll', closeOptionMenu, { passive: true });
+document.getElementById('cartBody').addEventListener('scroll', closeOptionMenuOnScroll, { passive: true });
 
 function syncMenuRowCount(itemId){
   const refs = menuRowEls.get(itemId);
