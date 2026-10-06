@@ -1723,7 +1723,7 @@
              sheet the bottom button is a scroll away from wherever
              someone's thumb is, and the corner X is where anyone
              dismissing a full-screen thing reaches first. -->
-        <button type="button" class="cart-close-x" id="cartCloseX" onclick="closeCartOverlay()" aria-label="Close">&#215;</button>
+        <button type="button" class="cart-close-x" id="cartCloseX" onclick="closeCartFromButton()" aria-label="Close">&#215;</button>
         <div class="claim-title" id="cartTitle">Concessions</div>
         <!-- The seat and the save state share a line. On its own row the
              status reserved height between the seat and the first item
@@ -2019,6 +2019,13 @@ function goBack(){
 
 window.addEventListener('popstate', () => {
   const state = navState();
+  if (navigatingHome){
+    navigatingHome = false;
+    applyNavState(state);
+    loadList();
+    window.scrollTo(0, 0);
+    return;
+  }
   // Back out of a sheet onto the view it was opened over: just close the
   // sheet. Redrawing the view would also throw away its scroll position.
   if (isShowingState(state)){
@@ -2048,12 +2055,38 @@ function anyOverlayOpen(){
 }
 function overlayOpened(){
   const state = navState();
-  if (!state.overlay) history.pushState({ ...state, overlay: true }, '');
+  if (!state.overlay) pushNav({ ...state, overlay: true });
 }
 function overlayClosed(){
   setTimeout(() => {
-    if (!anyOverlayOpen() && navState().overlay) history.back();
+    if (!navigatingHome && !anyOverlayOpen() && navState().overlay) history.back();
   }, 0);
+}
+
+// Every entry this page pushes records how many it is above the page's
+// first one, so returnToMyShowtimes can step straight back to it.
+function pushNav(state){
+  history.pushState({ ...state, depth: (navState().depth || 0) + 1 }, '');
+}
+
+// Back to the top level, on My showtimes -- where a reservation lands once
+// its pay/concessions steps are done. Goes BACK through history rather
+// than forward, so the back button afterwards doesn't reopen the seat map.
+let navigatingHome = false;
+function returnToMyShowtimes(){
+  setTab('mine');
+  const depth = navState().depth || 0;
+  if (depth > 0){
+    navigatingHome = true;
+    history.go(-depth);
+    return;
+  }
+  // No depth (an entry from before it was recorded): turn this entry into
+  // the top level instead.
+  history.replaceState({ canopyView: 'grid' }, '');
+  applyNavState({ canopyView: 'grid' });
+  loadList();
+  window.scrollTo(0, 0);
 }
 
 // Shows whichever view a history entry names. A film or showtime that
@@ -2504,7 +2537,7 @@ function buildOrderBlock(obj, seatId, ordersOpen){
 }
 
 function openFilm(title){
-  history.pushState({ canopyView: 'film', film: title }, '');
+  pushNav({ canopyView: 'film', film: title });
   showFilm(title);
   window.scrollTo(0, 0);
 }
@@ -2736,7 +2769,7 @@ function buildClaimedSeatLine(obj, seatId){
 // ---------------- SEAT PICKER VIEW ----------------
 function openSeatPicker(id){
   if (!allShowtimes.some(s => s.id === id)) return;
-  history.pushState({ canopyView: 'picker', film: currentFilmTitle, showtimeId: id }, '');
+  pushNav({ canopyView: 'picker', film: currentFilmTitle, showtimeId: id });
   showSeatPicker(id);
 }
 
@@ -3013,7 +3046,7 @@ function renderSuccessStep(){
   if (!step){
     // Nothing this showtime can offer -- one way out rather than an
     // empty card.
-    actions.appendChild(successButton('Done', '', closeSuccessOverlay));
+    actions.appendChild(successButton('Done', '', finishSuccessFlow));
     return;
   }
 
@@ -3072,7 +3105,7 @@ function successLink(label, className, href, newTab){
 function advanceSuccessStep(){
   successSteps.shift();
   if (!successSteps.length){
-    closeSuccessOverlay();
+    finishSuccessFlow();
     return;
   }
   renderSuccessStep();
@@ -3081,6 +3114,13 @@ function advanceSuccessStep(){
 function closeSuccessOverlay(){
   document.getElementById('successOverlay').classList.add('hidden');
   overlayClosed();
+}
+
+// Every step done or skipped: the reservation's finished, so show it in
+// My showtimes rather than leaving them on the seat map.
+function finishSuccessFlow(){
+  closeSuccessOverlay();
+  returnToMyShowtimes();
 }
 
 async function submitClaim(){
@@ -3956,6 +3996,7 @@ function hiddenPeanutItemIds(){
 
 // ---------------- CART OVERLAY ----------------
 async function openCart(showtimeId, seatId){
+  cartFromSuccess = false;
   const obj = allShowtimes.find(s => s.id === showtimeId);
   if (!obj) return;
   const seat = (obj.seats || {})[seatId];
@@ -4005,13 +4046,25 @@ async function openCart(showtimeId, seatId){
   renderCart();
 }
 
+// Opened as the last part of reserving a seat: closing it with × finishes
+// that, so it goes to My showtimes too (see finishSuccessFlow).
+let cartFromSuccess = false;
+
 function openCartFromSuccess(){
   if (!lastClaim) return;
   closeSuccessOverlay();
   openCart(lastClaim.showtimeId, lastClaim.seatId);
+  cartFromSuccess = true;
+}
+
+function closeCartFromButton(){
+  const finish = cartFromSuccess;
+  closeCartOverlay();
+  if (finish) returnToMyShowtimes();
 }
 
 function closeCartOverlay(){
+  cartFromSuccess = false;
   closeOptionMenu();
   // Flush first: closing a second after a tap must not drop that tap.
   // runSave() reads the cart state, so it has to run before it's cleared.
