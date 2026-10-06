@@ -24,6 +24,8 @@ const COPY = {
   // ---------------- LOGIN ----------------
   login: {
     tagline: 'Enter the password to access seat reservations.',
+    // The same form at /admin.
+    adminTagline: 'Enter the admin password to manage showtimes.',
     wrongPassword: 'Wrong password.',
     failed: 'Something went wrong. Try again.',
     unreachable: 'Could not reach the server. Try again.'
@@ -31,7 +33,20 @@ const COPY = {
 
   // ---------------- RESERVATION PAGE (what friends see) ----------------
   friend: {
-    intro: 'Reserve a spot below. Tap any reserved seat to add concessions, up to 2 hours before showtime.',
+    // Under "Upcoming Movies" on the landing grid.
+    intro: 'Tap a movie to see its showtimes.',
+
+    // One film's showtimes, after tapping its poster.
+    film: {
+      intro: 'Reserve a spot below. Tap any reserved seat to add concessions, up to 2 hours before showtime.'
+    },
+
+    // A poster tile on the landing grid.
+    grid: {
+      showtimesOne: '{count} showtime',
+      showtimesMany: '{count} showtimes',
+      next: 'Next {when}'
+    },
 
     list: {
       loadFailed: 'Could not load showtimes. Try again.',
@@ -218,7 +233,7 @@ const COPY = {
 
   // Shown on both pages when the session is gone and bouncing to the
   // login screen has already been tried once.
-  sessionTrouble: 'Session trouble &mdash; <a href="/" style="color:#c9a24b;">click here to sign in again</a>.'
+  sessionTrouble: 'Session trouble &mdash; <a href="{home}" style="color:#c9a24b;">click here to sign in again</a>.'
 };
 
 // COPY.friend.cart.locked, with {braces} swapped for values:

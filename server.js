@@ -305,16 +305,29 @@ function publicShowtimeView(s) {
   };
 }
 
-// ---------------- Auth (single password field, two possible outcomes) ----------------
+// ---------------- Auth (two doors, one password each) ----------------
 //
-// There's one login page and one password field. Which of the two
-// passwords you type decides where you land -- ADMIN_PASSWORD opens the
-// editor, the current friend/shared password (admin-settable, see below)
-// opens the reservation page -- so the page never has to say "admin"
-// anywhere. The two sessions are still fully separate cookies underneath;
-// typing the admin password does not also grant shared access or vice versa.
+// Friends sign in at / and the host signs in at /admin, and each door only
+// takes its own password: typing ADMIN_PASSWORD into the friend login is
+// just a wrong password. It used to be one login that routed you by which
+// password you typed, which meant the editor sat behind the same box every
+// friend was handed -- one lucky guess or a shoulder-surfed password away.
+// The two sessions are fully separate cookies; neither grants the other.
 
 app.post('/api/login', (req, res) => {
+  const { password } = req.body || {};
+  if (typeof password !== 'string' || password.length === 0) {
+    return res.status(400).json({ error: 'password required' });
+  }
+  const currentSharedPassword = sharedPasswordStore.get();
+  if (currentSharedPassword && checkPassword(password, currentSharedPassword)) {
+    sharedAuth.issueSessionCookie(res);
+    return res.json({ ok: true, role: 'shared' });
+  }
+  res.status(401).json({ error: 'invalid password' });
+});
+
+app.post('/api/admin/login', (req, res) => {
   const { password } = req.body || {};
   if (typeof password !== 'string' || password.length === 0) {
     return res.status(400).json({ error: 'password required' });
@@ -322,11 +335,6 @@ app.post('/api/login', (req, res) => {
   if (checkPassword(password, ADMIN_PASSWORD)) {
     adminAuth.issueSessionCookie(res);
     return res.json({ ok: true, role: 'admin' });
-  }
-  const currentSharedPassword = sharedPasswordStore.get();
-  if (currentSharedPassword && checkPassword(password, currentSharedPassword)) {
-    sharedAuth.issueSessionCookie(res);
-    return res.json({ ok: true, role: 'shared' });
   }
   res.status(401).json({ error: 'invalid password' });
 });
@@ -337,10 +345,11 @@ app.post('/api/logout', (req, res) => {
   res.json({ ok: true });
 });
 
+// Both flags rather than one role: someone can hold both cookies, and the
+// login page needs to know whether the session it would redirect to is
+// the one for the door it's standing at.
 app.get('/api/session', (req, res) => {
-  if (adminAuth.isAuthed(req)) return res.json({ authed: true, role: 'admin' });
-  if (sharedAuth.isAuthed(req)) return res.json({ authed: true, role: 'shared' });
-  res.json({ authed: false, role: null });
+  res.json({ admin: adminAuth.isAuthed(req), shared: sharedAuth.isAuthed(req) });
 });
 
 // ---------------- Friend password (admin auth required) ----------------
@@ -349,11 +358,11 @@ app.get('/api/session', (req, res) => {
 // ADMIN_PASSWORD, this one exists to be read back and handed to friends
 // (texted, etc.), not kept secret from the admin viewing their own editor.
 
-app.get('/api/shared-password', adminAuth.requireAuth('/'), (req, res) => {
+app.get('/api/shared-password', adminAuth.requireAuth('/admin'), (req, res) => {
   res.json({ password: sharedPasswordStore.get() });
 });
 
-app.post('/api/shared-password', adminAuth.requireAuth('/'), (req, res) => {
+app.post('/api/shared-password', adminAuth.requireAuth('/admin'), (req, res) => {
   const { password } = req.body || {};
   const trimmed = typeof password === 'string' ? password.trim().slice(0, 200) : '';
   const saved = sharedPasswordStore.set(trimmed || null);
@@ -368,11 +377,11 @@ app.post('/api/shared-password', adminAuth.requireAuth('/'), (req, res) => {
 // how each service's own share sheets display a handle; the leading
 // character gets added back only when building the pay link/URL.
 
-app.get('/api/payment-handles', adminAuth.requireAuth('/'), (req, res) => {
+app.get('/api/payment-handles', adminAuth.requireAuth('/admin'), (req, res) => {
   res.json({ venmo: venmoHandleStore.get(), cashapp: cashappHandleStore.get() });
 });
 
-app.post('/api/payment-handles', adminAuth.requireAuth('/'), (req, res) => {
+app.post('/api/payment-handles', adminAuth.requireAuth('/admin'), (req, res) => {
   const { venmo, cashapp } = req.body || {};
   const cleanVenmo = typeof venmo === 'string' ? venmo.trim().replace(/^@/, '').slice(0, 100) : '';
   const cleanCashapp = typeof cashapp === 'string' ? cashapp.trim().replace(/^\$/, '').slice(0, 100) : '';
@@ -390,14 +399,14 @@ app.post('/api/payment-handles', adminAuth.requireAuth('/'), (req, res) => {
 // shape where reordering, renaming and deleting are all the same
 // operation.
 
-app.get('/api/concession-menu', adminAuth.requireAuth('/'), (req, res) => {
+app.get('/api/concession-menu', adminAuth.requireAuth('/admin'), (req, res) => {
   // The rate rides along with the menu rather than getting an endpoint of
   // its own: the editor already fetches this at load, and the only thing
   // it needs the rate for is the order roll-up's total.
   res.json({ ...concessionMenuStore.get(), taxRate: CONCESSION_TAX_RATE });
 });
 
-app.post('/api/concession-menu', adminAuth.requireAuth('/'), (req, res) => {
+app.post('/api/concession-menu', adminAuth.requireAuth('/admin'), (req, res) => {
   const { items, optionGroups } = req.body || {};
   if (items !== undefined && !Array.isArray(items)) {
     return res.status(400).json({ error: 'items must be an array' });
@@ -415,13 +424,13 @@ app.post('/api/concession-menu', adminAuth.requireAuth('/'), (req, res) => {
 // (see DEFAULT_ITEMS in lib/concessionMenu.js). Doesn't touch
 // anyone's existing orders -- those carry their own copy of whatever
 // they were placed against.
-app.post('/api/concession-menu/reset', adminAuth.requireAuth('/'), (req, res) => {
+app.post('/api/concession-menu/reset', adminAuth.requireAuth('/admin'), (req, res) => {
   res.json({ ok: true, ...concessionMenuStore.reset(), taxRate: CONCESSION_TAX_RATE });
 });
 
 // ---------------- Showtimes API (admin auth required) ----------------
 
-app.use('/api/showtimes', adminAuth.requireAuth('/'));
+app.use('/api/showtimes', adminAuth.requireAuth('/admin'));
 
 // Read-side fallback for showtimes saved before `screen` existed -- see
 // the DEFAULT_SCREEN comment above. Also attaches posterUrl (see
@@ -853,7 +862,7 @@ app.put('/api/public/showtimes/:id/seats/:seatId/concessions', async (req, res) 
 // instead of assuming. Hit /api/amc-test directly while logged in as
 // admin, read the JSON, then this whole block should come back out --
 // it's a debug tool, not a feature.
-app.get('/api/amc-test', adminAuth.requireAuth('/'), async (req, res) => {
+app.get('/api/amc-test', adminAuth.requireAuth('/admin'), async (req, res) => {
   const apiKey = process.env.AMC_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'AMC_API_KEY not set in this environment' });
 
@@ -938,25 +947,27 @@ app.get('/api/amc-test', adminAuth.requireAuth('/'), async (req, res) => {
 
 // ---------------- Pages ----------------
 //
-// One front door. Whoever hits the root URL gets routed by which
-// password they last typed in, not by which link they clicked: the admin
-// editor if their session is admin-authed, the reservation page if
-// shared-authed, otherwise the single login form. This is deliberate --
-// the domain you hand out to friends and the one you use yourself are the
-// same URL, so there's nothing "admin-flavored" to notice at a glance.
+// / is the friend side: the reservation page if shared-authed, otherwise
+// the login form. /admin is the host's editor, behind the same login form
+// pointed at the admin password instead (login.html reads which door it's
+// on from the URL). An admin cookie alone doesn't open / -- see Auth above.
 //
 // admin.html and public.html live outside /public so they can never be
 // fetched directly, bypassing the checks below.
 app.get('/', (req, res) => {
-  if (adminAuth.isAuthed(req)) {
-    return renderHtmlPage(res, req, path.join(__dirname, 'views', 'admin.html'));
-  }
   if (sharedAuth.isAuthed(req)) {
     return renderHtmlPage(res, req, path.join(__dirname, 'views', 'public.html'));
   }
   // The unauthenticated case is the one that actually matters for link
   // previews: a crawler hitting the shared URL never has a session
   // cookie, so this is the response it sees.
+  renderHtmlPage(res, req, path.join(__dirname, 'public', 'login.html'));
+});
+
+app.get('/admin', (req, res) => {
+  if (adminAuth.isAuthed(req)) {
+    return renderHtmlPage(res, req, path.join(__dirname, 'views', 'admin.html'));
+  }
   renderHtmlPage(res, req, path.join(__dirname, 'public', 'login.html'));
 });
 
@@ -979,12 +990,12 @@ const siteImageUpload = multer({
 // no-auth file serve) trio for one named image store. The og-image and
 // logo-image endpoints are identical apart from which store/URLs they use.
 function mountImageRoutes(urlName, imageStore) {
-  app.get(`/api/${urlName}`, adminAuth.requireAuth('/'), (req, res) => {
+  app.get(`/api/${urlName}`, adminAuth.requireAuth('/admin'), (req, res) => {
     const meta = imageStore.getMeta();
     res.json(meta ? { uploadedAt: meta.uploadedAt, url: `/${urlName}?v=${meta.uploadedAt}` } : { uploadedAt: null, url: null });
   });
 
-  app.post(`/api/${urlName}`, adminAuth.requireAuth('/'), siteImageUpload.single('image'), (req, res) => {
+  app.post(`/api/${urlName}`, adminAuth.requireAuth('/admin'), siteImageUpload.single('image'), (req, res) => {
     if (!req.file) {
       return res.status(400).json({ error: 'choose a PNG, JPEG, WebP, or GIF image' });
     }
@@ -1016,13 +1027,13 @@ mountImageRoutes('logo-image', logoImageStore);
 // posterUrl (see posterUrlForTitle above) rather than needing the title
 // again.
 
-app.get('/api/poster', adminAuth.requireAuth('/'), (req, res) => {
+app.get('/api/poster', adminAuth.requireAuth('/admin'), (req, res) => {
   const title = typeof req.query.title === 'string' ? req.query.title.trim() : '';
   if (!title) return res.status(400).json({ error: 'title required' });
   res.json({ url: posterUrlForTitle(title) });
 });
 
-app.post('/api/poster', adminAuth.requireAuth('/'), siteImageUpload.single('image'), (req, res) => {
+app.post('/api/poster', adminAuth.requireAuth('/admin'), siteImageUpload.single('image'), (req, res) => {
   const title = typeof req.body.title === 'string' ? req.body.title.trim() : '';
   if (!title) return res.status(400).json({ error: 'title required' });
   if (!req.file) {

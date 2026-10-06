@@ -1,16 +1,17 @@
 # Canopy Tickets
 
 A small tool for tracking AMC seat blocks you've bought so friends can
-claim seats. One URL, one login form, two possible passwords:
+claim seats. Two doors, one password each:
 
-- Enter **`ADMIN_PASSWORD`** and you land in the editor — create
+- At **`/admin`**, enter **`ADMIN_PASSWORD`** and you land in the editor — create
   showtimes, pick which seats you actually bought on a real AMC seat map,
   assign seats to specific friends, and mark them paid. Friends can mark
   themselves paid too, for tickets and concessions alike.
-- Enter the **friend password** (set from the editor, not an env var — see
+- At **`/`**, enter the **friend password** (set from the editor, not an env var — see
   below) and you land on the reservation page — the one you hand out to
-  friends. They see upcoming showtimes (soonest first) and how many spots
-  are still open, pick a specific open seat off a seat map, claim it by
+  friends. They see a grid of upcoming movies (soonest showing first), tap
+  one to see just that film's showtimes and how many spots are still open,
+  pick a specific open seat off a seat map, claim it by
   name, and get a one-tap Venmo and/or Cash App link pre-filled with the
   price (whichever you've set up — see "Payment handles" below). You still
   confirm the payment actually landed manually on the admin side.
@@ -20,11 +21,9 @@ claim seats. One URL, one login form, two possible passwords:
   pay link then covers the ticket and the snacks together, and the editor
   gives you a summed shopping list to take to the counter.
 
-There's nothing "admin-flavored" about the URL or login page — the same
-link works for you and for friends, it just goes different places
-depending on which password you type. That's the whole point of it being
-one URL: whatever domain you point at this app is the only link you ever
-need to share.
+Each door only takes its own password: `ADMIN_PASSWORD` typed at `/` is
+just a wrong password, and the friend password doesn't open `/admin`. The
+domain root is still the only link you hand out; `/admin` is yours.
 
 **Seat maps currently only cover AMC Metreon (San Francisco) — IMAX
 (Auditorium 16) and Dolby Cinema (Auditorium 13).** Other screens/theaters
@@ -36,12 +35,12 @@ Docker" below for making that survive restarts/redeploys).
 
 ## How it works
 
-- `server.js` — Express app: one login endpoint that checks a password
-  against `ADMIN_PASSWORD` and the current friend password and issues
-  whichever session matches (they're still two fully independent cookies
-  underneath), plus a JSON REST API for showtimes. `GET /` looks at which
-  session (if either) is active and serves the editor, the reservation
-  page, or the login form accordingly -- that's the whole "one URL" trick.
+- `server.js` — Express app: two login endpoints, `/api/login` (friend
+  password only) and `/api/admin/login` (`ADMIN_PASSWORD` only), each
+  issuing its own independent cookie, plus a JSON REST API for showtimes.
+  `GET /` serves the reservation page to a friend session and the login
+  form to anyone else; `GET /admin` does the same for the editor and an
+  admin session.
 - `lib/store.js` — persistence: showtimes are stored as one JSON file on
   disk (`data/showtimes.json`), written atomically. No database needed at
   this scale. `claimSeat` does the friend-facing claim atomically (read,
@@ -107,7 +106,9 @@ Docker" below for making that survive restarts/redeploys).
 - `views/public.html` — the friend-facing reservation page. Claiming a
   seat offers an **Add to calendar** link first (see below), served as a
   real `.ics` by `server.js`. Only served to
-  authenticated shared requests. Shows each showtime's remaining spot count
+  authenticated shared requests. Opens on a poster grid with one tile per
+  film (grouped by title, the same key posters are filed under); tapping
+  one lists that film's showtimes. Shows each showtime's remaining spot count
   (green if any are open, red if sold out), who's already claimed a seat,
   a seat map to pick a specific open one from (hover or tap a taken seat
   for who it's assigned to), and a pre-filled Venmo and/or Cash App pay button right
@@ -115,8 +116,9 @@ Docker" below for making that survive restarts/redeploys).
   below); doesn't expose which seats are sold-out-but-not-mine vs. simply
   not part of the block. Each reserved seat on the list is also the way
   into that seat's concession cart (see "Concessions" below).
-- `public/login.html` — the one password screen (no "admin" language --
-  it doesn't know or care which password you're about to type).
+- `public/login.html` — the password screen for both doors. It reads
+  which one it's on from the URL (`/` or `/admin`) and posts to the
+  matching login endpoint.
 - `public/copy.js` — every sentence the app says, in one object. See
   "Editing the copy" below.
 
@@ -530,7 +532,7 @@ npm install
 ADMIN_PASSWORD=whatever npm start
 ```
 
-Then visit `http://localhost:3000`, enter `ADMIN_PASSWORD` to reach the
+Then visit `http://localhost:3000/admin`, enter `ADMIN_PASSWORD` to reach the
 editor, and set a friend password (and, optionally, Venmo/Cash App
 handles) from there (the reservation page has nothing to log into until
 you set a friend password). If you don't set `ADMIN_PASSWORD`, the server
@@ -551,7 +553,7 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-Visit `http://localhost:3000`, log in with `ADMIN_PASSWORD`, and set a
+Visit `http://localhost:3000/admin`, log in with `ADMIN_PASSWORD`, and set a
 friend password from the editor (see "The friend password" above). The
 `canopy-data` named volume declared in `docker-compose.yml` is what
 persists `showtimes.json`, the concessions menu, the friend password, and
@@ -625,9 +627,9 @@ as static files instead of actually running the Node server.
    `PORT` is provided (defaulting to `3000`).
 5. In Coolify's **Domains** settings for this resource, make sure the
    domain you actually want to hand out is bound as the app's URL — since
-   there's only one URL (no separate reservation link), that domain is the
-   single link for both you and your friends.
-6. Deploy. Visit the app URL, enter your `ADMIN_PASSWORD` to get to the
+   the domain root is the link friends get, and `/admin` on the same
+   domain is the editor.
+6. Deploy. Visit `<app URL>/admin`, enter your `ADMIN_PASSWORD` to get to the
    editor, set a friend password from there, and start adding showtimes.
 
 ### Confirming persistence actually works

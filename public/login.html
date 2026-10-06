@@ -97,21 +97,29 @@
 
 <script src="/copy.js"></script>
 <script>
+// One form, two doors: / takes the friend password and /admin takes the
+// admin one. Each door only accepts its own (see server.js > Auth), so
+// this just has to post to the right endpoint and come back to the same
+// page once signed in.
+const IS_ADMIN = /^\/admin(\/|$)/.test(window.location.pathname);
+const HOME = IS_ADMIN ? '/admin' : '/';
+if (IS_ADMIN) document.querySelector('[data-copy="login.tagline"]').setAttribute('data-copy', 'login.adminTagline');
+
 applyCopy();
 
 (async function checkExistingSession(){
   try{
     const res = await fetch('/api/session');
     const data = await res.json();
-    if (!data || !data.authed) return;
-    // Guard against bouncing back and forth with '/' forever if two
+    if (!data || !(IS_ADMIN ? data.admin : data.shared)) return;
+    // Guard against bouncing back and forth with this page forever if two
     // requests in the same flow ever land on processes that disagree
     // about session validity (e.g. mid-redeploy).
     const key = 'canopy_auth_redirect_at';
     const last = Number(sessionStorage.getItem(key) || 0);
     if (Date.now() - last < 4000) return;
     sessionStorage.setItem(key, String(Date.now()));
-    window.location.href = '/';
+    window.location.href = HOME;
   }catch(e){}
 })();
 
@@ -121,13 +129,13 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
   errorEl.textContent = '';
   const password = document.getElementById('password').value;
   try{
-    const res = await fetch('/api/login', {
+    const res = await fetch(IS_ADMIN ? '/api/admin/login' : '/api/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password })
     });
     if (res.ok){
-      window.location.href = '/';
+      window.location.href = HOME;
       return;
     }
     errorEl.textContent = res.status === 401 ? t('login.wrongPassword') : t('login.failed');

@@ -1269,7 +1269,7 @@ function normalizeSeats(rawSeats){
   return out;
 }
 
-// Bouncing to '/' on a 401 is normally a one-shot fix (session expired,
+// Bouncing to '/admin' on a 401 is normally a one-shot fix (session expired,
 // go log in again). But if the page we land on still thinks we're
 // authed while the API disagrees (e.g. right after a redeploy handed out
 // a new session secret), that bounce repeats forever. Refuse to redirect
@@ -1282,17 +1282,17 @@ function handleAuthFailure(res){
   if (Date.now() - last < 4000){
     document.body.innerHTML =
       '<div style="padding:60px 20px;text-align:center;color:#9a9a9a;font-family:-apple-system,sans-serif;">' +
-      t('sessionTrouble') + '</div>';
+      t('sessionTrouble', { home: '/admin' }) + '</div>';
     return true;
   }
   sessionStorage.setItem(key, String(Date.now()));
-  window.location.href = '/';
+  window.location.href = '/admin';
   return true;
 }
 
 async function logout(){
   try{ await fetch('/api/logout', { method: 'POST' }); }catch(e){}
-  window.location.href = '/';
+  window.location.href = '/admin';
 }
 
 // ---------------- VIEW SWITCHING ----------------

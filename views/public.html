@@ -40,7 +40,7 @@
      and anything narrower puts each row's last seat behind a
      horizontal scroll on desktop. Narrow this and check the IMAX
      picker before assuming it's only a prose-width knob. */
-  #listView, #pickerView{
+  #listView, #filmView, #pickerView{
     max-width:880px;
     margin:0 auto;
   }
@@ -209,6 +209,76 @@
     color:var(--muted);
     cursor:not-allowed;
   }
+  /* ---------- MOVIE GRID (landing) ---------- */
+  /* One tile per film rather than one card per showtime: with several
+     films each showing several times, the flat list was a long scroll
+     before you found the movie you came for. minmax(140px) gives two
+     columns on a phone and five at the 880px cap. */
+  .film-grid{
+    padding:14px 10px 20px;
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(140px, 1fr));
+    gap:14px 12px;
+  }
+  .film-grid .empty-state, .film-grid .loading-state{grid-column:1 / -1;}
+  .film-tile{
+    display:block;
+    width:100%;
+    background:none;
+    border:none;
+    padding:0;
+    color:inherit;
+    font:inherit;
+    text-align:left;
+    cursor:pointer;
+  }
+  .film-tile:focus-visible{outline:2px solid var(--gold);outline-offset:3px;border-radius:10px;}
+  .film-poster{
+    aspect-ratio:2 / 3;
+    border-radius:10px;
+    overflow:hidden;
+    background:#0f0f10;
+    border:1px solid #2a2a2a;
+    margin-bottom:8px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:10px;
+  }
+  .film-poster.has-img{padding:0;border-color:transparent;background:#000;}
+  .film-poster img{width:100%;height:100%;object-fit:cover;display:block;}
+  /* No art yet: the title stands in for it, so the tile isn't a blank box. */
+  .film-poster-fallback{
+    color:var(--muted);
+    font-size:15px;
+    font-weight:700;
+    text-align:center;
+    line-height:1.25;
+  }
+  .film-tile:hover .film-poster{border-color:#3a3a3a;}
+  .film-title{
+    font-size:15px;
+    font-weight:700;
+    line-height:1.25;
+    margin-bottom:3px;
+  }
+  .film-sub{
+    color:#ccc;
+    font-size:12.5px;
+    line-height:1.35;
+  }
+  /* Inside one film's view the header already names it and every card
+     would carry the same poster and title -- drop both so each card is
+     just the when/where/seats that actually differ. */
+  #filmView .card .poster-thumb,
+  #filmView .card h3{display:none;}
+  .film-intro{
+    margin:0;
+    padding:0 20px;
+    color:var(--muted);
+    font-size:14px;
+  }
+
   .empty-state, .loading-state{
     padding:40px 20px;
     text-align:center;
@@ -1009,26 +1079,38 @@
 </head>
 <body>
 
-  <!-- ===================== LIST VIEW ===================== -->
+  <!-- ===================== MOVIE GRID (landing) ===================== -->
   <div id="listView">
     <div class="list-header">
       <div>
         <!-- LOGO_IMG -->
-        <h1>Upcoming Showtimes</h1>
+        <h1>Upcoming Movies</h1>
         <p data-copy="friend.intro"></p>
       </div>
       <div class="logout-link" onclick="logout()">Log out</div>
     </div>
-    <div class="cards" id="cardsContainer">
+    <div class="film-grid" id="filmGrid">
       <div class="loading-state">Loading...</div>
     </div>
+  </div>
+
+  <!-- ===================== ONE FILM'S SHOWTIMES ===================== -->
+  <div id="filmView" class="hidden">
+    <div class="header">
+      <div class="top-row">
+        <div class="back-btn" onclick="backToGrid()">&#8592;</div>
+        <div class="picker-title" id="filmTitle"></div>
+      </div>
+    </div>
+    <p class="film-intro" data-copy="friend.film.intro"></p>
+    <div class="cards" id="cardsContainer"></div>
   </div>
 
   <!-- ===================== SEAT PICKER VIEW ===================== -->
   <div id="pickerView" class="hidden">
     <div class="header">
       <div class="top-row">
-        <div class="back-btn" onclick="backToList()">&#8592;</div>
+        <div class="back-btn" onclick="backFromPicker()">&#8592;</div>
         <div class="picker-title" id="pickerTitle">Movie Title</div>
       </div>
       <div class="picker-subtitle" id="pickerSubtitle"></div>
@@ -1159,6 +1241,7 @@ const WHEELCHAIR_ICON_SVG =
   '<path d="M12.51 17.5c-.739 1.476-2.25 2.5-4.01 2.5A4.505 4.505 0 0 1 4 15.5a4.503 4.503 0 0 1 2.817-4.167l-.289-2.025C3.905 10.145 2 12.604 2 15.5 2 19.084 4.916 22 8.5 22a6.497 6.497 0 0 0 5.545-3.126l-.274-1.374H12.51z"/></svg>';
 
 let allShowtimes = [];     // last-loaded list from /api/public/showtimes
+let currentFilmTitle = null; // the film whose showtimes are open, if any
 let currentShowtimeId = null;
 let claimingSeatId = null;
 let seatEls = {};          // seatId -> DOM element, populated by buildSeatmap
@@ -1184,7 +1267,7 @@ function handleAuthFailure(res){
   if (Date.now() - last < 4000){
     document.body.innerHTML =
       '<div style="padding:60px 20px;text-align:center;color:#9a9a9a;font-family:-apple-system,sans-serif;">' +
-      t('sessionTrouble') + '</div>';
+      t('sessionTrouble', { home: '/' }) + '</div>';
     return true;
   }
   sessionStorage.setItem(key, String(Date.now()));
@@ -1333,18 +1416,32 @@ function formatTimeDisplay(t){
 }
 
 // ---------------- VIEW SWITCHING ----------------
-function showList(){
+//
+// Three levels: the movie grid (#listView), one film's showtimes
+// (#filmView), and a showtime's seat map (#pickerView). Exactly one is
+// visible at a time.
+function showView(id){
   clearSeatTip();
-  document.getElementById('pickerView').classList.add('hidden');
-  document.getElementById('listView').classList.remove('hidden');
+  ['listView', 'filmView', 'pickerView'].forEach(v =>
+    document.getElementById(v).classList.toggle('hidden', v !== id));
 }
-function showPicker(){
-  document.getElementById('listView').classList.add('hidden');
-  document.getElementById('pickerView').classList.remove('hidden');
-}
-function backToList(){
+function showList(){ showView('listView'); }
+// Going a level deeper starts at the top: the tap that got here may have
+// been far down a long grid or list.
+function showPicker(){ showView('pickerView'); window.scrollTo(0, 0); }
+function backToGrid(){
+  currentFilmTitle = null;
   currentShowtimeId = null;
   showList();
+  loadList();
+}
+// Back from a seat map lands on that film's showtimes, not the grid --
+// the likeliest next move is a different time of the same movie.
+// loadList() drops back to the grid by itself if the film has nothing
+// upcoming left.
+function backFromPicker(){
+  currentShowtimeId = null;
+  showView(currentFilmTitle ? 'filmView' : 'listView');
   loadList();
 }
 
@@ -1373,10 +1470,13 @@ function isPastShowtime(obj){
   return typeof obj.date === 'string' && obj.date < todayISO();
 }
 
-// ---------------- LIST VIEW ----------------
+// ---------------- LIST VIEWS ----------------
 async function loadList(){
-  const container = document.getElementById('cardsContainer');
-  container.innerHTML = '<div class="loading-state">Loading...</div>';
+  // Only the grid gets a loading placeholder: the film view is already
+  // showing this same data from the last load, and blanking it would make
+  // every trip back from a seat map flash.
+  const grid = document.getElementById('filmGrid');
+  if (!allShowtimes.length) grid.innerHTML = '<div class="loading-state">Loading...</div>';
   try{
     const res = await fetch('/api/public/showtimes');
     if (await handleAuthFailure(res)) return;
@@ -1384,23 +1484,108 @@ async function loadList(){
     const data = await res.json();
     allShowtimes = (data.showtimes || []).filter(obj => !isPastShowtime(obj));
     renderCards();
+    // The film that was open has nothing upcoming left (its last showing
+    // was yesterday, or the host deleted it) -- nothing to show there.
+    if (currentFilmTitle && !showtimesForFilm(currentFilmTitle).length &&
+        !document.getElementById('filmView').classList.contains('hidden')){
+      currentFilmTitle = null;
+      showList();
+    }
   }catch(e){
-    container.innerHTML = '<div class="empty-state">' + escapeHtml(t('friend.list.loadFailed')) + '</div>';
+    grid.innerHTML = '<div class="empty-state">' + escapeHtml(t('friend.list.loadFailed')) + '</div>';
   }
 }
 
-// Redraws the list from whatever's already in allShowtimes -- split out
-// of loadList so saving a concession cart can refresh the seat lines it
-// just changed without a second trip to the server for a list it already
-// got back from the save.
+// A film is its title -- the same key posters are filed under (see
+// posterUrlForTitle in server.js), so every showtime of a film shares a
+// tile and a poster.
+function filmKey(obj){
+  return (obj.title || '').trim() || 'Untitled';
+}
+function showtimesForFilm(title){
+  return allShowtimes.filter(obj => filmKey(obj) === title);
+}
+
+// Redraws the grid, and the open film's showtimes if there is one, from
+// whatever's already in allShowtimes -- split out of loadList so saving a
+// concession cart can refresh the seat lines it just changed without a
+// second trip to the server for a list it already got back from the save.
 function renderCards(){
-  const container = document.getElementById('cardsContainer');
+  renderFilmGrid();
+  if (currentFilmTitle) renderFilmShowtimes();
+}
+
+function renderFilmGrid(){
+  const grid = document.getElementById('filmGrid');
   if (allShowtimes.length === 0){
-    container.innerHTML = '<div class="empty-state">' + escapeHtml(t('friend.list.empty')) + '</div>';
+    grid.innerHTML = '<div class="empty-state">' + escapeHtml(t('friend.list.empty')) + '</div>';
     return;
   }
+  // allShowtimes arrives soonest-first, so films come out ordered by
+  // their next showing.
+  const films = new Map();
+  allShowtimes.forEach(obj => {
+    const key = filmKey(obj);
+    if (!films.has(key)) films.set(key, []);
+    films.get(key).push(obj);
+  });
+  grid.innerHTML = '';
+  films.forEach((showtimes, title) => grid.appendChild(buildFilmTile(title, showtimes)));
+}
+
+function buildFilmTile(title, showtimes){
+  const tile = document.createElement('button');
+  tile.type = 'button';
+  tile.className = 'film-tile';
+  tile.addEventListener('click', () => openFilm(title));
+
+  const poster = document.createElement('div');
+  poster.className = 'film-poster';
+  const posterUrl = showtimes[0].posterUrl;
+  if (posterUrl){
+    poster.classList.add('has-img');
+    const img = document.createElement('img');
+    img.src = posterUrl;
+    img.alt = '';
+    poster.appendChild(img);
+  } else {
+    const fallback = document.createElement('div');
+    fallback.className = 'film-poster-fallback';
+    fallback.textContent = title;
+    poster.appendChild(fallback);
+  }
+  tile.appendChild(poster);
+
+  const name = document.createElement('div');
+  name.className = 'film-title';
+  name.textContent = title;
+  tile.appendChild(name);
+
+  const next = showtimes[0];
+  const sub = document.createElement('div');
+  sub.className = 'film-sub';
+  sub.textContent = [
+    t(showtimes.length === 1 ? 'friend.grid.showtimesOne' : 'friend.grid.showtimesMany', { count: showtimes.length }),
+    t('friend.grid.next', { when: formatDateDisplay(next.date) })
+  ].join(' \u00b7 ');
+  tile.appendChild(sub);
+
+  return tile;
+}
+
+function openFilm(title){
+  currentFilmTitle = title;
+  document.getElementById('filmTitle').textContent = title;
+  renderFilmShowtimes();
+  showView('filmView');
+  window.scrollTo(0, 0);
+}
+
+function renderFilmShowtimes(){
+  const container = document.getElementById('cardsContainer');
+  const showtimes = showtimesForFilm(currentFilmTitle);
   container.innerHTML = '';
-  allShowtimes.forEach(obj => container.appendChild(buildCard(obj)));
+  showtimes.forEach(obj => container.appendChild(buildCard(obj)));
 }
 
 function showtimeSubtitle(obj){
