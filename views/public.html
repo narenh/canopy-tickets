@@ -142,6 +142,45 @@
     font-size:14px;
   }
   .mine-empty{text-align:center;padding:40px 20px;color:var(--muted);font-size:14px;}
+  .cal-banner{
+    position:relative;
+    display:flex;
+    gap:12px;
+    /* Same side margin as the cards below it (.cards). */
+    margin:14px 10px 0;
+    padding:14px 40px 14px 14px;
+    background:#16181f;
+    border:1px solid #2b3142;
+    border-radius:14px;
+  }
+  .cal-banner-icon{width:24px;height:24px;flex:0 0 auto;color:var(--gold);margin-top:1px;}
+  .cal-banner-body{flex:1;min-width:0;}
+  .cal-banner-title{color:#fff;font-weight:700;font-size:15px;margin-bottom:3px;}
+  .cal-banner-text{color:#bbb;font-size:13.5px;line-height:1.4;}
+  .cal-banner-btn{
+    display:inline-block;
+    margin-top:10px;
+    background:var(--gold);
+    color:#241c07;
+    font-weight:700;
+    font-size:14px;
+    text-decoration:none;
+    border-radius:16px;
+    padding:7px 16px;
+  }
+  .cal-banner-close{
+    position:absolute;
+    top:6px;
+    right:6px;
+    width:30px;
+    height:30px;
+    background:none;
+    border:none;
+    color:#888;
+    font-size:20px;
+    line-height:1;
+    cursor:pointer;
+  }
   .mine-empty button{
     margin-top:14px;
     background:var(--gold);
@@ -1410,6 +1449,21 @@
     <!-- Your seats and the guests you booked, in every movie. Read-only
          for a movie this browser hasn't unlocked. -->
     <div id="mineTab" class="hidden">
+      <!-- Until it's dismissed or Subscribe is tapped (remembered on the
+           person, not the phone). -->
+      <div class="cal-banner hidden" id="calBanner">
+        <svg class="cal-banner-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="3.5" y="5" width="17" height="15.5" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/>
+          <path d="M3.5 10h17M8 3v4M16 3v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          <circle cx="8.5" cy="14.5" r="1.2" fill="currentColor"/><circle cx="12" cy="14.5" r="1.2" fill="currentColor"/><circle cx="15.5" cy="14.5" r="1.2" fill="currentColor"/>
+        </svg>
+        <div class="cal-banner-body">
+          <div class="cal-banner-title" data-copy="friend.calBanner.title"></div>
+          <div class="cal-banner-text" data-copy="friend.calBanner.text"></div>
+          <a class="cal-banner-btn" id="calBannerSubscribe" href="#" data-copy="friend.calBanner.subscribe"></a>
+        </div>
+        <button type="button" class="cal-banner-close" onclick="dismissCalBanner()" aria-label="Dismiss">&#215;</button>
+      </div>
       <div class="cards" id="mineCards"><div class="loading-state">Loading...</div></div>
     </div>
 
@@ -1521,7 +1575,7 @@
       <div class="claim-sub" data-copy="friend.calendar.hint"></div>
       <div class="claim-error" id="calendarError"></div>
       <div class="claim-actions">
-        <a class="cal-btn" id="calendarSubscribe" href="#" data-copy="friend.calendar.subscribe"></a>
+        <a class="cal-btn" id="calendarSubscribe" href="#" onclick="markCalPromptDone()" data-copy="friend.calendar.subscribe"></a>
         <button type="button" id="calendarCopy" onclick="copyCalendarFeed()" data-copy="friend.calendar.copy"></button>
         <button type="button" onclick="closeCalendarFeed()">Close</button>
       </div>
@@ -2016,6 +2070,7 @@ function renderMe(){
   const avatar = document.getElementById('meAvatar');
   if (me.photoUrl) avatar.src = me.photoUrl;
   document.getElementById('claimForMe').textContent = t('friend.claim.forMe', { name: me.shortName });
+  renderCalBanner();
 }
 
 // ---------------- TABS ----------------
@@ -3128,6 +3183,40 @@ document.getElementById('profilePhotoInput').addEventListener('change', async (e
   }catch(err){
     errorEl.textContent = t('friend.profile.failed');
   }
+});
+
+// ---------------- "SUBSCRIBE TO YOUR SHOWTIMES" BANNER ----------------
+// Top of My showtimes until the person dismisses it or taps Subscribe --
+// remembered on them (calendarPromptDone), so it doesn't come back on
+// another phone. Subscribe is a real link to the webcal:// feed, so the
+// phone hands it to the calendar app; the feed URL is fetched first so
+// the link is ready by the time anyone taps it.
+async function renderCalBanner(){
+  const banner = document.getElementById('calBanner');
+  if (!me || me.calendarPromptDone){ banner.classList.add('hidden'); return; }
+  banner.classList.remove('hidden');
+  if (!calendarFeed){
+    try{
+      const res = await fetch('/api/public/calendar-feed');
+      if (res.ok) calendarFeed = await res.json();
+    }catch(e){}
+  }
+  if (calendarFeed) document.getElementById('calBannerSubscribe').href = calendarFeed.webcalUrl;
+}
+
+function markCalPromptDone(){
+  if (me) me.calendarPromptDone = true;
+  document.getElementById('calBanner').classList.add('hidden');
+  // keepalive: Subscribe navigates away to the calendar app right after.
+  fetch('/api/public/calendar-prompt-done', { method: 'POST', keepalive: true }).catch(() => {});
+}
+
+function dismissCalBanner(){ markCalPromptDone(); }
+
+document.getElementById('calBannerSubscribe').addEventListener('click', (e) => {
+  // Not loaded (yet): the Calendar feed sheet fetches it and has Copy link.
+  if (!calendarFeed){ e.preventDefault(); openCalendarFeed(); }
+  markCalPromptDone();
 });
 
 // ---------------- CALENDAR FEED ----------------

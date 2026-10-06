@@ -1236,6 +1236,13 @@ app.get('/api/public/calendar-feed', (req, res) => {
   });
 });
 
+// The "Subscribe to your showtimes" banner on My showtimes: dismissed, or
+// its Subscribe tapped. Either way it stops showing for this person.
+app.post('/api/public/calendar-prompt-done', (req, res) => {
+  store.markCalendarPromptDone(req.person.id);
+  res.json({ ok: true });
+});
+
 app.get('/calendar/feed/:token.ics', (req, res) => {
   if (store.kind !== 'sqlite') return res.status(404).end();
   const person = store.personByCalendarToken(req.params.token);

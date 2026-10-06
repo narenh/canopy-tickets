@@ -101,6 +101,13 @@ const COPY = {
       noneFor: 'No concessions for {name}'
     },
 
+    // The banner at the top of My showtimes, until dismissed or tapped.
+    calBanner: {
+      title: 'Subscribe to your showtimes',
+      text: 'Add the subscription link to your calendar app and all your showtimes will appear automatically.',
+      subscribe: 'Subscribe'
+    },
+
     // Your subscribe-once calendar of every showtime you have a seat in.
     calendar: {
       heading: 'Calendar feed',
