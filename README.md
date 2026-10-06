@@ -130,8 +130,9 @@ files and images (see "Storage & backups" below).
   for who it's assigned to), and a pre-filled Venmo and/or Cash App pay button right
   after claiming for whichever handle(s) are set (see "Payment handles"
   below); doesn't expose which seats are sold-out-but-not-mine vs. simply
-  not part of the block. Each reserved seat on the list is also the way
-  into that seat's concession cart (see "Concessions" below).
+  not part of the block. Your own reserved seats (and your
+  guests') on the list are also the way into that seat's concession cart
+  (see "Concessions" below); other people's are just who's sitting there.
 - `views/welcome.html` — the friend door: email, and for a new one, name
   and photo. `public/photo-crop.js` frames the photo (Cropper.js 1.x,
   vendored in `public/vendor/`).
@@ -181,6 +182,14 @@ on its own:
 - **Changing anything needs the movie unlocked on the browser doing it**:
   reserving, concession orders, marking paid. Renaming a profile or
   changing its photo needs one of that person's movies unlocked there.
+- **A seat's order and payment are its owner's**: your own seat and the
+  guests you booked. Other people's seats show who's sitting there and
+  can't be opened; the server refuses writes to them too.
+- **Claiming a seat reserved before profiles needs that movie's password
+  typed by the person claiming it** (recorded in `person_unlocks`), not
+  just the browser having it unlocked — otherwise a new profile made on
+  a phone with everything unlocked could claim anyone's seat. Seats
+  picked across several movies ask for one password at a time.
 - So someone who only knows a friend's email can sign in as them and see
   which showtimes they're in (My showtimes works anywhere, read-only) —
   and nothing else.
@@ -239,8 +248,8 @@ getting out.
 ## Concessions
 
 Friends can come back to the reservation page any time after reserving a
-seat and build a concession order for it. On the list, every reserved
-seat is its own tappable row showing only a count — "🍿 5 items", or "No
+seat and build a concession order for it. On the list, each of your
+reserved seats (and your guests') is its own tappable row showing only a count — "🍿 5 items", or "No
 concessions". Spelling out four people's orders in full turned the
 showtime list into a wall of sauces; whoever wants the detail is one tap
 away, and you have the itemised copy in the editor. Tapping the row opens

@@ -879,7 +879,12 @@ app.get('/api/public/movies', (req, res) => {
 app.post('/api/public/movies/:id/unlock', (req, res) => {
   const movie = store.getMovie(req.params.id);
   if (!movie) return res.status(404).json({ error: 'not found' });
-  if (req.unlocked.has(movie.id)) return res.json(meView(req));
+  // Already unlocked here AND typed by this person: nothing to prove. A
+  // movie only the device has unlocked still takes the password, so the
+  // person signed in now is recorded as knowing it (see claim-existing).
+  if (req.unlocked.has(movie.id) && store.personUnlockedMovieIds(req.person.id).has(movie.id)) {
+    return res.json(meView(req));
+  }
   const key = `${req.device.id}:${movie.id}`;
   if (unlockLimiter.blocked(key) || unlockIpLimiter.blocked(req.ip)) {
     return res.status(429).json({ error: 'too many tries -- wait a few minutes', reason: 'rate_limited' });
@@ -891,7 +896,7 @@ app.post('/api/public/movies/:id/unlock', (req, res) => {
     // 403, not 401: the page reads a 401 as "you've been signed out".
     return res.status(403).json({ error: 'wrong password', reason: 'wrong_password' });
   }
-  store.unlockMovie(req.device.id, movie.id);
+  store.unlockMovie(req.device.id, movie.id, req.person.id);
   req.unlocked.add(movie.id);
   res.json(meView(req));
 });
@@ -921,6 +926,17 @@ app.get('/api/public/mine', (req, res) => {
   }).sort((a, b) => byShowtime(a.showtime, b.showtime));
   res.json({ items });
 });
+
+// A seat's order and payment are its owner's: your own seat, or a guest
+// you booked. A seat reserved before profiles belongs to nobody until
+// its person claims it (claim-existing), so nobody can change it here.
+// Sends the refusal itself and returns false when it isn't yours.
+function ownSeat(req, res, show) {
+  const raw = (show.seats || {})[req.params.seatId];
+  if (raw && raw.personId && raw.personId === req.person.id) return true;
+  res.status(403).json({ error: 'that seat is not yours', reason: 'not_yours' });
+  return false;
+}
 
 // Anything that changes a showtime needs its movie unlocked here. Sends
 // the refusal itself and returns null when it doesn't.
@@ -954,16 +970,25 @@ app.post('/api/public/showtimes/:id/claim', (req, res) => {
 });
 
 // Seats reserved before profiles existed, in movies unlocked here, for
-// "are these yours?".
+// "are these yours?". needsPassword: this person hasn't typed that
+// movie's password themselves yet, which claiming one of its seats
+// takes -- the phone having it unlocked isn't enough.
 app.get('/api/public/claimable', (req, res) => {
-  res.json({ seats: store.claimableSeats(req.unlocked) });
+  const typed = store.personUnlockedMovieIds(req.person.id);
+  const seats = store.claimableSeats(req.unlocked)
+    .map((x) => ({ ...x, needsPassword: !typed.has(x.movieId) }));
+  res.json({ seats });
 });
 
 app.post('/api/public/claim-existing', (req, res) => {
   const { seats } = req.body || {};
   if (!Array.isArray(seats)) return res.status(400).json({ error: 'seats must be an array' });
   const items = seats.slice(0, 50).filter((x) => x && typeof x.showtimeId === 'string' && typeof x.seatId === 'string');
-  const result = store.claimExistingSeats(req.person.id, items, req.unlocked);
+  // Unlocked on this device and the password typed by this person. Seats
+  // in any other movie are skipped (and not counted in `claimed`).
+  const typed = store.personUnlockedMovieIds(req.person.id);
+  const allowed = new Set(Array.from(req.unlocked).filter((id) => typed.has(id)));
+  const result = store.claimExistingSeats(req.person.id, items, allowed);
   if (!result.ok) return sendResult(res, result);
   res.json({ claimed: result.claimed });
 });
@@ -1152,31 +1177,26 @@ app.get('/api/public/concession-menu', (req, res) => {
   });
 });
 
-// Replaces one reserved seat's concession cart.
+// Replaces one reserved seat's concession cart, and (below) marks a seat
+// paid. Both are the seat owner's alone -- your own seat or a guest you
+// booked (ownSeat). A seat reserved before profiles has no owner until
+// its person claims it, so nobody can change it from here; the host can
+// still change anything in the editor.
 //
-// Deliberately NOT tied to "the person who claimed this seat": there's no
-// per-friend identity in this app (one shared password, names typed in
-// free-text at claim time), so anyone who can see the reservation page
-// can edit any cart on it. That's the same trust model the rest of the
-// friend side already runs on, and it's what makes "add mine to Jordan's
-// while I'm at it" work at all.
+// Once the host closes the cart the concessions write is refused (409),
+// a flag the host sets, not a time the server would have to read out of
+// a bare local date string from a container in the wrong timezone.
 //
-// Once the host closes the cart this refuses the write (409), which is
-// the one rule here the server can actually enforce -- it's a flag the
-// host sets, not a time it would have to read out of a bare local date
-// string from a container in the wrong timezone.
-// Somebody saying they've settled up. There is no callback from Venmo or
-// Cash App that could tell this app a payment landed -- a payment link is
-// a deep link into someone else's app and nothing comes back -- so a
-// friend marking themselves paid is the only signal that exists. Same
-// trust model as the carts above: one shared password, any friend can
-// mark any seat, and the host can overrule all of it in the editor.
+// Paid is somebody saying they've settled up. There is no callback from
+// Venmo or Cash App that could tell this app a payment landed, so a
+// friend marking themselves paid is the only signal that exists.
 //
 // `ticket` and `concessions` are booleans, not amounts. What concessions
 // come to is worked out in the store from what's actually saved on the
 // seat, so a stale page can't settle $40 of food off a $12 view of it.
 app.put('/api/public/showtimes/:id/seats/:seatId/paid', async (req, res) => {
-  if (!unlockedShowtime(req, res)) return;
+  const show = unlockedShowtime(req, res);
+  if (!show || !ownSeat(req, res, show)) return;
   const body = req.body || {};
   const patch = {};
   if (typeof body.ticket === 'boolean') patch.ticket = body.ticket;
@@ -1194,7 +1214,8 @@ app.put('/api/public/showtimes/:id/seats/:seatId/paid', async (req, res) => {
 });
 
 app.put('/api/public/showtimes/:id/seats/:seatId/concessions', async (req, res) => {
-  if (!unlockedShowtime(req, res)) return;
+  const show = unlockedShowtime(req, res);
+  if (!show || !ownSeat(req, res, show)) return;
   const { items } = req.body || {};
   if (items !== undefined && !Array.isArray(items)) {
     return res.status(400).json({ error: 'items must be an array' });

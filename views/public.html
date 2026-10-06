@@ -674,10 +674,22 @@
   .profile-photo input{position:absolute;inset:0;opacity:0;cursor:pointer;}
   .profile-email{margin:0;overflow-wrap:anywhere;}
   .existing-card{max-height:85vh;display:flex;flex-direction:column;}
+  #existingPick{display:flex;flex-direction:column;flex:1;min-height:0;}
   .existing-list{overflow-y:auto;margin-bottom:12px;flex:1;min-height:0;}
   .existing-name{font-weight:700;color:var(--gold);font-size:14px;margin:10px 0 4px;}
   .existing-seat{display:flex;align-items:center;gap:10px;font-size:13px;color:#ddd;padding:5px 0;cursor:pointer;}
   .existing-seat input{width:18px;height:18px;margin:0;accent-color:var(--gold);flex:0 0 auto;}
+  /* 16px so iOS doesn't zoom in on focus. */
+  .existing-pw-input{
+    width:100%;
+    background:#0f0f10;
+    color:#fff;
+    border:1px solid #3a3a3a;
+    border-radius:10px;
+    padding:12px 14px;
+    font-size:16px;
+    margin:4px 0 8px;
+  }
   .claim-actions button, .claim-actions a{
     width:100%;
     padding:10px;
@@ -770,6 +782,10 @@
     cursor:pointer;
   }
   button.seat-line:hover{border-color:#3a3a3a;}
+  /* Someone else's seat: who's sitting there, nothing to tap. */
+  .seat-line.is-other{padding:5px 11px;margin-bottom:4px;}
+  /* Gold names mean yours, as on My showtimes. */
+  .seat-line.is-other b{color:#eee;font-weight:600;}
   /* Your own seat stands out in a list of everyone's. */
   button.seat-line.is-mine{border-color:#5a4a22;background:#17140d;}
   .seat-line .avatar, .mine-seat .avatar{width:22px;height:22px;flex:0 0 auto;}
@@ -1401,14 +1417,28 @@
        sheet) so they can join your showtimes. -->
   <div class="claim-overlay hidden" id="existingOverlay">
     <div class="claim-card existing-card">
-      <div class="claim-title" data-copy="friend.existing.heading"></div>
-      <div class="claim-sub" data-copy="friend.existing.hint"></div>
-      <div class="existing-list" id="existingList"></div>
-      <div class="claim-error" id="existingError"></div>
-      <div class="claim-actions">
-        <button type="button" class="claim-submit-btn" id="existingSubmit" onclick="submitExisting()" data-copy="friend.existing.submit"></button>
-        <button type="button" onclick="closeExisting()" data-copy="friend.existing.skip"></button>
+      <div id="existingPick">
+        <div class="claim-title" data-copy="friend.existing.heading"></div>
+        <div class="claim-sub" data-copy="friend.existing.hint"></div>
+        <div class="existing-list" id="existingList"></div>
+        <div class="claim-error" id="existingError"></div>
+        <div class="claim-actions">
+          <button type="button" class="claim-submit-btn" id="existingSubmit" onclick="submitExisting()" data-copy="friend.existing.submit"></button>
+          <button type="button" onclick="closeExisting()" data-copy="friend.existing.skip"></button>
+        </div>
       </div>
+      <!-- Claiming a seat takes that movie's password, typed by you --
+           one movie at a time, for the ones you haven't typed it for. -->
+      <form class="hidden" id="existingPassword" onsubmit="submitExistingPassword(event)">
+        <div class="claim-title" id="existingPwTitle"></div>
+        <div class="claim-sub" id="existingPwHint"></div>
+        <input type="password" id="existingPwInput" class="existing-pw-input" autocomplete="off">
+        <div class="claim-error" id="existingPwError"></div>
+        <div class="claim-actions">
+          <button type="submit" class="claim-submit-btn" id="existingPwSubmit" data-copy="friend.existing.pwContinue"></button>
+          <button type="button" onclick="showExistingPick()" data-copy="friend.existing.pwBack"></button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -2398,16 +2428,23 @@ function seatWhoHtml(seatId, seat){
   return '<span class="seat-id">' + escapeHtml(seatId) + '</span>' + photo + '<b>' + escapeHtml(seat.name || '') + '</b>' + via;
 }
 
-// One claimed seat on a list card. The whole row is the way into that
-// seat's concession cart -- see the CONCESSIONS block below for why any
-// friend can open any seat's, not just their own.
+// One claimed seat on a list card. Yours (and your guests') are the way
+// into that seat's concession cart; anyone else's is just who's sitting
+// there -- their order is theirs (see the CONCESSIONS block below).
 function buildClaimedSeatLine(obj, seatId, ordersOpen){
   const seat = (obj.seats || {})[seatId] || {};
   const lines = seat.concessions || [];
 
+  if (!seat.mine){
+    const row = document.createElement('div');
+    row.className = 'seat-line is-other';
+    row.innerHTML = '<div class="seat-line-main"><div class="seat-line-who">' + seatWhoHtml(seatId, seat) + '</div></div>';
+    return row;
+  }
+
   const row = document.createElement('button');
   row.type = 'button';
-  row.className = 'seat-line' + (seat.mine ? ' is-mine' : '');
+  row.className = 'seat-line is-mine';
   row.addEventListener('click', () => openCart(obj.id, seatId));
 
   const main = document.createElement('div');
@@ -2925,6 +2962,11 @@ document.getElementById('profilePhotoInput').addEventListener('change', async (e
 // Seats reserved before profiles existed carry a name and no owner. These
 // are the ones in movies unlocked here, grouped by the name on them;
 // names that start with your first name come first, already ticked.
+// Claiming one takes its movie's password typed by you -- the phone
+// having the movie unlocked isn't enough, or a new profile on a phone
+// with everything unlocked could take anyone's seat. Ticked seats in
+// movies you haven't typed the password for ask for it one movie at a
+// time before anything is claimed.
 let existingSeats = [];
 
 async function openExisting(fromProfile){
@@ -2960,15 +3002,77 @@ async function openExisting(fromProfile){
       const row = document.createElement('label');
       row.className = 'existing-seat';
       row.innerHTML = '<input type="checkbox"' + (isLikely(name) ? ' checked' : '') +
-        ' data-showtime="' + escapeHtml(x.showtimeId) + '" data-seat="' + escapeHtml(x.seatId) + '"><span>' +
+        ' data-showtime="' + escapeHtml(x.showtimeId) + '" data-seat="' + escapeHtml(x.seatId) + '" data-movie="' + escapeHtml(x.movieId) + '"><span>' +
         escapeHtml(x.title + ' \u00b7 ' + formatDateDisplay(x.date) + ' \u00b7 ' + formatTimeDisplay(x.time) + ' \u00b7 ' + x.seatId) +
         '</span>';
       list.appendChild(row);
     });
   });
   document.getElementById('existingError').textContent = '';
+  showExistingPick();
   document.getElementById('existingOverlay').classList.remove('hidden');
   overlayOpened();
+}
+
+function showExistingPick(){
+  document.getElementById('existingPassword').classList.add('hidden');
+  document.getElementById('existingPick').classList.remove('hidden');
+}
+
+// Movies among the ticked seats whose password this person still has to
+// type, in the order they appear.
+function existingMoviesNeedingPassword(){
+  const ids = [];
+  document.querySelectorAll('#existingList input:checked').forEach(i => {
+    const x = existingSeats.find(e => e.showtimeId === i.dataset.showtime && e.seatId === i.dataset.seat);
+    if (x && x.needsPassword && !ids.includes(x.movieId)) ids.push(x.movieId);
+  });
+  return ids;
+}
+
+function askExistingPassword(movieId){
+  const x = existingSeats.find(e => e.movieId === movieId);
+  const left = existingMoviesNeedingPassword().length;
+  document.getElementById('existingPwTitle').textContent = t('friend.existing.pwHeading', { title: x ? x.title : '' });
+  document.getElementById('existingPwHint').textContent = t(left > 1 ? 'friend.existing.pwHintMore' : 'friend.existing.pwHint', { count: left });
+  document.getElementById('existingPwError').textContent = '';
+  const input = document.getElementById('existingPwInput');
+  input.value = '';
+  input.placeholder = t('friend.unlock.placeholder');
+  input.dataset.movie = movieId;
+  document.getElementById('existingPick').classList.add('hidden');
+  document.getElementById('existingPassword').classList.remove('hidden');
+  setTimeout(() => input.focus(), 0);
+}
+
+async function submitExistingPassword(e){
+  e.preventDefault();
+  const input = document.getElementById('existingPwInput');
+  const errorEl = document.getElementById('existingPwError');
+  const btn = document.getElementById('existingPwSubmit');
+  const movieId = input.dataset.movie;
+  errorEl.textContent = '';
+  btn.disabled = true;
+  try{
+    const res = await fetch('/api/public/movies/' + encodeURIComponent(movieId) + '/unlock', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: input.value })
+    });
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok){
+      errorEl.textContent = t(res.status === 429 ? 'friend.unlock.tooMany' : 'friend.unlock.wrong');
+      input.select();
+      return;
+    }
+    existingSeats.forEach(x => { if (x.movieId === movieId) x.needsPassword = false; });
+    btn.disabled = false;
+    submitExisting();
+  }catch(err){
+    errorEl.textContent = t('friend.unlock.failed');
+  }finally{
+    btn.disabled = false;
+  }
 }
 
 function closeExisting(){
@@ -2980,6 +3084,9 @@ async function submitExisting(){
   const picked = Array.from(document.querySelectorAll('#existingList input:checked'))
     .map(i => ({ showtimeId: i.dataset.showtime, seatId: i.dataset.seat }));
   if (!picked.length){ closeExisting(); return; }
+  const needed = existingMoviesNeedingPassword();
+  if (needed.length){ askExistingPassword(needed[0]); return; }
+  showExistingPick();
   const btn = document.getElementById('existingSubmit');
   btn.disabled = true;
   try{
@@ -3002,12 +3109,10 @@ async function submitExisting(){
 
 // ---------------- CONCESSIONS ----------------
 //
-// A cart belongs to a SEAT, and anyone with the movie unlocked can open
-// and edit any reserved seat's cart -- not just their own. That's
-// deliberate (and how the friend side has always worked): it's what makes
-// "I'm at the counter, add a popcorn to Jordan's too" a thing you can just
-// do. Limiting carts to your own seats and guests is a possible later step
-// now that seats have owners.
+// A cart belongs to a SEAT, and only the seat's owner can open it: your
+// own seat, or a guest you booked. A seat reserved before profiles has
+// no owner until its person claims it ("Are these yours?"), so nobody
+// can touch its order from here. The server enforces the same thing.
 //
 // Menu items are the host's list (admin editor). A cart line snapshots
 // the item's name and price at the moment it was added, so the host
@@ -3269,7 +3374,7 @@ async function openCart(showtimeId, seatId){
   const obj = allShowtimes.find(s => s.id === showtimeId);
   if (!obj) return;
   const seat = (obj.seats || {})[seatId];
-  if (!seat || !seat.name) return;
+  if (!seat || !seat.name || !seat.mine) return;
 
   cartShowtimeId = showtimeId;
   cartSeatId = seatId;

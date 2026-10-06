@@ -50,7 +50,7 @@ const COPY = {
 
     // One film's showtimes, after tapping its poster.
     film: {
-      intro: 'Reserve a spot below. Tap any reserved seat to add concessions, up to 2 hours before showtime.'
+      intro: 'Reserve a spot below. Tap your seat to add concessions, up to 2 hours before showtime.'
     },
 
     // A poster tile on the landing grid.
@@ -115,7 +115,13 @@ const COPY = {
       submit: 'These are mine',
       skip: 'Not now',
       none: 'No unclaimed seats in the movies unlocked on this phone.',
-      failed: "Couldn't save. Try again."
+      failed: "Couldn't save. Try again.",
+      // Claiming a seat takes its movie's password, one movie at a time.
+      pwHeading: 'Password for {title}',
+      pwHint: 'Enter the movie password to claim your seats.',
+      pwHintMore: 'Enter the movie password to claim your seats. You picked seats in {count} movies, so this asks one at a time.',
+      pwContinue: 'Continue',
+      pwBack: 'Back'
     },
 
     seatMap: {
