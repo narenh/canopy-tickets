@@ -226,7 +226,7 @@
   .mine-seat .seat-id{color:var(--muted);font-weight:700;min-width:30px;}
   .mine-seat b{color:#eee;font-weight:600;}
   .mine-seat.is-mine b{color:var(--gold);font-weight:700;}
-  .mine-seat .you-tag{
+  .mine-seat .you-tag, .seat-line .you-tag{
     font-size:10.5px;
     font-weight:700;
     color:#241c07;
@@ -864,36 +864,10 @@
     margin-bottom:6px;
   }
 
-  /* ---------- CONCESSIONS (list card) ---------- */
-  /* A reserved seat's line is the entry point to its cart, so the whole
-     line is the tap target rather than a separate small button hanging
-     off the end of it -- there's one of these per claimed seat and a row
-     of 12 tiny buttons would be both uglier and harder to hit on a
-     phone. It's a <button> (not a div with onclick) so keyboard and
-     screen-reader users get it for free. */
-  button.seat-line{
-    display:flex;
-    align-items:center;
-    gap:8px;
-    width:100%;
-    text-align:left;
-    background:#101012;
-    border:1px solid #232326;
-    border-radius:10px;
-    padding:8px 10px;
-    margin-bottom:6px;
-    color:#ddd;
-    font-family:inherit;
-    font-size:13px;
-    cursor:pointer;
-  }
-  button.seat-line:hover{border-color:#3a3a3a;}
-  /* Someone else's seat: who's sitting there, nothing to tap. */
-  .seat-line.is-other{padding:5px 11px;margin-bottom:4px;}
+  /* ---------- WHO'S IN A SHOWTIME (list card) ---------- */
+  .claimed-list .seat-line{padding:5px 11px;margin-bottom:4px;}
   /* Gold names mean yours, as on My showtimes. */
   .seat-line.is-other b{color:#eee;font-weight:600;}
-  /* Your own seat stands out in a list of everyone's. */
-  button.seat-line.is-mine{border-color:#5a4a22;background:#17140d;}
   .seat-line .avatar, .mine-seat .avatar{width:22px;height:22px;flex:0 0 auto;}
   .avatar-blank{
     display:flex;
@@ -906,24 +880,6 @@
   }
   .seat-line-who{display:flex;align-items:center;gap:7px;flex-wrap:wrap;}
   .seat-line-who .via, .mine-seat .via{color:var(--muted);font-size:11.5px;}
-  .seat-line-main{flex:1;min-width:0;}
-  .seat-line-who{margin-bottom:2px;}
-  .concession-summary{
-    color:var(--muted);
-    font-size:11.5px;
-    line-height:1.35;
-    /* Long orders wrap instead of stretching the card -- the full cart
-       is one tap away, this line is only ever a glance. */
-    overflow-wrap:anywhere;
-  }
-  .concession-summary.has-items{color:#cbbf9a;}
-  .concession-cta{
-    flex:0 0 auto;
-    color:var(--gold);
-    font-size:11px;
-    font-weight:700;
-    white-space:nowrap;
-  }
 
   /* ---------- CART OVERLAY ---------- */
   /* Wider and taller than the claim/success cards: this one is a list of
@@ -1515,10 +1471,11 @@
   <div class="claim-overlay hidden" id="claimOverlay">
     <div class="claim-card">
       <div class="claim-title" id="claimTitle">Claim seat</div>
-      <div class="claim-sub" data-copy="friend.claim.hint"></div>
+      <div class="claim-sub" id="claimHint"></div>
       <!-- Your own seat, or one for someone you're bringing. A guest's seat
-           is still yours to look after (it shows as "Alex (via you)"). -->
-      <div class="claim-for">
+           is still yours to look after (it shows as "Alex (via you)").
+           Hidden once you have your own seat in the showtime: one each. -->
+      <div class="claim-for" id="claimForChoice">
         <label class="claim-for-opt"><input type="radio" name="claimFor" value="me" checked> <span id="claimForMe"></span></label>
         <label class="claim-for-opt"><input type="radio" name="claimFor" value="guest"> <span data-copy="friend.claim.forGuest"></span></label>
       </div>
@@ -2551,8 +2508,7 @@ function buildCard(obj){
     if (claimed.length > 0){
       const claimedList = document.createElement('div');
       claimedList.className = 'claimed-list';
-      const ordersOpen = concessionsOpen(obj);
-      claimed.forEach(id => claimedList.appendChild(buildClaimedSeatLine(obj, id, ordersOpen)));
+      claimed.forEach(id => claimedList.appendChild(buildClaimedSeatLine(obj, id)));
       card.appendChild(claimedList);
     }
 
@@ -2599,58 +2555,21 @@ function seatWhoHtml(seatId, seat){
   return '<span class="seat-id">' + escapeHtml(seatId) + '</span>' + photo + '<b>' + escapeHtml(seat.name || '') + '</b>' + via;
 }
 
-// One claimed seat on a list card. Yours (and your guests') are the way
-// into that seat's concession cart; anyone else's is just who's sitting
-// there -- their order is theirs (see the CONCESSIONS block below).
-function buildClaimedSeatLine(obj, seatId, ordersOpen){
+// One claimed seat on a list card: who's sitting there, the same as
+// Going on My showtimes -- yours in gold with "you", your guests' in gold,
+// and an "unpaid" tag on yours while they owe. Nothing to tap: orders
+// live on My showtimes, so reserving and ordering are separate.
+// Seat first, then who's in it: the seat is what you're scanning for
+// when you're looking down a row, and it's the shorter of the two so the
+// names line up.
+function buildClaimedSeatLine(obj, seatId){
   const seat = (obj.seats || {})[seatId] || {};
-  const lines = seat.concessions || [];
-
-  if (!seat.mine){
-    const row = document.createElement('div');
-    row.className = 'seat-line is-other';
-    row.innerHTML = '<div class="seat-line-main"><div class="seat-line-who">' + seatWhoHtml(seatId, seat) + '</div></div>';
-    return row;
-  }
-
-  const row = document.createElement('button');
-  row.type = 'button';
-  row.className = 'seat-line is-mine';
-  row.addEventListener('click', () => openCart(obj.id, seatId));
-
-  const main = document.createElement('div');
-  main.className = 'seat-line-main';
-
-  const who = document.createElement('div');
-  who.className = 'seat-line-who';
-  // Paid seats show just the name -- only ones still owing get a tag, so
-  // this list reads as "who still owes" rather than a payment log. The
-  // food counts towards that as well as the ticket: a seat that's settled
-  // its ticket and then ordered $25 of popcorn has not settled up.
-  // Seat first, then who's in it: the seat is what you're scanning for
-  // when you're looking down a row, and it's the shorter of the two so
-  // the names line up.
-  who.innerHTML = seatWhoHtml(seatId, seat) +
-    (seatOwesAnything(obj, seat) ? '<span class="unpaid-tag">unpaid</span>' : '');
-  main.appendChild(who);
-
-  // A count, not the contents. Spelling out four people's orders in full
-  // turns the showtime list into a wall of sauces; whoever cares about
-  // the detail is one tap from it, and the host has the itemised copy.
-  const summary = document.createElement('div');
-  summary.className = 'concession-summary' + (lines.length ? ' has-items' : '');
-  summary.textContent = lines.length
-    ? t(lines.length === 1 ? 'friend.list.concessionsOne' : 'friend.list.concessionsMany', { count: lines.length })
-    : t('friend.list.noConcessions');
-  main.appendChild(summary);
-
-  row.appendChild(main);
-
-  const cta = document.createElement('div');
-  cta.className = 'concession-cta';
-  cta.textContent = ordersOpen ? (lines.length ? 'Edit' : '+ Add') : 'View';
-  row.appendChild(cta);
-
+  const row = document.createElement('div');
+  row.className = 'seat-line' + (seat.mine ? '' : ' is-other');
+  row.innerHTML = '<div class="seat-line-who">' + seatWhoHtml(seatId, seat) +
+    (seat.mine && !seat.guest ? '<span class="you-tag">' + escapeHtml(t('friend.list.you')) + '</span>' : '') +
+    (seat.mine && seatOwesAnything(obj, seat) ? '<span class="unpaid-tag">unpaid</span>' : '') +
+    '</div>';
   return row;
 }
 
@@ -2841,14 +2760,17 @@ function buildSeatmap(obj){
 }
 
 // ---------------- CLAIM OVERLAY ----------------
-// "For me" by default -- unless you already have your own seat in this
-// showtime, when the next one is most likely for someone you're bringing.
+// "For me" by default. One seat of your own per showtime (the server
+// holds to that too): once you have it, the choice goes away and the
+// seat needs the name of whoever you're bringing.
 function openClaimOverlay(seatId){
   claimingSeatId = seatId;
   document.getElementById('claimTitle').textContent = t('friend.claim.title', { seat: seatId });
   document.getElementById('claimError').textContent = '';
   const show = allShowtimes.find(s => s.id === currentShowtimeId);
   const haveOwn = !!show && Object.values(show.seats || {}).some(x => x.mine && !x.guest);
+  document.getElementById('claimForChoice').classList.toggle('hidden', haveOwn);
+  document.getElementById('claimHint').textContent = t(haveOwn ? 'friend.claim.hintGuestOnly' : 'friend.claim.hint');
   setClaimFor(haveOwn ? 'guest' : 'me');
   document.getElementById('claimGuestName').value = '';
   document.getElementById('claimOverlay').classList.remove('hidden');
@@ -3017,7 +2939,8 @@ async function submitClaim(){
     });
     if (await handleAuthFailure(res)) return;
     if (res.status === 409){
-      errorEl.textContent = t('friend.claim.taken');
+      const data = await res.json().catch(() => ({}));
+      errorEl.textContent = t(data.reason === 'already_have_seat' ? 'friend.claim.alreadyHave' : 'friend.claim.taken');
       return;
     }
     if (!res.ok){

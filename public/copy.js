@@ -74,7 +74,7 @@ const COPY = {
 
     // One film's showtimes, after tapping its poster.
     film: {
-      intro: 'Reserve a spot below. Tap your seat to add concessions, up to 2 hours before showtime.'
+      intro: 'Reserve a spot below. Order concessions for your seats from My showtimes.'
     },
 
     // A poster tile on the landing grid.
@@ -91,9 +91,6 @@ const COPY = {
       seatsAvailableOne: '{count} seat available',
       seatsAvailableMany: '{count} seats available',
       // Shown under a reserved seat's name on the list.
-      concessionsOne: '🍿 {count} item',
-      concessionsMany: '🍿 {count} items',
-      noConcessions: 'No concessions',
       // A guest's seat: who brought them.
       via: 'via {name}',
       you: 'you'
@@ -195,6 +192,9 @@ const COPY = {
     claim: {
       title: 'Reserve seat {seat}',
       hint: 'Your name and photo show on the seat, so everyone knows whose it is.',
+      // Already have your own seat in this showtime: the next is a guest's.
+      hintGuestOnly: "You already have a seat in this showtime. Who's this one for?",
+      alreadyHave: "You already have a seat in this showtime. Enter the name of who you're bringing.",
       forMe: 'For me ({name})',
       forGuest: 'For someone else',
       noName: "Enter their name first.",

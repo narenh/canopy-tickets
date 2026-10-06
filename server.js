@@ -1252,6 +1252,9 @@ app.post('/api/public/showtimes/:id/claim', (req, res) => {
   const result = store.claimSeat(req.params.id, seatId, name, { personId: req.person.id, guest: !!guest });
   if (!result.ok) {
     if (result.reason === 'not_found') return res.status(404).json({ error: 'not found' });
+    if (result.reason === 'already_have_seat') {
+      return res.status(409).json({ error: 'you already have a seat in this showtime -- this one needs a guest name', reason: 'already_have_seat' });
+    }
     return res.status(409).json({ error: 'that seat is no longer available' });
   }
   res.json({ showtime: publicShowtimeView(result.showtime, req.person) });
