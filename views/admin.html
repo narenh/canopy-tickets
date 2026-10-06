@@ -167,32 +167,25 @@
   .tile-sub{color:#ccc;font-size:12.5px;line-height:1.35;}
 
   /* ---------- ONE MOVIE ---------- */
-  .movie-head{
+  .movie-sub{
+    margin-top:6px;
     display:flex;
-    gap:14px;
-    align-items:flex-end;
-    margin-top:12px;
-  }
-  .movie-poster{
-    position:relative;
-    flex:0 0 auto;
-    width:96px;
-    aspect-ratio:2 / 3;
-    border-radius:10px;
-    overflow:hidden;
-    background:#0f0f10;
-    border:1px dashed #3a3a3a;
-    display:flex;
+    flex-wrap:wrap;
     align-items:center;
-    justify-content:center;
+    gap:6px;
+    color:#ccc;
+    font-size:14px;
+  }
+  .link-btn{
+    position:relative;
+    color:var(--gold);
     cursor:pointer;
   }
-  .movie-poster img{width:100%;height:100%;object-fit:cover;display:block;}
-  .movie-poster:has(img:not(.hidden)){border-style:solid;border-color:transparent;}
-  .movie-poster-empty{color:var(--muted);font-size:12px;text-align:center;padding:6px;}
-  .movie-poster input{position:absolute;inset:0;opacity:0;cursor:pointer;}
-  .movie-head-side{flex:1;min-width:0;}
-  .movie-head-count{color:#ccc;font-size:14px;}
+  .link-btn input{position:absolute;inset:0;width:100%;opacity:0;cursor:pointer;}
+  .movie-sub-status{color:var(--muted);font-size:12px;}
+  /* Only takes room when it has something to say (a rename's result). */
+  #movieTitleStatus{min-height:0;margin-top:4px;}
+  #movieTitleStatus:empty{display:none;}
   .danger-zone{padding:10px 20px 0;}
 
   .past-section{
@@ -1065,19 +1058,18 @@
              their title from the movie, so this renames all of them. -->
         <input class="title" id="movieTitle" maxlength="200" autocomplete="off">
       </div>
-      <div class="og-status" id="movieTitleStatus"></div>
-      <div class="movie-head">
-        <!-- Tap the poster to replace it; uploads as soon as one's picked. -->
-        <label class="movie-poster" id="moviePoster" title="Change poster">
-          <img id="moviePosterImg" class="hidden" alt="">
-          <span class="movie-poster-empty" id="moviePosterEmpty">Add poster</span>
+      <!-- The poster shows on each showtime card below; this is where it's
+           changed. Uploads as soon as a file is picked. -->
+      <div class="movie-sub">
+        <span id="movieShowtimeCount"></span>
+        <span class="sep">&middot;</span>
+        <label class="link-btn">
+          <span id="moviePosterLabel">Add poster</span>
           <input type="file" id="moviePosterInput" accept="image/png,image/jpeg,image/webp,image/gif" onchange="uploadMoviePoster()">
         </label>
-        <div class="movie-head-side">
-          <div class="movie-head-count" id="movieShowtimeCount"></div>
-          <div class="og-status" id="moviePosterStatus"></div>
-        </div>
+        <span class="movie-sub-status" id="moviePosterStatus"></span>
       </div>
+      <div class="og-status" id="movieTitleStatus"></div>
     </div>
     <div class="new-btn-wrap">
       <button class="new-btn" onclick="addShowtime()">+ Add showtime</button>
@@ -1671,10 +1663,7 @@ function renderMovie(){
   document.getElementById('movieTitle').value = m.title;
   document.getElementById('movieTitleStatus').textContent = '';
   document.getElementById('moviePosterStatus').textContent = '';
-  const img = document.getElementById('moviePosterImg');
-  img.classList.toggle('hidden', !m.posterUrl);
-  if (m.posterUrl) img.src = m.posterUrl;
-  document.getElementById('moviePosterEmpty').classList.toggle('hidden', !!m.posterUrl);
+  document.getElementById('moviePosterLabel').textContent = m.posterUrl ? 'Change poster' : 'Add poster';
 
   const showtimes = m.showtimes || [];
   document.getElementById('movieShowtimeCount').textContent = showtimes.length
@@ -1813,8 +1802,24 @@ function formatPrice(price){
   return (typeof price === 'number') ? ('$' + price.toFixed(2)) : '';
 }
 
-// One showtime on its movie's page. The whole card opens it. No title or
-// poster: the page header already says which movie this is.
+// The movie's poster on each showtime card, as on the friend page. Same
+// fixed size whether or not there's a poster, so cards line up.
+function buildPosterEl(obj){
+  const poster = document.createElement('div');
+  poster.className = 'poster-thumb';
+  if (obj.posterUrl){
+    const img = document.createElement('img');
+    img.src = obj.posterUrl;
+    img.alt = '';
+    poster.appendChild(img);
+  } else {
+    poster.classList.add('poster-placeholder');
+  }
+  return poster;
+}
+
+// One showtime on its movie's page. The whole card opens it. No title:
+// the page header already says which movie this is.
 function buildCard(obj){
   const card = document.createElement('div');
   card.className = 'card is-link';
@@ -1833,6 +1838,7 @@ function buildCard(obj){
 
   const body = document.createElement('div');
   body.className = 'card-body';
+  body.appendChild(buildPosterEl(obj));
 
   const info = document.createElement('div');
   info.className = 'card-info';
