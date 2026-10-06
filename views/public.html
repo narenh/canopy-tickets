@@ -3254,18 +3254,21 @@ async function loadFavorites(){
 
 // "Item discontinued": a line of your usual left the menu since you last
 // looked. Goes once you've opened Favorites (or edited them) or tapped ×.
+// The claim banner always shows on its own, so none of the others do
+// while it's up.
 function renderUsualBanner(){
-  document.getElementById('usualBanner').classList.toggle('hidden', !myFavorites.usualGone);
+  document.getElementById('usualBanner').classList.toggle('hidden', !myFavorites.usualGone || showClaimBanner);
   renderFavBanner();
 }
 
-// "Pick your favorite concessions": while you have no favorites and no
-// usual, until dismissed or tapped -- remembered on the person
+// "Pick your favorite concessions": while you have at least one showtime
+// and no favorites and no usual, until dismissed or tapped -- remembered on the person
 // (favoritesPromptDone). Not alongside the red banner, which already
 // sends you to Favorites.
 function renderFavBanner(){
   const none = !(myFavorites.favorites || []).length && !(myFavorites.usual || []).length;
-  const show = !!me && favoritesLoaded && none && !me.favoritesPromptDone && !myFavorites.usualGone;
+  const show = !!me && favoritesLoaded && none && !me.favoritesPromptDone && !myFavorites.usualGone &&
+    mineItems.length > 0 && !showClaimBanner;
   document.getElementById('favBanner').classList.toggle('hidden', !show);
 }
 
@@ -3461,6 +3464,7 @@ async function updateClaimBanner(){
   showClaimBanner = show;
   document.getElementById('claimBanner').classList.toggle('hidden', !show);
   renderCalBanner();
+  renderUsualBanner();
 }
 
 // ---------------- "SUBSCRIBE TO YOUR SHOWTIMES" BANNER ----------------
