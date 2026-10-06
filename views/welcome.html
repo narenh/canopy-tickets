@@ -376,10 +376,16 @@ async function postJson(url, body){
 
 // What a failed passkey prompt means, in words. NotAllowedError is the
 // browser's answer for cancelled, timed out, and "no passkey here" alike.
+// Anything else carries the browser's own error after the generic line,
+// so a report from a phone says what actually went wrong.
 function passkeyErrorText(err, making){
   if (err && err.name === 'NotAllowedError') return t(making ? 'welcome.passkeyNotSaved' : 'welcome.signInCancelled');
   if (err && err.name === 'InvalidStateError') return t('welcome.passkeyExists');
-  return t('welcome.failed');
+  return t('welcome.failed') + detail(err && (err.name + ': ' + err.message));
+}
+
+function detail(text){
+  return text ? ' (' + String(text).slice(0, 160) + ')' : '';
 }
 
 // Makes the passkey from the server's options and sends it back. Returns
@@ -397,7 +403,7 @@ async function finishRegistration(options, errorEl){
   errorEl.textContent = data.reason === 'has_passkey' ? t('welcome.hasPasskeyNow')
     : data.reason === 'conflict' ? t('welcome.emailTaken')
     : data.reason === 'expired' ? t('welcome.expired')
-    : t('welcome.failed');
+    : t('welcome.failed') + detail(data.error || res.status);
   return false;
 }
 
@@ -408,7 +414,7 @@ async function signIn(errorId, btnId){
   btn.disabled = true;
   try{
     const start = await postJson('/api/auth/login/options');
-    if (!start.res.ok){ errorEl.textContent = start.data.error || t('welcome.failed'); return; }
+    if (!start.res.ok){ errorEl.textContent = t('welcome.failed') + detail(start.data.error || start.res.status); return; }
     let response;
     try{
       response = await startAuthentication({ optionsJSON: start.data.options });
@@ -418,7 +424,7 @@ async function signIn(errorId, btnId){
     }
     const { res, data } = await postJson('/api/auth/login/verify', { response });
     if (res.ok){ enter(); return; }
-    errorEl.textContent = data.reason === 'unknown_passkey' ? t('welcome.unknownPasskey') : t('welcome.failed');
+    errorEl.textContent = data.reason === 'unknown_passkey' ? t('welcome.unknownPasskey') : t('welcome.failed') + detail(data.error || res.status);
   }catch(err){
     errorEl.textContent = t('welcome.unreachable');
   }finally{
