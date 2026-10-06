@@ -605,9 +605,9 @@ The same ⋯ menu offers **Release seat** for each seat a friend can still
 give back: unpaid (ticket and food), reserved by them in the last 24
 hours (`seats.reserved_at`, schema v15), and the showtime more than 24
 hours away. It asks once, then the seat goes back to being an open seat
-in the block. Seats reserved before v15, or claimed into an account from
-before profiles, have no reservation time and can't be released this way
-— the admin can still free them from the editor.
+in the block. Seats reserved before v15 were stamped with the time of
+the v16 upgrade, so their 24 hours started then; an old seat claimed into
+an account keeps its time.
 
 ## Link-preview image & logo
 
