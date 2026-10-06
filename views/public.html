@@ -996,8 +996,6 @@
   .ci-main{flex:1;min-width:0;}
   .ci-name{font-size:15.5px;color:#fff;overflow-wrap:anywhere;}
   .ci-price{font-size:13px;color:#9e9ea4;margin-top:2px;}
-  /* "Choose a sauce": says up front that "+" will ask for a pick. */
-  .ci-needs{font-size:12.5px;color:#cbb37a;margin-top:2px;}
   .ci-off-menu{color:#e2857a;}
   /* One tap, one line. No quantity control: a quantity can only carry
      one idea of what the order is, and two popcorn chickens may well
@@ -1017,7 +1015,7 @@
     cursor:pointer;
   }
   .ci-add:disabled{opacity:.35;cursor:not-allowed;}
-  /* Options open under the row: the "+" turns into a close. */
+  /* Its options menu is open: the "+" turns into a close. */
   .ci-add.is-open{background:#2a2a2e;color:#ddd;transform:rotate(45deg);}
   .ci-add{transition:transform .15s, background .15s;}
   .ci-count{
@@ -1028,22 +1026,37 @@
     min-width:16px;
     text-align:right;
   }
-  /* An item's options, opened by its "+": one chip per option, and a tap
-     on one adds the item with it. Buttons rather than a <select>, which
-     iOS would zoom the page in on. */
-  .ci-options{margin-top:10px;}
-  .ci-chips{display:flex;flex-wrap:wrap;gap:7px;}
-  .ci-chip{
-    background:#17140d;
-    color:#f0dda9;
-    border:1px solid #5a4a22;
-    border-radius:16px;
-    padding:7px 12px;
-    font-size:13.5px;
+  /* An item's options, floating by the "+" that opened it. */
+  .option-menu{
+    position:fixed;
+    z-index:60;
+    display:flex;
+    flex-direction:column;
+    background:#1f1f23;
+    border:1px solid #3a3a40;
+    border-radius:14px;
+    box-shadow:0 14px 36px rgba(0,0,0,.6);
+    overflow:hidden;
+  }
+  .option-menu-head{padding:11px 14px 9px;border-bottom:1px solid #2e2e33;flex:0 0 auto;}
+  .option-menu-title{font-size:15px;font-weight:700;color:var(--gold);}
+  .option-menu-item{font-size:12.5px;color:var(--muted);margin-top:2px;}
+  .option-menu-list{overflow-y:auto;-webkit-overflow-scrolling:touch;}
+  .option-menu-opt{
+    display:block;
+    width:100%;
+    background:none;
+    border:none;
+    border-bottom:1px solid #2a2a2f;
+    color:#fff;
     font-family:inherit;
+    font-size:15px;
+    text-align:left;
+    padding:12px 14px;
     cursor:pointer;
   }
-  .ci-chip:active{background:var(--gold);color:#241c07;}
+  .option-menu-opt:last-child{border-bottom:none;}
+  .option-menu-opt:active, .option-menu-opt:hover{background:#2c2a22;}
 
   /* ---------- ORDER LIST ---------- */
   .cart-order{
@@ -1462,6 +1475,16 @@
         <button type="button" onclick="closeClaimOverlay()">Cancel</button>
       </div>
     </div>
+  </div>
+
+  <!-- An item's options, opened by its "+" in the cart (see
+       openOptionMenu): what's being picked, then one button per option. -->
+  <div class="option-menu hidden" id="optionMenu" role="menu" aria-labelledby="optionMenuTitle">
+    <div class="option-menu-head">
+      <div class="option-menu-title" id="optionMenuTitle"></div>
+      <div class="option-menu-item" id="optionMenuItem"></div>
+    </div>
+    <div class="option-menu-list" id="optionMenuList"></div>
   </div>
 
   <!-- ===================== PROFILE ===================== -->
@@ -3642,6 +3665,7 @@ function openCartFromSuccess(){
 }
 
 function closeCartOverlay(){
+  closeOptionMenu();
   // Flush first: closing a second after a tap must not drop that tap.
   // runSave() reads the cart state, so it has to run before it's cleared.
   if (saveTimer){
@@ -3673,7 +3697,7 @@ function renderCart(){
   const body = document.getElementById('cartBody');
   body.innerHTML = '';
   menuRowEls.clear();
-  openOptions = null;
+  closeOptionMenu();
   sectionEls = [];
 
   const menuRows = buildMenuRows();
@@ -3787,65 +3811,89 @@ function buildMenuRowEl(row){
 
   // The choice is made HERE, before the line exists, because the order
   // list below is deliberately not editable -- changing your mind is
-  // remove and re-add. "+" on such an item opens its options as chips
-  // under the row; tapping one adds the item with it, in one go. The row
-  // says up front that there's a choice to make ("Choose a sauce").
+  // remove and re-add. On such an item "+" opens a small menu of its
+  // options, titled with what's being picked ("Choose a sauce"); one tap
+  // on an option adds the item with it.
   const choices = optionsForItem(row.itemId);
-  let panel = null;
-  if (choices.length){
-    const label = optionLabelForItem(row.itemId);
-    const prompt = t('friend.cart.chooseOption', { label: label.toLowerCase() });
-    const needs = document.createElement('div');
-    needs.className = 'ci-needs';
-    needs.textContent = prompt;
-    main.appendChild(needs);
-
-    panel = document.createElement('div');
-    panel.className = 'ci-options';
-    panel.hidden = true;
-    const chips = document.createElement('div');
-    chips.className = 'ci-chips';
-    choices.forEach(name => {
-      const chip = document.createElement('button');
-      chip.type = 'button';
-      chip.className = 'ci-chip';
-      chip.textContent = name;
-      chip.addEventListener('click', () => {
-        addOrderLine(row, name);
-        closeOptionsPanel();
-      });
-      chips.appendChild(chip);
-    });
-    panel.appendChild(chips);
-    el.appendChild(panel);
-  }
-
   add.disabled = cartLocked;
+  if (choices.length){
+    add.setAttribute('aria-haspopup', 'menu');
+    add.setAttribute('aria-expanded', 'false');
+  }
   add.addEventListener('click', () => {
-    if (!panel){ addOrderLine(row, ''); return; }
-    if (!panel.hidden){ closeOptionsPanel(); return; }
-    closeOptionsPanel();
-    panel.hidden = false;
-    add.classList.add('is-open');
-    add.setAttribute('aria-expanded', 'true');
-    openOptions = { panel, add };
+    if (!choices.length){ addOrderLine(row, ''); return; }
+    if (optionMenuFor === add){ closeOptionMenu(); return; }
+    openOptionMenu(add, row, optionLabelForItem(row.itemId), choices);
   });
-  if (panel) add.setAttribute('aria-expanded', 'false');
 
   menuRowEls.set(row.itemId, { count });
   syncMenuRowCount(row.itemId);
   return el;
 }
 
-// Only one item's options are open at a time.
-let openOptions = null;   // { panel, add }
-function closeOptionsPanel(){
-  if (!openOptions) return;
-  openOptions.panel.hidden = true;
-  openOptions.add.classList.remove('is-open');
-  openOptions.add.setAttribute('aria-expanded', 'false');
-  openOptions = null;
+// ---- The options menu ("Choose a sauce") ----
+// One menu, reused: it opens next to the "+" that was tapped -- below it,
+// or above when there isn't room -- floating over the cart rather than
+// pushing rows around. Tapping outside it, scrolling the menu behind it,
+// or Escape closes it.
+let optionMenuFor = null;   // the "+" it's open for
+
+function openOptionMenu(addBtn, row, label, choices){
+  closeOptionMenu();
+  const menu = document.getElementById('optionMenu');
+  document.getElementById('optionMenuTitle').textContent = t('friend.cart.chooseOption', { label: label.toLowerCase() });
+  document.getElementById('optionMenuItem').textContent = row.name +
+    (row.price > 0 ? ' \u00b7 ' + formatPrice(row.price) : '');
+  const list = document.getElementById('optionMenuList');
+  list.innerHTML = '';
+  choices.forEach(name => {
+    const opt = document.createElement('button');
+    opt.type = 'button';
+    opt.className = 'option-menu-opt';
+    opt.setAttribute('role', 'menuitem');
+    opt.textContent = name;
+    opt.addEventListener('click', () => {
+      addOrderLine(row, name);
+      closeOptionMenu();
+    });
+    list.appendChild(opt);
+  });
+  menu.classList.remove('hidden');
+  addBtn.classList.add('is-open');
+  addBtn.setAttribute('aria-expanded', 'true');
+  optionMenuFor = addBtn;
+
+  // Right edge lined up with the "+", below it if it fits, else above.
+  const r = addBtn.getBoundingClientRect();
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const width = Math.min(280, vw - 24);
+  menu.style.width = width + 'px';
+  menu.style.left = Math.max(12, Math.min(r.right - width, vw - width - 12)) + 'px';
+  menu.style.maxHeight = '';
+  const h = menu.offsetHeight;
+  const below = vh - r.bottom - 12, above = r.top - 12;
+  if (h <= below || below >= above){
+    menu.style.top = (r.bottom + 6) + 'px';
+    menu.style.maxHeight = (below - 6) + 'px';
+  } else {
+    menu.style.top = Math.max(12, r.top - 6 - Math.min(h, above)) + 'px';
+    menu.style.maxHeight = (above - 6) + 'px';
+  }
 }
+
+function closeOptionMenu(){
+  if (!optionMenuFor) return;
+  document.getElementById('optionMenu').classList.add('hidden');
+  optionMenuFor.classList.remove('is-open');
+  optionMenuFor.setAttribute('aria-expanded', 'false');
+  optionMenuFor = null;
+}
+
+document.addEventListener('pointerdown', (e) => {
+  if (optionMenuFor && !e.target.closest('#optionMenu') && e.target !== optionMenuFor) closeOptionMenu();
+}, true);
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeOptionMenu(); });
+document.getElementById('cartBody').addEventListener('scroll', closeOptionMenu, { passive: true });
 
 function syncMenuRowCount(itemId){
   const refs = menuRowEls.get(itemId);
