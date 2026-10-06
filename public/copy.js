@@ -61,7 +61,8 @@ const COPY = {
     unreachable: 'Could not reach the server. Try again.',
     profileHeading: 'Create Profile',
     cropHint: 'Pinch and drag to fit your face in the circle.',
-    photoUnreadable: "Couldn't open that photo. Try another one.",
+    photoLoading: 'Loading photo… (one stored in iCloud can take a moment)',
+    photoUnreadable: "Couldn't open that photo. If it's stored in iCloud, open it in Photos so it downloads, then try again — or pick another.",
     photoRequired: 'A profile picture is required.',
     nameRequired: 'Enter your first and last name.',
     emailTaken: 'That email already has a profile. Go back and continue with it.'

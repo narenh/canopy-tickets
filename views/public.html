@@ -3513,17 +3513,21 @@ async function saveProfile(){
 }
 
 document.getElementById('profilePhotoInput').addEventListener('change', async (e) => {
-  const file = e.target.files && e.target.files[0];
-  e.target.value = '';
+  const input = e.target;
+  const file = input.files && input.files[0];
   if (!file) return;
   const errorEl = document.getElementById('profileError');
   errorEl.textContent = '';
   let result;
   try{
-    result = await cropProfilePhoto(file, t('welcome.cropHint'));
+    result = await cropProfilePhoto(file, t('welcome.cropHint'), t('welcome.photoLoading'));
   }catch(err){
     errorEl.textContent = t('welcome.photoUnreadable');
     return;
+  }finally{
+    // Cleared only once the photo's been read (picking the same one again
+    // should still work) -- not while the phone may still be fetching it.
+    input.value = '';
   }
   if (!result) return;
   const form = new FormData();
