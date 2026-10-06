@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<!-- viewport-fit=cover lets the page draw under the notch/status bar and
+     the home indicator instead of iOS letterboxing it -- what lets the
+     backdrop below run edge to edge. Nothing else here sits near an edge
+     (the form is centered), so there's nothing to pad back in. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Canopy Tickets</title>
 <!-- OG_META -->
 <style>
@@ -81,17 +85,26 @@
      fills the screen behind a frosted-glass form. cover on a fixed layer
      fills the height of a portrait phone and crops the 16:9 image's
      sides; the dim keeps the form readable over a busy frame. */
+  /* 100lvh rather than bottom:0: the large viewport is the height with
+     Safari's toolbars collapsed, so the image still reaches the bottom
+     edge behind a translucent toolbar instead of stopping above it. */
   body.has-backdrop::before{
     content:"";
     position:fixed;
-    inset:0;
+    top:0;
+    left:0;
+    right:0;
+    height:100lvh;
     z-index:-1;
     background:var(--backdrop) center / cover no-repeat, var(--bg);
   }
   body.has-backdrop::after{
     content:"";
     position:fixed;
-    inset:0;
+    top:0;
+    left:0;
+    right:0;
+    height:100lvh;
     z-index:-1;
     background:rgba(0,0,0,0.25);
   }
