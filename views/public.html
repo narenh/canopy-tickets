@@ -259,25 +259,26 @@
   .mine-seat.owes .seat-id, .seat-line.owes .seat-id{color:#e2857a;}
   /* Pay now under the poster, with a ⋯ for "I've already paid". */
   .mine-pay{display:flex;gap:8px;margin:2px 0 4px;position:relative;}
+  /* Same pill as the reserve flow's pay buttons: Venmo blue, Cash App green. */
   .mine-pay-btn{
     flex:1;
     display:flex;
     align-items:center;
     justify-content:center;
-    background:var(--gold);
-    color:#241c07;
-    border-radius:12px;
-    padding:12px;
-    font-size:15.5px;
+    border-radius:20px;
+    padding:10px;
+    font-size:14px;
     font-weight:700;
     text-decoration:none;
   }
+  .mine-pay-btn.venmo-btn{background:var(--venmo);color:#fff;}
+  .mine-pay-btn.cashapp-btn{background:var(--cashapp);color:#04240f;}
   .mine-pay-more{
     flex:0 0 auto;
     width:48px;
-    background:#1e1e21;
-    border:1px solid #333338;
-    border-radius:12px;
+    background:#1e1e1e;
+    border:1px solid #3a3a3a;
+    border-radius:20px;
     color:#ddd;
     font-size:20px;
     line-height:1;
@@ -294,7 +295,7 @@
     padding:6px;
     box-shadow:0 8px 24px rgba(0,0,0,.5);
   }
-  .mine-pay-menu button{
+  .mine-pay-menu button, .mine-pay-menu a{
     display:block;
     width:100%;
     background:none;
@@ -308,7 +309,8 @@
     cursor:pointer;
     white-space:nowrap;
   }
-  .mine-pay-menu button:hover{background:#26262a;}
+  .mine-pay-menu button:hover, .mine-pay-menu a:hover{background:#26262a;}
+  .mine-pay-menu a{text-decoration:none;box-sizing:border-box;}
   .mine-orders{border-top:1px solid #26262a;margin-top:10px;padding-top:2px;}
   .order-block{padding:10px 0 2px;}
   .order-block + .order-block{border-top:1px solid #222225;margin-top:6px;}
@@ -2553,10 +2555,11 @@ function seatPayable(obj, seat){
   return { ticket, food };
 }
 
-// "Pay now · $18.99" under the poster while your seat or your guests'
-// can be paid for, and a ⋯ beside it with "I've already paid". Pays the
-// lot in one go: Venmo if there's a handle, otherwise Cash App. Nothing
-// when there's no handle to pay.
+// "Pay $18.99 via Venmo" under the poster while your seat or your guests'
+// can be paid for -- the reserve flow's button, colour and words -- and a
+// ⋯ beside it with "I've already paid" (and Cash App, when Venmo has the
+// main button). Pays the lot in one go. Nothing when there's no handle
+// to pay.
 function buildMinePayRow(obj, myIds){
   // The admin is the one being paid -- their guests settle up with them
   // directly, so there's nobody for them to send money to.
@@ -2569,17 +2572,24 @@ function buildMinePayRow(obj, myIds){
   const amount = Math.round(owing.reduce((n, x) => n + x.pay.ticket + x.pay.food, 0) * 100) / 100;
   const note = (obj.title || 'Movie') + ' (' + formatDateShort(obj.date) + ', ' + owing.map(x => x.id).join(', ') + ')' +
     (owing.some(x => x.pay.food > 0) ? ' + concessions' : '');
-  const href = buildVenmoLink(amount, note) || buildCashAppLink(amount);
-  if (!href) return null;
+  const venmo = buildVenmoLink(amount, note);
+  const cash = buildCashAppLink(amount);
+  if (!venmo && !cash) return null;
+  const vars = { amount: formatPrice(amount) };
+  const payLink = (href, className, label) => {
+    const a = document.createElement('a');
+    a.className = className;
+    a.href = href;
+    if (opensInNewTab(href)){ a.target = '_blank'; a.rel = 'noopener'; }
+    a.textContent = label;
+    return a;
+  };
 
   const row = document.createElement('div');
   row.className = 'mine-pay';
-  const pay = document.createElement('a');
-  pay.className = 'mine-pay-btn';
-  pay.href = href;
-  if (opensInNewTab(href)){ pay.target = '_blank'; pay.rel = 'noopener'; }
-  pay.textContent = t('friend.mine.payNow', { amount: formatPrice(amount) });
-  row.appendChild(pay);
+  row.appendChild(venmo
+    ? payLink(venmo, 'mine-pay-btn venmo-btn', t('friend.success.payVenmo', vars))
+    : payLink(cash, 'mine-pay-btn cashapp-btn', t('friend.success.payCashApp', vars)));
 
   const more = document.createElement('button');
   more.type = 'button';
@@ -2592,6 +2602,12 @@ function buildMinePayRow(obj, myIds){
   const menu = document.createElement('div');
   menu.className = 'mine-pay-menu hidden';
   menu.setAttribute('role', 'menu');
+  if (venmo && cash){
+    const alt = payLink(cash, '', t('friend.success.payCashApp', vars));
+    alt.setAttribute('role', 'menuitem');
+    alt.addEventListener('click', () => closeMenu());
+    menu.appendChild(alt);
+  }
   const paid = document.createElement('button');
   paid.type = 'button';
   paid.setAttribute('role', 'menuitem');

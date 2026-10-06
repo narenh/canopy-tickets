@@ -123,8 +123,7 @@ const COPY = {
       view: 'View',
       none: 'No concessions',
       noneFor: 'No concessions for {name}',
-      // Under the poster while you (or a guest you booked) still owe.
-      payNow: 'Pay now · {amount}',
+      // The ⋯ beside the pay button under the poster.
       payMore: 'More payment options'
     },
 
