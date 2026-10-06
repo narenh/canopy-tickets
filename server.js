@@ -748,6 +748,15 @@ function cleanNames(body) {
   return { firstName, lastName };
 }
 
+// A Venmo username: letters, digits, - or _, at most 30. A leading @ is
+// dropped in case one gets pasted in. Empty clears it (null); anything
+// else invalid is false.
+function cleanVenmo(raw) {
+  const v = String(raw == null ? '' : raw).trim().replace(/^@+/, '');
+  if (!v) return null;
+  return /^[A-Za-z0-9_-]{1,30}$/.test(v) ? v : false;
+}
+
 function meView(req) {
   return {
     person: req.person ? { ...req.person, photoUrl: photoUrlFor(req.person) } : null,
@@ -809,9 +818,17 @@ app.post('/api/profile', attachDevice(true), photoUpload.single('photo'), (req, 
 app.patch('/api/profile', attachDevice(false), (req, res) => {
   if (!req.person) return res.status(401).json({ error: 'unauthorized' });
   if (!canEditProfile(req)) return res.status(403).json({ error: 'unlock one of your movies on this device first', reason: 'locked' });
-  const names = cleanNames(req.body || {});
+  const body = req.body || {};
+  const names = cleanNames(body);
   if (names.error) return res.status(400).json({ error: names.error });
+  // Optional, and only touched when sent.
+  let venmo;
+  if (body.venmoHandle !== undefined) {
+    venmo = cleanVenmo(body.venmoHandle);
+    if (venmo === false) return res.status(400).json({ error: 'a Venmo username is letters, numbers, - and _ only', reason: 'bad_venmo' });
+  }
   req.person = store.renamePerson(req.person.id, names.firstName, names.lastName).person;
+  if (venmo !== undefined) req.person = store.setPersonVenmo(req.person.id, venmo);
   res.json(meView(req));
 });
 

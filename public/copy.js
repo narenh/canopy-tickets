@@ -101,9 +101,17 @@ const COPY = {
       noneFor: '🍿 No concessions for {name}'
     },
 
+    // The menu under your photo in the header.
+    menu: {
+      editProfile: 'Edit profile',
+      claimExisting: 'Claim existing seats',
+      signOut: 'Sign out'
+    },
+
     profile: {
-      heading: 'Your profile',
-      claimEarlier: 'Claim seats reserved before profiles',
+      heading: 'Edit profile',
+      venmoPlaceholder: 'Venmo username',
+      badVenmo: 'A Venmo username is letters, numbers, - and _ only.',
       locked: 'Unlock one of your movies on this phone first.',
       failed: "Couldn't save. Try again."
     },

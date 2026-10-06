@@ -1870,8 +1870,12 @@ function buildPersonRow(p){
     '<div class="og-status pe-status"></div></div></div>' +
     '<button type="button" class="pe-open">Edit</button>';
   row.querySelector('.person-name').textContent = p.firstName + ' ' + p.lastName;
-  row.querySelector('.person-meta').textContent = t('admin.people.shownAs', { name: p.shortName }) + ' · ' + p.email + ' · ' +
-    t(p.seatCount === 1 ? 'admin.people.seatsOne' : 'admin.people.seatsMany', { count: p.seatCount });
+  row.querySelector('.person-meta').textContent = [
+    t('admin.people.shownAs', { name: p.shortName }),
+    p.email,
+    p.venmo ? 'Venmo @' + p.venmo : '',
+    t(p.seatCount === 1 ? 'admin.people.seatsOne' : 'admin.people.seatsMany', { count: p.seatCount })
+  ].filter(Boolean).join(' · ');
   const edit = row.querySelector('.person-edit');
   row.querySelector('.pe-first').value = p.firstName;
   row.querySelector('.pe-last').value = p.lastName;

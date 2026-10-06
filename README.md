@@ -203,7 +203,11 @@ movie's page). A browser still signed in with the old password gets all
 of those movies unlocked automatically, then is asked for an email once.
 After setting up a profile, a friend is offered the seats reserved under
 their name before profiles existed ("Are any of these yours?"); the same
-list is in the profile sheet later.
+list is under **Claim existing seats** later.
+
+Tapping your photo in the header opens a menu: **Edit profile** (photo,
+name, and an optional Venmo username, shown to the host in People),
+**Claim existing seats**, **Sign out**.
 
 Sessions last a year from the last visit, so someone who drops by now and
 then is never signed out.

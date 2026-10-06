@@ -89,6 +89,34 @@
     cursor:pointer;
   }
   .me-btn .avatar{width:36px;height:36px;border:2px solid var(--gold);}
+  .me-wrap{position:relative;}
+  .me-menu{
+    position:absolute;
+    right:0;
+    top:calc(100% + 8px);
+    z-index:60;
+    min-width:210px;
+    background:#1c1c1f;
+    border:1px solid #2e2e32;
+    border-radius:12px;
+    box-shadow:0 12px 30px rgba(0,0,0,.5);
+    padding:6px;
+    display:flex;
+    flex-direction:column;
+  }
+  .me-menu button{
+    background:none;
+    border:none;
+    color:#eee;
+    font:inherit;
+    font-size:15px;
+    text-align:left;
+    padding:11px 12px;
+    border-radius:8px;
+    cursor:pointer;
+  }
+  .me-menu button:hover, .me-menu button:focus-visible{background:#2a2a2e;outline:none;}
+  .me-menu .me-menu-signout{color:#e2857a;border-top:1px solid #2a2a2e;border-radius:0 0 8px 8px;margin-top:4px;padding-top:13px;}
   .tabs{
     display:flex;
     gap:4px;
@@ -672,6 +700,45 @@
   .profile-photo{position:relative;flex:0 0 auto;cursor:pointer;}
   .profile-photo .avatar{width:72px;height:72px;border:2px solid var(--gold);}
   .profile-photo input{position:absolute;inset:0;opacity:0;cursor:pointer;}
+  /* Same badge as the sign-up page's photo picker. */
+  .profile-photo .photo-badge{
+    position:absolute;
+    right:-2px;
+    bottom:-2px;
+    width:28px;
+    height:28px;
+    border-radius:50%;
+    background:var(--gold);
+    border:3px solid #151517;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    pointer-events:none;
+  }
+  .profile-photo .photo-badge svg{width:12px;height:12px;display:block;}
+  /* Lined up on the text baseline: centred, the @ (which hangs below
+     the line) sat visibly lower than the name. */
+  .venmo-field{
+    display:flex;
+    align-items:baseline;
+    background:#0f0f10;
+    border:1px solid #3a3a3a;
+    border-radius:10px;
+    padding:0 12px;
+    margin-bottom:14px;
+    cursor:text;
+  }
+  .venmo-field:focus-within{border-color:#5a5a5a;}
+  .venmo-at{color:var(--muted);font-size:16px;flex:0 0 auto;}
+  .claim-card .venmo-field input[type="text"]{
+    border:none;
+    background:none;
+    padding:10px 0 10px 2px;
+    margin:0;
+    outline:none;
+    flex:1;
+    min-width:0;
+  }
   .profile-email{margin:0;overflow-wrap:anywhere;}
   .existing-card{max-height:85vh;display:flex;flex-direction:column;}
   #existingPick{display:flex;flex-direction:column;flex:1;min-height:0;}
@@ -1307,11 +1374,19 @@
         <!-- LOGO_IMG -->
         <h1>Canopy Tickets</h1>
       </div>
-      <!-- Who's signed in; opens the profile sheet (name, photo, sign out). -->
-      <button type="button" class="me-btn" id="meBtn" onclick="openProfile()" aria-label="Your profile">
-        <span class="me-name" id="meName"></span>
-        <img class="avatar" id="meAvatar" alt="">
-      </button>
+      <!-- Who's signed in; opens a small menu: edit profile, claim seats
+           reserved before profiles, sign out. -->
+      <div class="me-wrap">
+        <button type="button" class="me-btn" id="meBtn" onclick="toggleMeMenu()" aria-label="Your profile" aria-haspopup="menu" aria-expanded="false">
+          <span class="me-name" id="meName"></span>
+          <img class="avatar" id="meAvatar" alt="">
+        </button>
+        <div class="me-menu hidden" id="meMenu" role="menu">
+          <button type="button" role="menuitem" onclick="closeMeMenu(); openProfile()" data-copy="friend.menu.editProfile"></button>
+          <button type="button" role="menuitem" onclick="closeMeMenu(); openExisting(true)" data-copy="friend.menu.claimExisting"></button>
+          <button type="button" role="menuitem" class="me-menu-signout" onclick="signOut()" data-copy="friend.menu.signOut"></button>
+        </div>
+      </div>
     </div>
     <nav class="tabs" role="tablist">
       <button type="button" role="tab" data-tab="mine" onclick="setTab('mine')">My showtimes</button>
@@ -1393,7 +1468,10 @@
         <!-- Tap to pick and frame a new photo; saves straight away. -->
         <label class="profile-photo" title="Change photo">
           <img class="avatar" id="profilePhoto" alt="">
-          <input type="file" id="profilePhotoInput" accept="image/*">
+          <span class="photo-badge" aria-hidden="true">
+            <svg viewBox="0 0 14 14"><path d="M2 12l.6-3L9.4 2.2a1.4 1.4 0 0 1 2 0l.4.4a1.4 1.4 0 0 1 0 2L5 11.4z" fill="#241c07"/></svg>
+          </span>
+          <input type="file" id="profilePhotoInput" accept="image/*" aria-label="Change photo">
         </label>
         <div class="claim-sub profile-email" id="profileEmail"></div>
       </div>
@@ -1401,12 +1479,17 @@
         <input type="text" id="profileFirst" placeholder="First name" autocomplete="given-name" maxlength="60">
         <input type="text" id="profileLast" placeholder="Last name" autocomplete="family-name" maxlength="60">
       </div>
+      <!-- The @ is part of the box, not the input, so it's plain without
+           any help text that you don't type it. -->
+      <label class="venmo-field">
+        <span class="venmo-at" aria-hidden="true">@</span>
+        <input type="text" id="profileVenmo" maxlength="30"
+          autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Venmo username">
+      </label>
       <div class="claim-error" id="profileError"></div>
       <div class="claim-actions">
         <button type="button" class="claim-submit-btn" onclick="saveProfile()">Save</button>
-        <button type="button" onclick="closeProfile(); openExisting(true)" data-copy="friend.profile.claimEarlier"></button>
-        <button type="button" onclick="signOut()">Sign out</button>
-        <button type="button" onclick="closeProfile()">Close</button>
+        <button type="button" onclick="closeProfile()">Cancel</button>
       </div>
     </div>
   </div>
@@ -2883,11 +2966,42 @@ async function submitClaim(){
 }
 
 // ---------------- PROFILE ----------------
+// The menu under your photo in the header. Closes on a tap anywhere else
+// or Escape.
+function toggleMeMenu(){
+  if (document.getElementById('meMenu').classList.contains('hidden')) openMeMenu();
+  else closeMeMenu();
+}
+function openMeMenu(){
+  if (!me) return;
+  document.getElementById('meMenu').classList.remove('hidden');
+  document.getElementById('meBtn').setAttribute('aria-expanded', 'true');
+}
+function closeMeMenu(){
+  document.getElementById('meMenu').classList.add('hidden');
+  document.getElementById('meBtn').setAttribute('aria-expanded', 'false');
+}
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.me-wrap')) closeMeMenu();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeMeMenu();
+});
+
+// Typing or pasting an @ does nothing -- the box already shows one.
+document.getElementById('profileVenmo').addEventListener('input', (e) => {
+  const v = e.target.value.replace(/@/g, '');
+  if (v !== e.target.value) e.target.value = v;
+});
+
 function openProfile(){
   if (!me) return;
   document.getElementById('profileEmail').textContent = me.email;
   document.getElementById('profileFirst').value = me.firstName;
   document.getElementById('profileLast').value = me.lastName;
+  const venmo = document.getElementById('profileVenmo');
+  venmo.value = me.venmo || '';
+  venmo.placeholder = t('friend.profile.venmoPlaceholder');
   document.getElementById('profileError').textContent = '';
   const photo = document.getElementById('profilePhoto');
   if (me.photoUrl) photo.src = me.photoUrl;
@@ -2912,12 +3026,14 @@ async function saveProfile(){
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         firstName: document.getElementById('profileFirst').value,
-        lastName: document.getElementById('profileLast').value
+        lastName: document.getElementById('profileLast').value,
+        venmoHandle: document.getElementById('profileVenmo').value
       })
     });
     if (await handleAuthFailure(res)) return;
     const data = await res.json().catch(() => ({}));
     if (res.status === 403){ errorEl.textContent = t('friend.profile.locked'); return; }
+    if (data.reason === 'bad_venmo'){ errorEl.textContent = t('friend.profile.badVenmo'); return; }
     if (!res.ok){ errorEl.textContent = data.error || t('friend.profile.failed'); return; }
     me = data.person;
     renderMe();
