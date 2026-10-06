@@ -24,9 +24,9 @@ claim seats.
   pay link then covers the ticket and the snacks together, and the editor
   gives you a summed shopping list to take to the counter.
 
-The domain root is the only link you hand out; `/admin` is yours. See
-"Friends: sign-in and movie passwords" below for how the two halves of
-that (an email, a movie's password) fit together.
+The domain root is the only link you hand out, and everyone — you
+included — signs in there. See "Friends: sign-in and movie passwords"
+and "The admin" below.
 
 **Seat maps currently only cover AMC Metreon (San Francisco) — IMAX
 (Auditorium 16) and Dolby Cinema (Auditorium 13).** Other screens/theaters
@@ -42,8 +42,8 @@ files and images (see "Storage & backups" below).
   alike), first-run admin setup (`ADMIN_PASSWORD`), profiles and photos,
   per-movie unlocks, and the JSON
   APIs for both sides. `GET /` serves the reservation page to a browser
-  someone's signed in on and the welcome page to anyone else; `GET /admin`
-  serves the editor to an admin session and the login form otherwise.
+  someone's signed in on and the sign-in page to anyone else; `GET /admin`
+  serves the editor to the admin's session and redirects anyone else to `/`.
 - `lib/store.js` — persistence: movies, showtimes and seats live in one
   SQLite file, `data/canopy.db` (`lib/sqliteStore.js`). On its first start
   it imports the old `data/showtimes.json` and checks every showtime and
