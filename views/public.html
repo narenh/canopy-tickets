@@ -3014,9 +3014,8 @@ function closeProfile(){
   overlayClosed();
 }
 
-// Changing your profile needs a movie you have a seat in unlocked on this
-// browser (see canEditProfile in server.js) -- otherwise knowing your
-// email would be enough to rename you.
+// Your name, photo and Venmo username can be changed from any browser
+// you're signed in on -- no movie needs to be unlocked.
 async function saveProfile(){
   const errorEl = document.getElementById('profileError');
   errorEl.textContent = '';
@@ -3032,7 +3031,6 @@ async function saveProfile(){
     });
     if (await handleAuthFailure(res)) return;
     const data = await res.json().catch(() => ({}));
-    if (res.status === 403){ errorEl.textContent = t('friend.profile.locked'); return; }
     if (data.reason === 'bad_venmo'){ errorEl.textContent = t('friend.profile.badVenmo'); return; }
     if (!res.ok){ errorEl.textContent = data.error || t('friend.profile.failed'); return; }
     me = data.person;
@@ -3063,7 +3061,6 @@ document.getElementById('profilePhotoInput').addEventListener('change', async (e
   try{
     const res = await fetch('/api/profile/photo', { method: 'POST', body: form });
     if (await handleAuthFailure(res)) return;
-    if (res.status === 403){ errorEl.textContent = t('friend.profile.locked'); return; }
     if (!res.ok){ errorEl.textContent = t('friend.profile.failed'); return; }
     me = (await res.json()).person;
     renderMe();

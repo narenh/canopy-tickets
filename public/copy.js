@@ -112,7 +112,6 @@ const COPY = {
       heading: 'Edit profile',
       venmoPlaceholder: 'Venmo username',
       badVenmo: 'A Venmo username is letters, numbers, - and _ only.',
-      locked: 'Unlock one of your movies on this phone first.',
       failed: "Couldn't save. Try again."
     },
 

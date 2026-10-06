@@ -180,8 +180,9 @@ on its own:
   types it once and the movie stays unlocked **on that browser** for good.
   Unlocks belong to the browser, not the profile.
 - **Changing anything needs the movie unlocked on the browser doing it**:
-  reserving, concession orders, marking paid. Renaming a profile or
-  changing its photo needs one of that person's movies unlocked there.
+  reserving, concession orders, marking paid. A profile (name, photo,
+  Venmo username) can be edited from any browser signed in as that
+  person, with nothing unlocked.
 - **A seat's order and payment are its owner's**: your own seat and the
   guests you booked. Other people's seats show who's sitting there and
   can't be opened; the server refuses writes to them too.

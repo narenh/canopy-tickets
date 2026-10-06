@@ -774,14 +774,6 @@ const photoUpload = multer({
   }
 });
 
-// Changing your own profile needs this browser to have unlocked a movie
-// you have a seat in -- otherwise knowing your email would be enough to
-// rename you. Someone with no seats yet has nothing to protect.
-function canEditProfile(req) {
-  const mine = store.seatsOf(req.person.id);
-  return !mine.length || mine.some((m) => req.unlocked.has(m.showtime.movieId));
-}
-
 app.get('/api/me', attachDevice(false), (req, res) => {
   res.json(meView(req));
 });
@@ -817,7 +809,6 @@ app.post('/api/profile', attachDevice(true), photoUpload.single('photo'), (req, 
 
 app.patch('/api/profile', attachDevice(false), (req, res) => {
   if (!req.person) return res.status(401).json({ error: 'unauthorized' });
-  if (!canEditProfile(req)) return res.status(403).json({ error: 'unlock one of your movies on this device first', reason: 'locked' });
   const body = req.body || {};
   const names = cleanNames(body);
   if (names.error) return res.status(400).json({ error: names.error });
@@ -834,7 +825,6 @@ app.patch('/api/profile', attachDevice(false), (req, res) => {
 
 app.post('/api/profile/photo', attachDevice(false), photoUpload.single('photo'), (req, res) => {
   if (!req.person) return res.status(401).json({ error: 'unauthorized' });
-  if (!canEditProfile(req)) return res.status(403).json({ error: 'unlock one of your movies on this device first', reason: 'locked' });
   if (!req.file) return res.status(400).json({ error: 'choose a photo' });
   photoStore.save(req.person.id, req.file.buffer);
   req.person = store.setPersonPhoto(req.person.id, Date.now());
