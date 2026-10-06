@@ -42,8 +42,6 @@ const COPY = {
     hasPasskeyHint: 'This profile already has a passkey. Sign in with it below. Lost it? Ask the host to reset it.',
     wrongMoviePassword: "That isn't the password for any movie.",
     tooMany: 'Too many tries. Wait a few minutes.',
-    passkeyNotSaved: "The passkey wasn't saved. Try again.",
-    signInCancelled: "Sign-in didn't finish. If this phone has no passkey for Canopy Tickets yet, continue with your email instead.",
     passkeyExists: 'This phone already has a passkey for that profile. Sign in with it instead.',
     hasPasskeyNow: 'This profile already has a passkey. Go back and sign in with it.',
     unknownPasskey: "That passkey isn't linked to a profile anymore. Continue with your email to set up a new one.",

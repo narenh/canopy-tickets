@@ -82,9 +82,6 @@ if (!process.env.SESSION_SECRET) {
 }
 
 const adminAuth = createPasswordAuth('canopy_admin', SESSION_SECRET);
-// The old friend-password cookie. Nothing issues it now; a browser that
-// still has one gets the movies of that era unlocked, once (attachDevice).
-const sharedAuth = createPasswordAuth('canopy_shared', SESSION_SECRET);
 const deviceAuth = createDeviceAuth(SESSION_SECRET);
 
 app.disable('x-powered-by');
@@ -387,7 +384,6 @@ app.post('/api/admin/login', (req, res) => {
 
 app.post('/api/logout', (req, res) => {
   adminAuth.clearSessionCookie(res);
-  sharedAuth.clearSessionCookie(res);
   res.json({ ok: true });
 });
 
@@ -719,8 +715,7 @@ app.delete('/api/showtimes/:id', async (req, res) => {
 // a lost phone is the admin's "Reset passkeys".
 //
 // Movie unlocks belong to the PERSON (person_unlocks) and follow them to
-// every device. What a browser unlocked before (device_unlocks, and the
-// old friend-password cookie) carries over to whoever first signs in on it.
+// every device.
 
 // Too many tries at something, per key, per window. In memory: a restart
 // forgives everyone, which is fine at this scale.
@@ -775,28 +770,20 @@ function sendGuessRefusal(res, outcome) {
 }
 
 // Finds this browser's device (from its cookie), making one if `create`
-// is set. Puts req.device, req.person and req.unlocked (movie ids) on the
-// request. A browser still holding the old friend-password cookie gets
-// the movies of that era unlocked here, once, and the old cookie cleared.
+// is set. Puts req.device, req.person and req.unlocked (the person's
+// movie ids) on the request.
 function attachDevice(create) {
   return (req, res, next) => {
     req.unlocked = new Set();
     req.person = null;
     if (store.kind !== 'sqlite') return next();
-    const legacy = sharedAuth.isAuthed(req);
     const cookie = deviceAuth.read(req);
     let device = cookie ? store.getDevice(cookie.id) : null;
-    if (!device && (create || legacy)) device = store.createDevice();
+    if (!device && create) device = store.createDevice();
     if (!device) return next();
     if (!cookie || cookie.id !== device.id || deviceAuth.needsRenewal(cookie)) {
       deviceAuth.issue(res, device.id);
       store.touchDevice(device.id);
-    }
-    if (legacy) {
-      store.grantLegacyUnlocks(device.id);
-      // Already signed in: hand them over now rather than at next sign-in.
-      if (device.person_id) store.signInDevice(device.id, device.person_id);
-      sharedAuth.clearSessionCookie(res);
     }
     req.device = device;
     req.person = device.person_id ? store.getPerson(device.person_id) : null;

@@ -76,8 +76,6 @@ files and images (see "Storage & backups" below).
   its own file in `DATA_DIR`. Used for the Venmo and Cash App handles
   (see "Payment handles" below).
 - `lib/auth.js` — the admin's password-session cookie (`canopy_admin`).
-  The same helper reads the old friend-password cookie (`canopy_shared`),
-  which nothing issues any more.
 - `lib/seats.js` — normalizes a stored seat entry into
   `{status: 'occupied'}` or `{status: 'assigned', name, paid, concessionsPaid,
   concessions}`,
@@ -220,9 +218,8 @@ movie grid flags those. Changing a movie's password doesn't re-lock
 people who already unlocked it.
 
 **Moving over from before passkeys:** everyone was signed out once
-(schema v9). Whatever a browser had unlocked (and a browser still holding
-the old single friend password gets every movie of that era) carries over
-to the first person who signs in on it with a passkey. After setting up a
+(schema v9), and what browsers had unlocked was dropped (v10) — a friend
+types each movie's password once, on their account. After setting up a
 new profile, a friend is offered the seats reserved under their name
 before profiles existed ("Are any of these yours?"); the same list is
 under **Claim existing seats** later.

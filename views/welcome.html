@@ -381,11 +381,13 @@ async function postJson(url, body){
 }
 
 // What a failed passkey prompt means, in words. NotAllowedError is the
-// browser's answer for cancelled, timed out, and "no passkey here" alike.
-// Anything else carries the browser's own error after the generic line,
-// so a report from a phone says what actually went wrong.
+// browser's answer for cancelled, timed out, and "no passkey here" alike
+// -- nearly always someone tapping Cancel, so it says nothing (empty
+// string) and leaves them where they were. Anything else carries the
+// browser's own error after the generic line, so a report from a phone
+// says what actually went wrong.
 function passkeyErrorText(err, making){
-  if (err && err.name === 'NotAllowedError') return t(making ? 'welcome.passkeyNotSaved' : 'welcome.signInCancelled');
+  if (err && err.name === 'NotAllowedError') return '';
   if (err && err.name === 'InvalidStateError') return t('welcome.passkeyExists');
   return t('welcome.failed') + detail(err && (err.name + ': ' + err.message));
 }
