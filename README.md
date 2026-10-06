@@ -99,11 +99,11 @@ Docker" below for making that survive restarts/redeploys).
   new auditorium by adding an entry here -- the admin editor's Screen
   dropdown is built from this file at load time, grouped by theater,
   so there's nothing else to keep in sync by hand.
-- `views/admin.html` — the admin, in three tabs. **Movies**: a poster
+- `views/admin.html` — the admin ("Ticket Manager"), in three tabs. **Movies**: a poster
   grid (past movies collapsed underneath); a movie's page has its title
   (rename in place), poster (tap to replace) and showtimes; a showtime
   opens the seat-map editor, which also shows what friends have ordered,
-  per seat plus a summed shopping list. **Menu**: the concessions menu
+  per seat plus a summed shopping list. **Food & Drink**: the concessions menu
   editor. **Settings**: friend password, payment handles, logo and
   link-preview image. The screen is in the URL hash (`#/movie/<id>`,
   `#/showtime/<id>`, ...), so back and reload work. There's no Save
