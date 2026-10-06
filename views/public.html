@@ -3785,8 +3785,13 @@ function buildMenuRowEl(row){
 
   const priceEl = document.createElement('div');
   priceEl.className = 'ci-price';
+  // An item with a pick to make says how many there are ("7 sauces"), so
+  // "+" asking for one isn't a surprise.
+  const choiceCount = optionsForItem(row.itemId).length;
+  const choiceLabel = choiceCount ? optionLabelForItem(row.itemId).toLowerCase() : '';
   priceEl.textContent = [
     row.price > 0 ? formatPrice(row.price) : t('friend.cart.noPriceSet'),
+    choiceCount ? t(choiceCount === 1 ? 'friend.cart.choicesOne' : 'friend.cart.choicesMany', { count: choiceCount, label: choiceLabel }) : '',
     // The host's own label for this item ("50c off"), not a discount the
     // app applies -- the price to its left is what gets charged.
     row.note || ''

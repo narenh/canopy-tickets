@@ -231,6 +231,9 @@ const COPY = {
       sectionInOrder: '{count} in order',
       // Under an item with a required pick, and above its options.
       chooseOption: 'Choose a {label}',
+      // Beside an item's price: how many options its "+" will offer.
+      choicesOne: '{count} {label}',
+      choicesMany: '{count} {label}s',
       // A cart line placed before its item had a choice to make.
       noChoice: ' · no {label}',
       orderCountOne: '{count} item',
