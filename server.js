@@ -707,12 +707,22 @@ app.post('/api/showtimes/:id/duplicate', (req, res) => {
 app.put('/api/showtimes/:id/seats/:seatId', (req, res) => {
   if (!SEAT_ID_RE.test(req.params.seatId)) return res.status(400).json({ error: 'bad seat id' });
   const body = req.body || {};
+  // personId: a profile id, null for a plain name, or left out to keep
+  // whoever has the seat (see setSeat in lib/sqliteStore.js).
+  if (body.personId !== undefined && body.personId !== null && typeof body.personId !== 'string') {
+    return res.status(400).json({ error: 'personId must be a string or null' });
+  }
   const result = store.setSeat(req.params.id, req.params.seatId, {
     name: typeof body.name === 'string' ? body.name : '',
     paid: !!body.paid,
-    concessionsPaid: !!body.concessionsPaid
+    concessionsPaid: !!body.concessionsPaid,
+    personId: body.personId,
+    guest: !!body.guest
   });
-  if (!result.ok) return sendResult(res, result);
+  if (!result.ok) {
+    if (result.reason === 'already_have_seat') return res.status(409).json({ error: result.reason, reason: result.reason });
+    return sendResult(res, result);
+  }
   res.json({ showtime: withScreenFallback(result.showtime) });
 });
 

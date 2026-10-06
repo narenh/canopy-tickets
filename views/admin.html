@@ -755,7 +755,7 @@
     color:var(--muted);
     margin-bottom:6px;
   }
-  .se-field input[type="text"]{
+  .se-field input[type="text"], .se-field select{
     width:100%;
     background:#0f0f10;
     color:#fff;
@@ -772,6 +772,8 @@
     font-size:14px;
   }
   .se-checkbox input{width:16px;height:16px;}
+  .se-field input[readonly]{color:var(--muted);}
+  .se-error{color:#e2857a;font-size:13px;margin:-6px 0 12px;}
   .seat-editor-actions{
     display:flex;
     flex-direction:column;
@@ -787,6 +789,9 @@
     border:none;
     font-weight:700;
   }
+  /* Stays gold under the pointer: the page-wide button:hover grey made
+     Save look disabled. */
+  .se-save-btn:hover{background:var(--gold);filter:brightness(1.1);}
   .se-danger-btn{
     background:#2a1616;
     border:1px solid #5a2323;
@@ -1332,10 +1337,21 @@
            page right up to the cutoff. This is here so you can see what
            they asked for while you're assigning/marking the seat. -->
       <div class="se-order hidden" id="seatEditorOrder"></div>
+      <!-- Whose seat it is: someone with a profile (it shows on their My
+           Showtimes), a guest they're bringing, or just a name. -->
       <label class="se-field">
-        <span data-copy="admin.seatEditor.nameLabel"></span>
-        <input type="text" id="seatEditorName" placeholder="e.g. Jordan">
+        <span data-copy="admin.seatEditor.personLabel"></span>
+        <select id="seatEditorPerson" onchange="syncSeatEditorOwner()"></select>
       </label>
+      <label class="se-checkbox hidden" id="seatEditorGuestWrap">
+        <input type="checkbox" id="seatEditorGuest" onchange="syncSeatEditorOwner()">
+        <span id="seatEditorGuestLabel"></span>
+      </label>
+      <label class="se-field">
+        <span id="seatEditorNameLabel"></span>
+        <input type="text" id="seatEditorName">
+      </label>
+      <div class="se-error hidden" id="seatEditorError"></div>
       <label class="se-checkbox">
         <input type="checkbox" id="seatEditorPaid">
         <span>Ticket paid</span>
@@ -1422,7 +1438,10 @@ function normalizeSeatEntry(raw){
         // food once the order goes in. Mirrors lib/seats.js.
         concessionsPaid: name ? !!raw.concessionsPaid : false,
         // A seat with nobody's name on it has nobody to order for it.
-        concessions: name && Array.isArray(raw.concessions) ? raw.concessions : []
+        concessions: name && Array.isArray(raw.concessions) ? raw.concessions : [],
+        // Whose seat it is (see the seat editor's Person picker).
+        personId: name && raw.personId ? raw.personId : null,
+        guest: !!(name && raw.personId && raw.guest)
       };
     }
     if (raw.status === 'occupied') return { status: 'occupied' };
@@ -2327,13 +2346,17 @@ function seatTap(id){
   openSeatEditor(id);
 }
 
-function openSeatEditor(id){
+async function openSeatEditor(id){
   editingSeatId = id;
   const cur = seatStates[id];
   const hasName = !!(cur && cur.name);
   document.getElementById('seatEditorTitle').textContent = t('admin.seatEditor.title', { seat: id });
   renderSeatEditorOrder(cur);
+  await fillSeatEditorPeople(cur && cur.personId);
+  if (editingSeatId !== id) return;
+  document.getElementById('seatEditorGuest').checked = !!(cur && cur.guest);
   document.getElementById('seatEditorName').value = hasName ? cur.name : '';
+  syncSeatEditorOwner();
   document.getElementById('seatEditorPaid').checked = !!(cur && cur.paid);
   renderSeatEditorConcessionsPaid(cur);
   document.getElementById('seatEditorClearBtn').classList.toggle('hidden', !hasName);
@@ -2379,6 +2402,96 @@ function renderSeatEditorOrder(seat){
   el.classList.remove('hidden');
 }
 
+// Everyone with a profile, for the Person picker. Fetched each time the
+// editor opens, so someone who signed up a minute ago is in it; the last
+// list is kept for when that fetch fails.
+let editorPeople = null;
+
+async function fillSeatEditorPeople(selectedId){
+  try{
+    const res = await fetch('/api/people');
+    if (await handleAuthFailure(res)) return;
+    if (res.ok) editorPeople = (await res.json()).people || [];
+  }catch(e){}
+  const select = document.getElementById('seatEditorPerson');
+  select.innerHTML = '';
+  const none = document.createElement('option');
+  none.value = '';
+  none.textContent = t('admin.seatEditor.personNone');
+  select.appendChild(none);
+  const people = editorPeople || [];
+  // Two people with one name are told apart by email.
+  const fullName = p => (p.firstName + ' ' + p.lastName).trim();
+  const counts = new Map();
+  people.forEach(p => counts.set(fullName(p), (counts.get(fullName(p)) || 0) + 1));
+  people.forEach(p => {
+    const o = document.createElement('option');
+    o.value = p.id;
+    o.textContent = fullName(p) + (counts.get(fullName(p)) > 1 ? ' (' + p.email + ')' : '');
+    select.appendChild(o);
+  });
+  // A seat linked to a profile the list doesn't have (it failed to load)
+  // still says so rather than quietly showing "just a name".
+  if (selectedId && !people.some(p => p.id === selectedId)){
+    const o = document.createElement('option');
+    o.value = selectedId;
+    o.textContent = t('admin.seatEditor.personUnknown');
+    select.appendChild(o);
+  }
+  select.value = selectedId || '';
+}
+
+// The picked profile. One the list doesn't have (it failed to load) keeps
+// the name already on the seat, so saving can't blank it.
+function editorPerson(){
+  const id = document.getElementById('seatEditorPerson').value;
+  if (!id) return null;
+  const cur = seatStates[editingSeatId];
+  return (editorPeople || []).find(p => p.id === id) || { id, shortName: (cur && cur.name) || '' };
+}
+
+// Their own seat in this showtime, other than the one being edited.
+function otherOwnSeat(personId){
+  return Object.keys(seatStates).find(id => id !== editingSeatId &&
+    seatStates[id].personId === personId && !seatStates[id].guest) || null;
+}
+
+// Keeps the guest box and the name in step with the Person picker: their
+// own seat carries the name friends see them as (the server sets it
+// too); a guest's carries the guest's name; no profile, any name.
+function syncSeatEditorOwner(){
+  const person = editorPerson();
+  const guestWrap = document.getElementById('seatEditorGuestWrap');
+  const guestBox = document.getElementById('seatEditorGuest');
+  const nameInput = document.getElementById('seatEditorName');
+  const nameLabel = document.getElementById('seatEditorNameLabel');
+  document.getElementById('seatEditorError').classList.add('hidden');
+  guestWrap.classList.toggle('hidden', !person);
+  if (!person){
+    nameInput.readOnly = false;
+    nameInput.placeholder = t('admin.seatEditor.namePlaceholder');
+    nameLabel.textContent = t('admin.seatEditor.nameLabel');
+    return;
+  }
+  // One seat of their own per showtime: with one already, this is a guest's.
+  const own = otherOwnSeat(person.id);
+  if (own) guestBox.checked = true;
+  guestBox.disabled = !!own;
+  document.getElementById('seatEditorGuestLabel').textContent = own
+    ? t('admin.seatEditor.guestForced', { seat: own })
+    : t('admin.seatEditor.guestLabel');
+  if (guestBox.checked){
+    if (nameInput.readOnly) nameInput.value = '';
+    nameInput.readOnly = false;
+    nameInput.placeholder = t('admin.seatEditor.guestPlaceholder');
+    nameLabel.textContent = t('admin.seatEditor.guestNameLabel');
+  } else {
+    nameInput.value = person.shortName;
+    nameInput.readOnly = true;
+    nameLabel.textContent = t('admin.seatEditor.ownNameLabel');
+  }
+}
+
 function closeSeatEditor(){
   editingSeatId = null;
   document.getElementById('seatEditorOverlay').classList.add('hidden');
@@ -2386,7 +2499,15 @@ function closeSeatEditor(){
 
 function applySeatEdit(){
   if (!editingSeatId) return;
+  const person = editorPerson();
+  const guest = !!person && document.getElementById('seatEditorGuest').checked;
   const name = document.getElementById('seatEditorName').value.trim();
+  if (guest && !name){
+    const err = document.getElementById('seatEditorError');
+    err.textContent = t('admin.seatEditor.guestNameRequired');
+    err.classList.remove('hidden');
+    return;
+  }
   const paid = document.getElementById('seatEditorPaid').checked;
   const prior = seatStates[editingSeatId];
   // Fixing a typo in a name or ticking "paid" must not throw away what
@@ -2401,7 +2522,9 @@ function applySeatEdit(){
     name,
     paid,
     concessionsPaid,
-    concessions: name ? priorCart : []
+    concessions: name ? priorCart : [],
+    personId: person && name ? person.id : null,
+    guest
   };
   renderSeat(editingSeatId);
   updateSummary();
@@ -2688,7 +2811,10 @@ function writeSeat(seatId){
     enqueueWrite(id + ':seat:' + seatId, () => fetch(url, { method: 'DELETE' }));
     return;
   }
-  const body = JSON.stringify({ name: s.name || '', paid: !!s.paid, concessionsPaid: !!s.concessionsPaid });
+  const body = JSON.stringify({
+    name: s.name || '', paid: !!s.paid, concessionsPaid: !!s.concessionsPaid,
+    personId: s.personId || null, guest: !!s.guest
+  });
   enqueueWrite(id + ':seat:' + seatId, () => fetch(url, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },

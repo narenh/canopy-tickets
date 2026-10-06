@@ -383,7 +383,17 @@ const COPY = {
 
     seatEditor: {
       title: 'Seat {seat}',
+      personLabel: 'Person',
+      personNone: 'No profile (just a name)',
+      personUnknown: 'Their profile (the list didn’t load)',
+      guestLabel: 'A guest they’re bringing',
+      guestForced: 'A guest they’re bringing ({seat} is their own seat)',
       nameLabel: 'Assigned to (leave blank = available for a friend to claim)',
+      namePlaceholder: 'e.g. Jordan',
+      ownNameLabel: 'Shown to friends as',
+      guestNameLabel: 'Guest’s name',
+      guestPlaceholder: 'e.g. Jordan',
+      guestNameRequired: 'Enter the guest’s name.',
       concessionsPaid: 'Concessions paid ({amount} with tax)',
       orderHead: 'Ordered from the reservation page',
       releaseConfirm: 'Release {seat}? {name} loses this seat and anything they ordered for it.'

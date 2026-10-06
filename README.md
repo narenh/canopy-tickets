@@ -108,8 +108,12 @@ files and images (see "Storage & backups" below).
   `#/showtime/<id>`, ...), so back and reload work. There's no Save
   button on a showtime: each field and each seat saves as it's changed,
   and a pill at the bottom says whether it has (tap it to retry a save
-  that failed). The menu still has an explicit Save. Only served to
-  authenticated admin requests.
+  that failed). Tapping a seat in your block opens the seat editor:
+  **Person** links it to someone's profile — their own seat (named as
+  friends see them, one per showtime) or, with **A guest they're
+  bringing**, a guest's under the name you type — and it shows on their
+  My Showtimes. "No profile" keeps it a plain name. The menu still has
+  an explicit Save. Only served to authenticated admin requests.
 - `views/public.html` — the friend-facing reservation page. Only served
   to a signed-in browser. Two
   tabs: **My Showtimes** and **All Movies**, a poster grid where a locked
