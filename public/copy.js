@@ -215,6 +215,8 @@ const COPY = {
       heading: 'Edit profile',
       venmoPlaceholder: 'Venmo username',
       badVenmo: 'A Venmo username is letters, numbers, - and _ only.',
+      peanutAllergy: 'Peanut allergy',
+      peanutHint: 'Peanut items will be hidden for adjacent seats.',
       failed: "Couldn't save. Try again."
     },
 

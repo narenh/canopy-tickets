@@ -518,11 +518,13 @@ A few things worth knowing about how this actually works:
   longer on the menu", and can still be edited down to zero). Same for
   options: a sauce the host has since deleted still shows as the pick on
   an order that chose it.
-- **Nobody sitting next to the host is offered peanut candy.** Played for a
-  laugh, built to fail safe: when a neighbouring seat in the same row is
-  the host's own (see "The host owes nothing"; hardcoded to them for now),
-  peanut items quietly drop out of that seat's menu. No banner explaining
-  the bit — the people it applies to are in on it. It will *not* hide a
+- **Nobody sitting next to someone with a peanut allergy is offered peanut
+  items.** Anyone can tick **Peanut allergy** in Edit profile ("Peanut items
+  will be hidden for adjacent seats."). When a neighbouring seat in the same
+  row is their own (not a guest's they booked), peanut items quietly drop
+  out of that seat's menu. The server works this out and only tells each
+  friend about their own seats, so nobody's allergy is shown to anyone
+  else. It will *not* hide a
   peanut item already in the cart — an invisible line
   someone is still being charged for is worse than a visible one — and it
   isn't enforcement: the host still sees every order in full, which is
@@ -763,11 +765,12 @@ Showtimes, seats and orders are in `DATA_DIR/canopy.db` (SQLite). The
 other settings and the uploaded images are still files next to it.
 
 **Schema version.** A new `canopy.db` is created with the whole current
-schema. An existing one must already be at the current version (16): the
-app refuses to start on an older file rather than run with columns
-missing. That only matters for a database from before version 16, such
-as an old snapshot below; start it once under commit `f50b354`, which
-still has the upgrade steps, and it's brought up to date.
+schema. An existing one is upgraded on start from version 16 onward
+(`UPGRADES` in `lib/sqliteStore.js`); the app refuses to start on anything
+older rather than run with columns missing. That only matters for a
+database from before version 16, such as an old snapshot below; start it
+once under commit `f50b354`, which still has the earlier upgrade steps,
+and it's brought up to date.
 
 `showtimes.json`, `shared-password.json` and `backups/pre-sqlite-*/` may
 still be on the volume from before SQLite. Nothing reads them any more.

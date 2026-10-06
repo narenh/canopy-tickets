@@ -876,6 +876,8 @@
     min-width:0;
   }
   .profile-email{margin:0;overflow-wrap:anywhere;}
+  .profile-allergy{margin-bottom:14px;}
+  .profile-allergy-hint{margin:-8px 0 14px 28px;}
   .existing-card{max-height:85vh;display:flex;flex-direction:column;}
   #existingPick{display:flex;flex-direction:column;flex:1;min-height:0;}
   .existing-list{overflow-y:auto;margin-bottom:12px;flex:1;min-height:0;}
@@ -1707,6 +1709,10 @@
         <input type="text" id="profileVenmo" maxlength="30"
           autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Venmo username">
       </label>
+      <label class="claim-for-opt profile-allergy">
+        <input type="checkbox" id="profilePeanut"><span data-copy="friend.profile.peanutAllergy"></span>
+      </label>
+      <div class="claim-sub profile-allergy-hint hidden" id="profilePeanutHint" data-copy="friend.profile.peanutHint"></div>
       <div class="claim-error" id="profileError"></div>
       <div class="claim-actions">
         <button type="button" class="claim-submit-btn" id="profileSave" onclick="saveProfile()">Save</button>
@@ -3420,6 +3426,12 @@ document.getElementById('profileVenmo').addEventListener('input', (e) => {
   if (v !== e.target.value) e.target.value = v;
 });
 
+// The note under the box says what ticking it does, once it's ticked.
+function showPeanutHint(){
+  document.getElementById('profilePeanutHint').classList.toggle('hidden', !document.getElementById('profilePeanut').checked);
+}
+document.getElementById('profilePeanut').addEventListener('change', showPeanutHint);
+
 // Signed in with a passkey is who you are, so your profile is always
 // yours to edit.
 function openProfile(){
@@ -3436,6 +3448,8 @@ function renderProfileSheet(){
   const venmo = document.getElementById('profileVenmo');
   venmo.value = me.venmo || '';
   venmo.placeholder = t('friend.profile.venmoPlaceholder');
+  document.getElementById('profilePeanut').checked = !!me.peanutAllergy;
+  showPeanutHint();
   document.getElementById('profileError').textContent = '';
   const photo = document.getElementById('profilePhoto');
   if (me.photoUrl) photo.src = me.photoUrl;
@@ -3446,8 +3460,8 @@ function closeProfile(){
   overlayClosed();
 }
 
-// Your name, photo and Venmo username can be changed from any browser
-// you're signed in on -- no movie needs to be unlocked.
+// Your name, photo, Venmo username and peanut allergy can be changed
+// from any browser you're signed in on -- no movie needs to be unlocked.
 async function saveProfile(){
   const errorEl = document.getElementById('profileError');
   errorEl.textContent = '';
@@ -3458,7 +3472,8 @@ async function saveProfile(){
       body: JSON.stringify({
         firstName: document.getElementById('profileFirst').value,
         lastName: document.getElementById('profileLast').value,
-        venmoHandle: document.getElementById('profileVenmo').value
+        venmoHandle: document.getElementById('profileVenmo').value,
+        peanutAllergy: document.getElementById('profilePeanut').checked
       })
     });
     if (await handleAuthFailure(res)) return;
@@ -3991,13 +4006,11 @@ async function submitExistingPassword(e){
 // honest instead of letting it disagree with what got saved.
 const MAX_CART_QTY = 99;
 
-// Nobody sitting next to the host gets offered peanut candy. Played for
-// a laugh, but it's an allergy, so it's built to fail safe rather than to
-// be cute: see hiddenPeanutItemIds() for what it deliberately does NOT do.
+// Nobody sitting next to someone with a peanut allergy (ticked in their
+// profile) gets offered peanut items -- the server works out which of
+// your seats that is (nextToPeanutAllergy). See hiddenPeanutItemIds() for
+// what it deliberately does NOT do.
 //
-// HARDCODED to the host for now -- the admin's own profile (People ->
-// This is me), whose seat arrives with host: true. The allergy happens to
-// be theirs; when it's anyone else's this wants its own setting.
 // Name-matched rather than by a list of ids, so it keeps working after
 // the host renames an item or adds one of their own. Reese's is on here
 // by brand: the word "peanut" isn't in the name, the peanut butter is.
@@ -4187,26 +4200,8 @@ function currentCartShowtime(){
   return allShowtimes.find(s => s.id === cartShowtimeId) || null;
 }
 
-// Seats either side of this one in the same row. Deliberately NOT the
-// rows in front or behind: seat numbers don't line up across rows (row A
-// is offset -- see padStart in seat-layout.js), so "same number, next
-// row" is not the seat behind you, and guessing wrong here would be
-// worse than the narrower answer.
-function neighborSeatIds(seatId){
-  const m = /^([A-Za-z]+)(\d+)$/.exec(seatId || '');
-  if (!m) return [];
-  const n = Number(m[2]);
-  return [m[1] + (n - 1), m[1] + (n + 1)];
-}
-
-function hasPeanutNeighbor(showtime, seatId){
-  const seats = (showtime && showtime.seats) || {};
-  return neighborSeatIds(seatId).some(id => seats[id] && seats[id].host);
-}
-
-// Menu items to leave out of the catalog. Silent by design: the people
-// this applies to are in on the joke, and a banner explaining the bit is
-// worse than the bit.
+// Menu items to leave out of the catalog, without a word: the list just
+// doesn't offer them.
 //
 // It deliberately does not touch the order list. A peanut item already
 // ordered stays visible and removable there -- hiding a line someone is
@@ -4214,7 +4209,9 @@ function hasPeanutNeighbor(showtime, seatId){
 // in the catalog goes away. Nor is any of this enforcement: the host sees
 // every order in full, which is the copy that matters at the counter.
 function hiddenPeanutItemIds(){
-  if (!hasPeanutNeighbor(currentCartShowtime(), cartSeatId)) return new Set();
+  const show = currentCartShowtime();
+  const seat = show && (show.seats || {})[cartSeatId];
+  if (!seat || !seat.nextToPeanutAllergy) return new Set();
   const ordered = new Set(cartOrder.map(l => l.itemId));
   return new Set(
     concessionMenu.filter(i => PEANUT_ITEM.test(i.name || '') && !ordered.has(i.id)).map(i => i.id)

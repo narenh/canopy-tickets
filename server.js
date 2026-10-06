@@ -312,6 +312,29 @@ function canReleaseSeat(show, raw, viewer, now) {
   return start !== null && start - now > RELEASE_WINDOW_MS;
 }
 
+// Seats either side of this one in the same row. Deliberately NOT the
+// rows in front or behind: seat numbers don't line up across rows (row A
+// is offset -- see padStart in seat-layout.js), so "same number, next
+// row" is not the seat behind you, and guessing wrong here would be
+// worse than the narrower answer.
+function neighborSeatIds(seatId) {
+  const m = /^([A-Za-z]+)(\d+)$/.exec(seatId || '');
+  if (!m) return [];
+  const n = Number(m[2]);
+  return [m[1] + (n - 1), m[1] + (n + 1)];
+}
+
+// Whether someone with a peanut allergy (ticked in their profile) sits in
+// a seat next to this one -- their own seat, not a guest's they booked.
+function nextToPeanutAllergy(s, seatId, person) {
+  return neighborSeatIds(seatId).some((id) => {
+    const raw = s.seats && s.seats[id];
+    if (!raw || raw.status !== 'assigned' || !raw.personId || raw.guest) return false;
+    const owner = person(raw.personId);
+    return !!(owner && owner.peanutAllergy);
+  });
+}
+
 function publicShowtimeView(s, viewer, onlySeatIds, lookup) {
   const person = lookup || peopleLookup();
   const now = Date.now();
@@ -322,6 +345,7 @@ function publicShowtimeView(s, viewer, onlySeatIds, lookup) {
     if (seats[id].status === 'assigned') {
       const raw = (s.seats && s.seats[id]) || {};
       const owner = person(raw.personId);
+      const mine = !!(viewer && raw.personId && raw.personId === viewer.id);
       // Carts ride along with the seat list rather than sitting behind
       // their own endpoint: the reservation page shows every reserved
       // seat's order inline on the list, so a separate fetch per seat
@@ -339,9 +363,13 @@ function publicShowtimeView(s, viewer, onlySeatIds, lookup) {
         concessions: seats[id].concessions,
         // Whose it is, without handing out ids: theirs, a guest someone
         // booked (and who), and the owner's photo for their own seat.
-        mine: !!(viewer && raw.personId && raw.personId === viewer.id),
+        mine,
         // Yours, and still yours to give back (see canReleaseSeat).
         canRelease: canReleaseSeat(s, raw, viewer, now),
+        // Peanut items come off this seat's menu. Only worked out for your
+        // own seats -- the cart is only ever yours -- so nobody's allergy
+        // is handed to anyone else.
+        nextToPeanutAllergy: mine && nextToPeanutAllergy(s, id, person),
         guest: !!raw.guest,
         via: raw.guest && owner ? owner.shortName : null,
         photoUrl: !raw.guest ? photoUrlFor(owner) : null
@@ -1103,6 +1131,9 @@ app.patch('/api/profile', attachDevice(false), (req, res) => {
   const names = cleanNames(body);
   if (names.error) return res.status(400).json({ error: names.error });
   // Optional, and only touched when sent.
+  if (body.peanutAllergy !== undefined && typeof body.peanutAllergy !== 'boolean') {
+    return res.status(400).json({ error: 'peanutAllergy must be a boolean' });
+  }
   let venmo;
   if (body.venmoHandle !== undefined) {
     venmo = cleanVenmo(body.venmoHandle);
@@ -1110,6 +1141,7 @@ app.patch('/api/profile', attachDevice(false), (req, res) => {
   }
   req.person = store.renamePerson(req.person.id, names.firstName, names.lastName).person;
   if (venmo !== undefined) req.person = store.setPersonVenmo(req.person.id, venmo);
+  if (body.peanutAllergy !== undefined) req.person = store.setPersonPeanutAllergy(req.person.id, body.peanutAllergy);
   res.json(meView(req));
 });
 
