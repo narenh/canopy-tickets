@@ -8,9 +8,10 @@
     "start": "node server.js"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "dependencies": {
+    "better-sqlite3": "^13.0.3",
     "express": "^4.19.2",
     "multer": "^2.0.0"
   }

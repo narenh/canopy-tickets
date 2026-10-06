@@ -41,12 +41,14 @@ Docker" below for making that survive restarts/redeploys).
   `GET /` serves the reservation page to a friend session and the login
   form to anyone else; `GET /admin` does the same for the editor and an
   admin session.
-- `lib/store.js` — persistence: showtimes are stored as one JSON file on
-  disk (`data/showtimes.json`), written atomically. No database needed at
-  this scale. `claimSeat` does the friend-facing claim atomically (read,
-  check, write inside one lock) so two people tapping the same seat at the
-  same instant can't both win it -- verified with 10 concurrent claims
-  against a single open seat (1 winner, 9 correctly rejected). Every
+- `lib/store.js` — persistence: movies, showtimes and seats live in one
+  SQLite file, `data/canopy.db` (`lib/sqliteStore.js`). On its first start
+  it imports the old `data/showtimes.json` and checks every showtime and
+  seat against the original before switching over (see "Storage &
+  backups" below). If that check ever fails it runs on the JSON instead
+  (`lib/jsonStore.js`). `claimSeat` does the friend-facing claim in one
+  transaction, so two people tapping the same seat at the same instant
+  can't both win it. Every
   showtime carries a `screen` (which auditorium/seat-map it uses, see
   `public/seat-layout.js`), defaulting to IMAX at Metreon
   (`"amc-metreon-16"`) via a fallback in `server.js` if unset.
@@ -472,7 +474,7 @@ A few things worth knowing about how this actually works:
   person whose name was on the seat, so freeing the seat for someone else
   starts them from an empty cart — and clears what they'd settled with
   it. Fixing a typo in a name, or ticking "paid", keeps both.
-- Orders live on the seat inside `showtimes.json`. The menu lives in
+- Orders live on the seat, in `canopy.db`. The menu lives in
   `concession-menu.json`, which only exists once the host has saved an
   edit — no file means the built-in AMC menu is in effect. Both are in
   `DATA_DIR`, so they need the same persistent volume as everything else
@@ -609,8 +611,8 @@ as static files instead of actually running the Node server.
      so sessions still survive restarts/redeploys/extra replicas either
      way. Set it explicitly so that changing `ADMIN_PASSWORD` later
      doesn't also silently log everyone out.
-3. Add a **persistent volume** — this is where `showtimes.json` (which
-   carries friends' concession orders), the concessions menu, the
+3. Add a **persistent volume** — this is where `canopy.db` (showtimes,
+   seats and friends' concession orders), the concessions menu, the
    friend password, the Venmo/Cash App handles, and the uploaded
    logo/link-preview images all live.
    Without it, every redeploy gives the container a brand-new, empty
@@ -647,3 +649,51 @@ was added but the resource hasn't been redeployed since) — fix that and
 redeploy again; nothing else changes. The same volume is also what makes
 the friend password, payment handles, concessions menu, and uploaded
 images survive a redeploy, so this check covers all of it.
+
+## Storage & backups
+
+Showtimes, seats and orders are in `DATA_DIR/canopy.db` (SQLite). The
+other settings and the uploaded images are still files next to it.
+
+**Moving off `showtimes.json`.** The first start of a version with SQLite
+imports `showtimes.json` into `canopy.db`:
+
+1. It copies `showtimes.json` to `backups/pre-sqlite-<time>/` first.
+2. It imports everything into a temporary database, then reads every
+   showtime back and compares it with the original, field by field and
+   seat by seat. Only a database that matches exactly is moved into
+   place. Any difference, and the temporary file is deleted, the problem
+   is logged, and the app keeps running on `showtimes.json` exactly as
+   before; the next start tries again.
+3. `showtimes.json` itself is never modified, renamed or deleted. After a
+   successful import it simply isn't read any more.
+
+The log says which happened. Success looks like:
+
+```
+[canopy-tickets] Moved showtimes.json into SQLite (/app/data/canopy.db): 12 showtime(s) across 4 movie(s), ...
+```
+
+Failure is a line starting `!!! SQLite store unavailable`. If a later
+start logs `!!! showtimes.json has changed since it was moved into
+SQLite`, something wrote to the JSON after the import (most likely the
+old container, still running during the deploy, took a reservation).
+That change is not in the database, and the message says where to look.
+
+**Backups.** Two layers:
+
+- The app writes a consistent copy of the database to
+  `backups/sqlite/canopy-YYYY-MM-DD.db` at startup and daily, keeping 14.
+  Restore from these: copy one over `canopy.db` with the app stopped and
+  delete `canopy.db-wal` / `canopy.db-shm`.
+- In Coolify, on this application: **Backups → Scheduled Backups → Add**,
+  target the `/app/data` volume, frequency `daily`. That archives the
+  whole volume (database snapshots, settings, images); **Backup Now**
+  runs one on demand. Archives stay on the server unless you add
+  S3-compatible storage. Coolify's archive of the live `canopy.db` itself
+  may be inconsistent if it's taken mid-write, which is why the snapshots
+  above exist.
+
+**Rolling back** to a version from before SQLite is possible (it reads
+`showtimes.json`, which is untouched), but anything changed since the
+import exists only in `canopy.db` and won't be there.
