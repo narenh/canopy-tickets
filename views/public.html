@@ -267,10 +267,9 @@
     font-size:12.5px;
     line-height:1.35;
   }
-  /* Inside one film's view the header already names it and every card
-     would carry the same poster and title -- drop both so each card is
-     just the when/where/seats that actually differ. */
-  #filmView .card .poster-thumb,
+  /* Inside one film's view the header already names it, so the card's
+     own title is dropped. The poster stays -- it's what makes a card read
+     as a showing of this film at a glance. */
   #filmView .card h3{display:none;}
   .film-intro{
     margin:0;
