@@ -122,7 +122,10 @@ const COPY = {
       edit: '+ Add / Edit',
       view: 'View',
       none: 'No concessions',
-      noneFor: 'No concessions for {name}'
+      noneFor: 'No concessions for {name}',
+      // Under the poster while you (or a guest you booked) still owe.
+      payNow: 'Pay now · {amount}',
+      payMore: 'More payment options'
     },
 
     // A line of your usual order left the menu (red, top of My showtimes).

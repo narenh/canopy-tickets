@@ -255,6 +255,60 @@
   }
   .mine-section{margin-top:12px;}
   .mine-seat .unpaid-tag{color:#e2857a;font-size:11px;}
+  /* Your seat while it still owes: the number itself goes red. */
+  .mine-seat.owes .seat-id, .seat-line.owes .seat-id{color:#e2857a;}
+  /* Pay now under the poster, with a ⋯ for "I've already paid". */
+  .mine-pay{display:flex;gap:8px;margin:2px 0 4px;position:relative;}
+  .mine-pay-btn{
+    flex:1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:var(--gold);
+    color:#241c07;
+    border-radius:12px;
+    padding:12px;
+    font-size:15.5px;
+    font-weight:700;
+    text-decoration:none;
+  }
+  .mine-pay-more{
+    flex:0 0 auto;
+    width:48px;
+    background:#1e1e21;
+    border:1px solid #333338;
+    border-radius:12px;
+    color:#ddd;
+    font-size:20px;
+    line-height:1;
+    cursor:pointer;
+  }
+  .mine-pay-menu{
+    position:absolute;
+    right:0;
+    top:calc(100% + 6px);
+    z-index:5;
+    background:#1c1c1f;
+    border:1px solid #2e2e32;
+    border-radius:12px;
+    padding:6px;
+    box-shadow:0 8px 24px rgba(0,0,0,.5);
+  }
+  .mine-pay-menu button{
+    display:block;
+    width:100%;
+    background:none;
+    border:none;
+    color:#eee;
+    font:inherit;
+    font-size:15px;
+    text-align:left;
+    padding:10px 12px;
+    border-radius:8px;
+    cursor:pointer;
+    white-space:nowrap;
+  }
+  .mine-pay-menu button:hover{background:#26262a;}
   .mine-orders{border-top:1px solid #26262a;margin-top:10px;padding-top:2px;}
   .order-block{padding:10px 0 2px;}
   .order-block + .order-block{border-top:1px solid #222225;margin-top:6px;}
@@ -2197,6 +2251,8 @@ function renderMe(){
   document.getElementById('meMenuAdmin').classList.toggle('hidden', !me.isAdmin);
   renderCalBanner();
   renderFavBanner();
+  // Pay now depends on who you are (see buildMinePayRow).
+  if (mineItems.length) renderMine();
 }
 
 // ---------------- TABS ----------------
@@ -2433,6 +2489,8 @@ function buildMineCard(item){
 
   const seats = obj.seats || {};
   const myIds = item.seatIds.slice().sort(compareSeatIds);
+  const payRow = buildMinePayRow(obj, myIds);
+  if (payRow) card.appendChild(payRow);
 
   // Who's going: everyone with a seat, read-only, yours marked. (A movie
   // that isn't unlocked here only ever comes with your own seats -- see
@@ -2448,7 +2506,8 @@ function buildMineCard(item){
   }
   goingIds.forEach(seatId => {
     const row = document.createElement('div');
-    row.className = 'mine-seat' + (seats[seatId].mine ? ' is-mine' : '');
+    row.className = 'mine-seat' + (seats[seatId].mine ? ' is-mine' : '') +
+      (seats[seatId].mine && seatOwesAnything(obj, seats[seatId]) ? ' owes' : '');
     // Whether you (or your guest) still owe lives here, so the order
     // rows below don't have to repeat who's who.
     row.innerHTML = seatWhoHtml(seatId, seats[seatId]) +
@@ -2477,6 +2536,89 @@ function buildMineCard(item){
     card.appendChild(lock);
   }
   return card;
+}
+
+// What a seat can be paid for right now: its ticket, plus its food once
+// orders have closed (before that the food total is a draft -- see
+// renderCartFoot). The host's own seat never owes.
+function seatPayable(obj, seat){
+  if (!seat || seat.host) return { ticket: 0, food: 0 };
+  const price = typeof obj.price === 'number' ? obj.price : 0;
+  const ticket = !seat.paid && price > 0 ? price : 0;
+  let food = 0;
+  if (!concessionsOpen(obj) && !seat.concessionsPaid){
+    const sub = concessionsTotal(seat.concessions || []);
+    food = Math.round((sub + concessionTax(sub)) * 100) / 100;
+  }
+  return { ticket, food };
+}
+
+// "Pay now · $18.99" under the poster while your seat or your guests'
+// can be paid for, and a ⋯ beside it with "I've already paid". Pays the
+// lot in one go: Venmo if there's a handle, otherwise Cash App. Nothing
+// when there's no handle to pay.
+function buildMinePayRow(obj, myIds){
+  // The admin is the one being paid -- their guests settle up with them
+  // directly, so there's nobody for them to send money to.
+  if (!me || me.isAdmin) return null;
+  const seats = obj.seats || {};
+  const owing = myIds
+    .map(id => ({ id, pay: seatPayable(obj, seats[id]) }))
+    .filter(x => x.pay.ticket + x.pay.food > 0);
+  if (!owing.length) return null;
+  const amount = Math.round(owing.reduce((n, x) => n + x.pay.ticket + x.pay.food, 0) * 100) / 100;
+  const note = (obj.title || 'Movie') + ' (' + formatDateShort(obj.date) + ', ' + owing.map(x => x.id).join(', ') + ')' +
+    (owing.some(x => x.pay.food > 0) ? ' + concessions' : '');
+  const href = buildVenmoLink(amount, note) || buildCashAppLink(amount);
+  if (!href) return null;
+
+  const row = document.createElement('div');
+  row.className = 'mine-pay';
+  const pay = document.createElement('a');
+  pay.className = 'mine-pay-btn';
+  pay.href = href;
+  if (opensInNewTab(href)){ pay.target = '_blank'; pay.rel = 'noopener'; }
+  pay.textContent = t('friend.mine.payNow', { amount: formatPrice(amount) });
+  row.appendChild(pay);
+
+  const more = document.createElement('button');
+  more.type = 'button';
+  more.className = 'mine-pay-more';
+  more.setAttribute('aria-label', t('friend.mine.payMore'));
+  more.setAttribute('aria-haspopup', 'menu');
+  more.textContent = '\u22ef';
+  row.appendChild(more);
+
+  const menu = document.createElement('div');
+  menu.className = 'mine-pay-menu hidden';
+  menu.setAttribute('role', 'menu');
+  const paid = document.createElement('button');
+  paid.type = 'button';
+  paid.setAttribute('role', 'menuitem');
+  paid.textContent = t('friend.success.alreadyPaid');
+  paid.addEventListener('click', async () => {
+    closeMenu();
+    for (const x of owing){
+      const patch = {};
+      if (x.pay.ticket > 0) patch.ticket = true;
+      if (x.pay.food > 0) patch.concessions = true;
+      await markSeatPaid(obj.id, x.id, patch);
+    }
+  });
+  menu.appendChild(paid);
+  row.appendChild(menu);
+
+  const onOutside = (e) => { if (!row.contains(e.target)) closeMenu(); };
+  function closeMenu(){
+    menu.classList.add('hidden');
+    document.removeEventListener('click', onOutside, true);
+  }
+  more.addEventListener('click', () => {
+    if (!menu.classList.contains('hidden')){ closeMenu(); return; }
+    menu.classList.remove('hidden');
+    document.addEventListener('click', onOutside, true);
+  });
+  return row;
 }
 
 // One of your orders on My showtimes. Nothing in it yet: a single
@@ -2758,7 +2900,7 @@ function seatWhoHtml(seatId, seat){
 function buildClaimedSeatLine(obj, seatId){
   const seat = (obj.seats || {})[seatId] || {};
   const row = document.createElement('div');
-  row.className = 'seat-line' + (seat.mine ? '' : ' is-other');
+  row.className = 'seat-line' + (seat.mine ? '' : ' is-other') + (seat.mine && seatOwesAnything(obj, seat) ? ' owes' : '');
   row.innerHTML = '<div class="seat-line-who">' + seatWhoHtml(seatId, seat) +
     (seat.mine && !seat.guest ? '<span class="you-tag">' + escapeHtml(t('friend.list.you')) + '</span>' : '') +
     (seat.mine && seatOwesAnything(obj, seat) ? '<span class="unpaid-tag">unpaid</span>' : '') +
