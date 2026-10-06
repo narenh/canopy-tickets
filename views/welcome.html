@@ -236,6 +236,18 @@
   <div class="edge-tint top" id="edgeTop" aria-hidden="true"></div>
   <div class="edge-tint bottom" id="edgeBottom" aria-hidden="true"></div>
 
+  <!-- First run (no admin yet), or ADMIN_RECOVERY: the setup password
+       (ADMIN_PASSWORD) first; whoever then signs in or up here becomes
+       the admin. -->
+  <form class="card hidden" id="adminSetupForm">
+    <!-- LOGO_IMG -->
+    <h2 data-copy="welcome.adminSetupHeading"></h2>
+    <p data-copy="welcome.adminSetupHint"></p>
+    <div class="error" id="adminSetupError"></div>
+    <input type="password" id="adminSetupPassword" placeholder="Setup password" autocomplete="off">
+    <button type="submit" id="adminSetupBtn" data-copy="welcome.setupButton"></button>
+  </form>
+
   <!-- Step 1: sign in with a passkey, or an email to get one. -->
   <form class="card" id="emailForm">
     <!-- LOGO_IMG -->
@@ -256,7 +268,7 @@
   <form class="card hidden" id="setupForm">
     <h2 id="setupHeading"></h2>
     <p class="for-email"><span class="email-label"></span> &middot; <button type="button" onclick="backToEmail()">Change</button></p>
-    <p data-copy="welcome.setupHint"></p>
+    <p id="setupHint" data-copy="welcome.setupHint"></p>
     <div class="error" id="setupError"></div>
     <input type="password" id="moviePassword" placeholder="Movie password" autocomplete="off">
     <button type="submit" id="setupBtn" data-copy="welcome.setupButton"></button>
@@ -269,6 +281,8 @@
     <p data-copy="welcome.hasPasskeyHint"></p>
     <div class="error" id="hasPasskeyError"></div>
     <button type="button" class="passkey-btn" id="hasPasskeyBtn" onclick="signIn('hasPasskeyError', 'hasPasskeyBtn')" data-copy="welcome.signIn"></button>
+    <!-- After the setup password (recovery): a lost passkey's replacement. -->
+    <button type="button" class="secondary hidden" id="newPasskeyBtn" style="margin-top:10px" onclick="enrollAfterSetup('hasPasskeyError', 'newPasskeyBtn')" data-copy="welcome.newPasskey"></button>
   </div>
 
   <!-- Step 2, for an email we haven't seen: name and photo, all required. -->
@@ -448,7 +462,8 @@ if (!browserSupportsWebAuthn()){
 }
 
 // ---------------- Step 1: email ----------------
-const CARDS = ['emailForm', 'profileForm', 'setupForm', 'hasPasskeyCard'];
+const CARDS = ['adminSetupForm', 'emailForm', 'profileForm', 'setupForm', 'hasPasskeyCard'];
+let canEnroll = false;   // the setup password was entered: no movie password needed
 function showCard(id){
   CARDS.forEach(c => document.getElementById(c).classList.toggle('hidden', c !== id));
   document.querySelectorAll('.email-label').forEach(el => { el.textContent = email; });
@@ -465,17 +480,22 @@ document.getElementById('emailForm').addEventListener('submit', async (e) => {
     if (res.status === 400){ errorEl.textContent = t('welcome.badEmail'); return; }
     if (!res.ok){ errorEl.textContent = t('welcome.failed'); return; }
     email = data.email;
+    canEnroll = !!data.canEnroll;
     if (data.state === 'new'){
       showCard('profileForm');
       document.getElementById('firstName').focus();
     } else if (data.state === 'setup'){
       document.getElementById('setupHeading').textContent = t('welcome.welcomeBack', { name: data.firstName });
       document.getElementById('setupError').textContent = '';
+      // After the setup password there's no movie password to ask for.
+      document.getElementById('moviePassword').classList.toggle('hidden', canEnroll);
+      document.getElementById('setupHint').textContent = t(canEnroll ? 'welcome.setupHintAdmin' : 'welcome.setupHint');
       showCard('setupForm');
-      document.getElementById('moviePassword').focus();
+      if (!canEnroll) document.getElementById('moviePassword').focus();
     } else {
       document.getElementById('hasPasskeyHeading').textContent = t('welcome.welcomeBack', { name: data.firstName });
       document.getElementById('hasPasskeyError').textContent = '';
+      document.getElementById('newPasskeyBtn').classList.toggle('hidden', !canEnroll);
       showCard('hasPasskeyCard');
     }
   }catch(err){
@@ -490,9 +510,69 @@ function backToEmail(){
   document.getElementById('email').focus();
 }
 
+// ---------------- First run: the setup password ----------------
+// Shown at /admin while there's no admin (or in recovery), and at / on a
+// brand-new install. Once it's right, the usual sign-in / sign-up follows,
+// and whoever finishes it on this browser is the admin.
+(async function checkAdminSetup(){
+  try{
+    const res = await fetch('/api/auth/state');
+    const st = await res.json();
+    const here = window.location.pathname === '/admin' || st.fresh;
+    if (!st.adminSetup || !here) return;
+    if (st.adminSetupGranted){
+      document.querySelector('#emailForm [data-copy="welcome.tagline"]').textContent = t('welcome.taglineAdmin');
+      return;
+    }
+    showCard('adminSetupForm');
+    document.getElementById('adminSetupPassword').focus();
+  }catch(e){}
+})();
+
+document.getElementById('adminSetupForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const errorEl = document.getElementById('adminSetupError');
+  const btn = document.getElementById('adminSetupBtn');
+  errorEl.textContent = '';
+  btn.disabled = true;
+  try{
+    const { res } = await postJson('/api/auth/admin-setup', { password: document.getElementById('adminSetupPassword').value });
+    if (!res.ok){
+      errorEl.textContent = res.status === 403 ? t('welcome.wrongSetupPassword')
+        : res.status === 429 ? t('welcome.tooMany') : t('welcome.failed');
+      return;
+    }
+    document.querySelector('#emailForm [data-copy="welcome.tagline"]').textContent = t('welcome.taglineAdmin');
+    showCard('emailForm');
+  }catch(err){
+    errorEl.textContent = t('welcome.unreachable');
+  }finally{
+    btn.disabled = false;
+  }
+});
+
+// After the setup password: a passkey for an existing profile, no movie
+// password -- including another one for a profile that has one (recovery).
+async function enrollAfterSetup(errorId, btnId){
+  const errorEl = document.getElementById(errorId);
+  const btn = document.getElementById(btnId);
+  errorEl.textContent = '';
+  btn.disabled = true;
+  try{
+    const { res, data } = await postJson('/api/auth/register/setup', { email });
+    if (!res.ok){ errorEl.textContent = t('welcome.failed') + detail(data.error || res.status); return; }
+    if (await finishRegistration(data.options, errorEl)) enter();
+  }catch(err){
+    errorEl.textContent = t('welcome.unreachable');
+  }finally{
+    btn.disabled = false;
+  }
+}
+
 // ---------------- First passkey for an existing profile ----------------
 document.getElementById('setupForm').addEventListener('submit', async (e) => {
   e.preventDefault();
+  if (canEnroll){ enrollAfterSetup('setupError', 'setupBtn'); return; }
   const errorEl = document.getElementById('setupError');
   const btn = document.getElementById('setupBtn');
   errorEl.textContent = '';

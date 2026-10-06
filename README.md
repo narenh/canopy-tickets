@@ -3,7 +3,7 @@
 A small tool for tracking AMC seat blocks you've bought so friends can
 claim seats.
 
-- At **`/admin`**, enter **`ADMIN_PASSWORD`** and you land in the editor — add
+- At **`/admin`**, sign in with your passkey and you land in the editor — add
   movies and their showtimes, pick which seats you actually bought on a
   real AMC seat map, give each movie a password, assign seats to specific
   friends, and mark them paid. Friends can mark themselves paid too, for
@@ -38,8 +38,9 @@ files and images (see "Storage & backups" below).
 
 ## How it works
 
-- `server.js` — Express app: the admin login (`ADMIN_PASSWORD`), friend
-  sign-in by email, profiles and photos, per-movie unlocks, and the JSON
+- `server.js` — Express app: passkey sign-in (friends and the admin
+  alike), first-run admin setup (`ADMIN_PASSWORD`), profiles and photos,
+  per-movie unlocks, and the JSON
   APIs for both sides. `GET /` serves the reservation page to a browser
   someone's signed in on and the welcome page to anyone else; `GET /admin`
   serves the editor to an admin session and the login form otherwise.
@@ -75,7 +76,6 @@ files and images (see "Storage & backups" below).
   string setting: `createTextSettingStore(name)` gives each named setting
   its own file in `DATA_DIR`. Used for the Venmo and Cash App handles
   (see "Payment handles" below).
-- `lib/auth.js` — the admin's password-session cookie (`canopy_admin`).
 - `lib/seats.js` — normalizes a stored seat entry into
   `{status: 'occupied'}` or `{status: 'assigned', name, paid, concessionsPaid,
   concessions}`,
@@ -134,7 +134,6 @@ files and images (see "Storage & backups" below).
 - `views/welcome.html` — the friend door: email, and for a new one, name
   and photo. `public/photo-crop.js` frames the photo (Cropper.js 1.x,
   vendored in `public/vendor/`).
-- `public/login.html` — the admin's password screen at `/admin`.
 - `public/copy.js` — every sentence the app says, in one object. See
   "Editing the copy" below.
 
@@ -227,6 +226,32 @@ under **Claim existing seats** later.
 Tapping your photo in the header opens a menu: **Edit profile**,
 **Calendar feed**, **Claim existing seats**, **Sign out**.
 
+## The admin
+
+The admin is a profile like any friend's — same passkey, same sign-in —
+marked in `meta` as `admin_person_id`. Signed in as it, `/admin` opens
+the editor (and the friend-side menu has **Ticket Manager**); signed out,
+`/admin` is the sign-in page and reloads into the editor; anyone else is
+sent to `/`. The admin is also the host (below).
+
+- **First run:** while there's no admin, the sign-in page at `/admin`
+  (and at `/` on a brand-new install with no profiles) first asks for
+  the setup password — `ADMIN_PASSWORD`. Whoever then signs up or signs
+  in on that browser, within 15 minutes, becomes the admin. An existing
+  profile there adds its passkey without a movie password.
+- **After that** the setup password does nothing: there's no password
+  login to the editor at all.
+- **Lost your passkey?** Set `ADMIN_RECOVERY=1` in the server's settings
+  and redeploy. `/admin` asks for the setup password again; then your
+  email offers **Set up a new passkey**. Remove the setting afterwards.
+  It takes access to the server's settings, which is the right bar for
+  the keys to everything.
+- In People, the admin's row is tagged **Admin** and can't be deleted or
+  have its passkeys reset from there — either would lock you out.
+
+Upgrading from "This is me" (schema v11): the profile marked that way
+became the admin.
+
 ## Add to calendar
 
 The confirmation card after a claim asks one thing at a time — settle up,
@@ -315,16 +340,14 @@ they can't land out of order; closing the card flushes anything still
 pending. A failed write says so and offers a retry, because silent loss
 is the one thing autosave must not do.
 
-**The host owes nothing.** In the admin's People tab, Edit on your own
-profile → **This is me** marks it as the host (stored in `meta` as
-`host_person_id`). That person's own seats — not their guests' — come
-out of the store with `host: true`, read as paid everywhere, and their
-cart drops the "You owe" line, the pay buttons and the "mark as paid"
-control entirely — they buy every ticket and every tray on their own
-card, so there's nobody for them to pay. It's derived rather than
-stored on the seat, so marking a different profile moves it. A seat
-reserved before profiles counts once the host claims it ("Claim existing
-seats").
+**The host owes nothing.** The host is the admin's own profile (see
+"The admin" above; `meta.admin_person_id`). That person's own seats —
+not their guests' — come out of the store with `host: true`, read as
+paid everywhere, and their cart drops the "You owe" line, the pay
+buttons and the "mark as paid" control entirely — they buy every ticket
+and every tray on their own card, so there's nobody for them to pay. A
+seat reserved before profiles counts once the host claims it ("Claim
+existing seats").
 
 **Sales tax** is added on the concessions, at `CONCESSION_TAX_RATE` in
 `lib/seats.js` — San Francisco's combined rate, served to both the cart and
@@ -585,11 +608,13 @@ npm install
 ADMIN_PASSWORD=whatever npm start
 ```
 
-Then visit `http://localhost:3000/admin`, enter `ADMIN_PASSWORD` to reach the
-editor, add a movie and give it a password (and, optionally, set
-Venmo/Cash App handles), then sign in at `http://localhost:3000` with any
-email to see the friend side. If you don't set `ADMIN_PASSWORD`, the
-server generates a random one and prints it to the console on startup.
+Then visit `http://localhost:3000/admin`: enter `ADMIN_PASSWORD` as the
+setup password and set up your profile and passkey — that account is the
+admin. Add a movie and give it a password (and, optionally, set
+Venmo/Cash App handles), then sign up at `http://localhost:3000` in
+another browser to see the friend side. If you don't set
+`ADMIN_PASSWORD`, the server generates a random one and prints it to the
+console on startup.
 
 ## Deploying with Docker
 
@@ -606,8 +631,8 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-Visit `http://localhost:3000/admin`, log in with `ADMIN_PASSWORD`, and add
-a movie with a password. The `canopy-data` named volume declared in
+Visit `http://localhost:3000/admin`, enter `ADMIN_PASSWORD` as the setup
+password to make your admin account, and add a movie with a password. The `canopy-data` named volume declared in
 `docker-compose.yml` is what persists the database, photos, the
 concessions menu, and uploaded images across restarts and rebuilds — don't remove it (`docker compose down -v` would
 wipe it).
@@ -651,9 +676,13 @@ as static files instead of actually running the Node server.
 1. In the Coolify resource settings, change the build pack from **Static**
    to **Dockerfile**.
 2. Set environment variables:
-   - `ADMIN_PASSWORD` — your password for the editor. Keep this one to
-     yourself. (There's no env var for movie passwords or for Venmo/Cash
-     App — set those from the editor after deploying.)
+   - `ADMIN_PASSWORD` — the setup password: entered once, on first run,
+     to make your admin account (after that you sign in with a passkey).
+     Keep it to yourself; it's also what `ADMIN_RECOVERY` asks for.
+     (There's no env var for movie passwords or for Venmo/Cash App — set
+     those from the editor after deploying.)
+   - `ADMIN_RECOVERY` — leave unset. `1` lets the admin add a new passkey
+     after losing theirs (see "The admin"); remove it again afterwards.
    - `SESSION_SECRET` — a long random string (e.g. `openssl rand -hex 32`).
      Recommended, not strictly required: if unset, one is derived
      deterministically from `ADMIN_PASSWORD` instead of being randomized,
@@ -680,8 +709,9 @@ as static files instead of actually running the Node server.
    domain you actually want to hand out is bound as the app's URL — since
    the domain root is the link friends get, and `/admin` on the same
    domain is the editor.
-6. Deploy. Visit `<app URL>/admin`, enter your `ADMIN_PASSWORD` to get to the
-   editor, add a movie, give it a password, and add its showtimes.
+6. Deploy. Visit `<app URL>/admin`, enter your `ADMIN_PASSWORD` as the
+   setup password, set up your profile and passkey (that's the admin), then
+   add a movie, give it a password, and add its showtimes.
 
 ### Confirming persistence actually works
 

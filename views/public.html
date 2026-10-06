@@ -104,7 +104,7 @@
     display:flex;
     flex-direction:column;
   }
-  .me-menu button{
+  .me-menu button, .me-menu a{
     background:none;
     border:none;
     color:#eee;
@@ -115,7 +115,8 @@
     border-radius:8px;
     cursor:pointer;
   }
-  .me-menu button:hover, .me-menu button:focus-visible{background:#2a2a2e;outline:none;}
+  .me-menu a{text-decoration:none;color:var(--gold);font-weight:600;}
+  .me-menu button:hover, .me-menu button:focus-visible, .me-menu a:hover{background:#2a2a2e;outline:none;}
   .me-menu .me-menu-signout{color:#e2857a;border-top:1px solid #2a2a2e;border-radius:0 0 8px 8px;margin-top:4px;padding-top:13px;}
   .tabs{
     display:flex;
@@ -1420,6 +1421,8 @@
           <img class="avatar" id="meAvatar" alt="">
         </button>
         <div class="me-menu hidden" id="meMenu" role="menu">
+          <!-- Only for the admin: their editor. -->
+          <a role="menuitem" class="hidden" id="meMenuAdmin" href="/admin" data-copy="friend.menu.admin"></a>
           <button type="button" role="menuitem" onclick="closeMeMenu(); openProfile()" data-copy="friend.menu.editProfile"></button>
           <button type="button" role="menuitem" onclick="closeMeMenu(); openCalendarFeed()" data-copy="friend.menu.calendar"></button>
           <button type="button" role="menuitem" onclick="closeMeMenu(); openExisting(true)" data-copy="friend.menu.claimExisting"></button>
@@ -2053,6 +2056,7 @@ function renderMe(){
   const avatar = document.getElementById('meAvatar');
   if (me.photoUrl) avatar.src = me.photoUrl;
   document.getElementById('claimForMe').textContent = t('friend.claim.forMe', { name: me.shortName });
+  document.getElementById('meMenuAdmin').classList.toggle('hidden', !me.isAdmin);
   renderCalBanner();
 }
 

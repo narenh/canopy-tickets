@@ -32,6 +32,13 @@ const COPY = {
   // ---------------- WELCOME (friends signing in, at /) ----------------
   welcome: {
     tagline: 'Sign in with your passkey, or enter your email to get started.',
+    // First run: the setup password is ADMIN_PASSWORD from the server's settings.
+    adminSetupHeading: 'Set up your admin account',
+    adminSetupHint: 'Enter the setup password to set up your admin account.',
+    wrongSetupPassword: "That isn't the setup password.",
+    taglineAdmin: 'Now sign in with your passkey, or enter your email to create your profile. That account becomes the admin.',
+    setupHintAdmin: 'Save a passkey on this phone to finish setting up your admin account.',
+    newPasskey: 'Set up a new passkey',
     signIn: 'Sign in with passkey',
     or: 'or',
     continueEmail: 'Continue with email',
@@ -136,6 +143,7 @@ const COPY = {
 
     // The menu under your photo in the header.
     menu: {
+      admin: 'Ticket Manager',
       editProfile: 'Edit profile',
       calendar: 'Calendar feed',
       claimExisting: 'Claim existing seats',
@@ -244,6 +252,8 @@ const COPY = {
 
   // ---------------- EDITOR (what the host sees) ----------------
   admin: {
+    // Top right of the Ticket Manager: back to the friend side.
+    backToApp: 'My showtimes',
     movies: {
       none: 'No movies yet. Tap "+ Add movie" to start.',
       noneUpcoming: 'Nothing coming up. Add a movie, or a showtime to one below.',
@@ -270,16 +280,13 @@ const COPY = {
       seatsOne: '{count} seat',
       seatsMany: '{count} seats',
       deleteConfirm: 'Delete {name} ({email})? Their seats stay reserved under the same names; they just stop being linked to a profile.',
-      // Marking the admin's own profile. Their seats owe nothing.
-      pickHost: "Which one is you? Tap Edit on your profile and choose This is me. Until then your own seats are billed like everyone else's.",
-      thisIsMe: 'This is me',
       noPasskey: 'no passkey yet',
       passkeysOne: '{count} passkey',
       passkeysMany: '{count} passkeys',
       resetPasskeys: 'Reset passkeys',
       resetConfirm: "Reset {name}'s passkeys? They'll be signed out everywhere and set up a new passkey with any movie's password, like the first time.",
-      notMe: 'Not me',
-      youTag: 'You'
+      // On the admin's own row (you; also the host, whose seats owe nothing).
+      adminTag: 'Admin'
     },
 
     // The pill at the bottom of a showtime while it saves.

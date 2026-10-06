@@ -229,15 +229,6 @@
     border-radius:8px;
     padding:1px 7px;
   }
-  .people-host-note{
-    color:#f0dda9;
-    font-size:13px;
-    line-height:1.4;
-    background:#1f1a0e;
-    border:1px solid #4a3c1a;
-    border-radius:10px;
-    padding:10px 12px;
-  }
   .person-meta{color:var(--muted);font-size:12.5px;margin-top:2px;overflow-wrap:anywhere;}
   .person-edit{margin-top:10px;}
   .person-edit-row{display:flex;gap:8px;margin-bottom:8px;}
@@ -1092,7 +1083,9 @@
         <!-- LOGO_IMG -->
         <h1>Ticket Manager</h1>
       </div>
-      <div class="logout-link" onclick="logout()">Log out</div>
+      <!-- Signed in as yourself with your passkey -- signing out is on the
+           friend side's menu. This just goes back there. -->
+      <a class="logout-link" href="/" data-copy="admin.backToApp"></a>
     </div>
     <nav class="tabs">
       <a href="#/movies" data-tab="movies">Movies</a>
@@ -1502,11 +1495,6 @@ function handleAuthFailure(res){
   return true;
 }
 
-async function logout(){
-  try{ await fetch('/api/logout', { method: 'POST' }); }catch(e){}
-  window.location.href = '/admin';
-}
-
 // ---------------- ROUTING ----------------
 //
 // The screen is named in the URL hash -- #/movies, #/movie/<id>,
@@ -1852,22 +1840,7 @@ document.getElementById('moviePassword').addEventListener('input', () => {
 document.getElementById('moviePassword').addEventListener('blur', saveMoviePassword);
 
 // ---------------- PEOPLE ----------------
-let hostPersonId = null;   // the admin's own profile ("This is me")
-
-async function setHostPerson(personId){
-  try{
-    const res = await fetch('/api/people-host', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ personId })
-    });
-    if (await handleAuthFailure(res)) return;
-    if (!res.ok) throw new Error('failed');
-  }catch(e){
-    alert(t('admin.status.saveFailed'));
-  }
-  loadPeople();
-}
+let adminPersonId = null;  // the admin's own profile (also the host)
 
 async function loadPeople(){
   const list = document.getElementById('peopleList');
@@ -1877,19 +1850,11 @@ async function loadPeople(){
     if (!res.ok) throw new Error('failed');
     const data = await res.json();
     const people = data.people || [];
-    hostPersonId = data.hostPersonId || null;
+    adminPersonId = data.adminPersonId || null;
     list.innerHTML = '';
     if (!people.length){
       list.innerHTML = '<div class="empty-state">' + escapeHtml(t('admin.people.none')) + '</div>';
       return;
-    }
-    // Until the admin has said which profile is theirs, their own seats
-    // are billed like anyone's -- say so up top.
-    if (!hostPersonId || !people.some(p => p.id === hostPersonId)){
-      const note = document.createElement('div');
-      note.className = 'people-host-note';
-      note.textContent = t('admin.people.pickHost');
-      list.appendChild(note);
     }
     people.forEach(p => list.appendChild(buildPersonRow(p)));
   }catch(e){
@@ -1910,27 +1875,26 @@ function buildPersonRow(p){
     '<input type="text" class="pe-last" maxlength="60" placeholder="Last name"></div>' +
     '<div class="person-edit-actions"><button type="button" class="pe-save">Save</button>' +
     '<button type="button" class="pe-cancel">Cancel</button>' +
-    '<button type="button" class="pe-host"></button>' +
     '<button type="button" class="pe-reset"></button>' +
     '<button type="button" class="delete-btn pe-delete">Delete</button></div>' +
     '<div class="og-status pe-status"></div></div></div>' +
     '<button type="button" class="pe-open">Edit</button>';
-  const isHost = p.id === hostPersonId;
+  // The admin (you): tagged, and neither deletable nor resettable from
+  // here -- either would lock you out. A lost passkey is ADMIN_RECOVERY.
+  const isAdmin = p.id === adminPersonId;
   row.querySelector('.person-name').textContent = p.firstName + ' ' + p.lastName;
-  if (isHost){
+  if (isAdmin){
     const tag = document.createElement('span');
     tag.className = 'host-tag';
-    tag.textContent = t('admin.people.youTag');
+    tag.textContent = t('admin.people.adminTag');
     row.querySelector('.person-name').appendChild(tag);
+    row.querySelector('.pe-delete').classList.add('hidden');
   }
-  const hostBtn = row.querySelector('.pe-host');
-  hostBtn.textContent = t(isHost ? 'admin.people.notMe' : 'admin.people.thisIsMe');
-  hostBtn.addEventListener('click', () => setHostPerson(isHost ? null : p.id));
   // Lost phone: their passkeys go and they set up a new one with any
   // movie's password. Nothing to reset for someone who has none.
   const resetBtn = row.querySelector('.pe-reset');
   resetBtn.textContent = t('admin.people.resetPasskeys');
-  resetBtn.classList.toggle('hidden', !p.passkeyCount);
+  resetBtn.classList.toggle('hidden', !p.passkeyCount || isAdmin);
   resetBtn.addEventListener('click', async () => {
     if (!confirm(t('admin.people.resetConfirm', { name: p.firstName + ' ' + p.lastName }))) return;
     try{

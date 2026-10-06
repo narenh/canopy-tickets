@@ -8,7 +8,6 @@ const { createImageStore } = require('./lib/uploadedImage');
 const posterStore = require('./lib/posterStore');
 const concessionMenuStore = require('./lib/concessionMenu');
 const { createTextSettingStore } = require('./lib/textSetting');
-const { createPasswordAuth } = require('./lib/auth');
 const { createDeviceAuth } = require('./lib/deviceAuth');
 const photoStore = require('./lib/photoStore');
 const { normalizeSeats, isHostSeat, CONCESSION_TAX_RATE } = require('./lib/seats');
@@ -81,7 +80,6 @@ if (!process.env.SESSION_SECRET) {
   );
 }
 
-const adminAuth = createPasswordAuth('canopy_admin', SESSION_SECRET);
 const deviceAuth = createDeviceAuth(SESSION_SECRET);
 
 app.disable('x-powered-by');
@@ -258,9 +256,11 @@ const INLINE_SCRIPTS = [
 // every request anyway (session-gated, never the same for two visitors).
 // (Cloudflare doesn't cache HTML, so this one is honored.)
 function renderHtmlPage(res, req, filePath) {
+  const logoTag = buildLogoImgTag();
   let html = fs.readFileSync(filePath, 'utf8')
     .replace('<!-- OG_META -->', buildOgTags(req))
-    .replace('<!-- LOGO_IMG -->', buildLogoImgTag())
+    // Every one: the sign-in page has a logo on more than one card.
+    .replaceAll('<!-- LOGO_IMG -->', () => logoTag)
     .replace('__OG_IMAGE_URL__', ogImageUrl());
   INLINE_SCRIPTS.forEach(({ tag, inline }) => {
     // A function, so `$` in a script isn't read as a replacement pattern.
@@ -366,30 +366,41 @@ function publicShowtimeView(s, viewer, onlySeatIds, lookup) {
 
 // ---------------- Admin auth ----------------
 //
-// The host signs in at /admin with ADMIN_PASSWORD. Friends don't use a
-// password to get in at all (see "Friends" below), so there's nothing a
-// friend could type at / that would open the editor.
+// The admin is a profile like any friend's, and signs in the same way:
+// with its passkey. Which profile is the admin is stored in meta
+// (admin_person_id); it's also the host (see lib/seats.js).
+//
+// First run: with no admin yet, the sign-in page asks for the setup
+// password (ADMIN_PASSWORD) before anything else, and whoever then signs
+// in or up on that browser becomes the admin. ADMIN_RECOVERY=1 reopens
+// that step after the fact -- for an admin who's lost their passkey, it
+// lets them add a new one -- and needs access to the server's settings to
+// turn on, which is the right bar for the keys to everything.
 
-app.post('/api/admin/login', (req, res) => {
-  const { password } = req.body || {};
-  if (typeof password !== 'string' || password.length === 0) {
-    return res.status(400).json({ error: 'password required' });
-  }
-  if (checkPassword(password, ADMIN_PASSWORD)) {
-    adminAuth.issueSessionCookie(res);
-    return res.json({ ok: true, role: 'admin' });
-  }
-  res.status(401).json({ error: 'invalid password' });
-});
+const ADMIN_RECOVERY = process.env.ADMIN_RECOVERY === '1';
+const ADMIN_SETUP_MS = 15 * 60 * 1000;
 
-app.post('/api/logout', (req, res) => {
-  adminAuth.clearSessionCookie(res);
-  res.json({ ok: true });
-});
+function adminSetupOpen() {
+  return store.kind === 'sqlite' && (ADMIN_RECOVERY || !store.getAdminPersonId());
+}
 
-app.get('/api/session', (req, res) => {
-  res.json({ admin: adminAuth.isAuthed(req) });
-});
+function isAdmin(req) {
+  return store.kind === 'sqlite' && !!req.person && req.person.id === store.getAdminPersonId();
+}
+
+// This browser entered the setup password recently, and setup is open.
+function hasAdminSetupGrant(req) {
+  const at = req.device && req.device.admin_setup_at;
+  return adminSetupOpen() && !!at && Date.now() - at < ADMIN_SETUP_MS;
+}
+
+// For every admin API: signed in, as the admin.
+function requireAdmin(req, res, next) {
+  attachDevice(false)(req, res, () => {
+    if (isAdmin(req)) return next();
+    res.status(401).json({ error: 'unauthorized' });
+  });
+}
 
 // ---------------- Payment handles (admin auth required) ----------------
 //
@@ -399,11 +410,11 @@ app.get('/api/session', (req, res) => {
 // how each service's own share sheets display a handle; the leading
 // character gets added back only when building the pay link/URL.
 
-app.get('/api/payment-handles', adminAuth.requireAuth('/admin'), (req, res) => {
+app.get('/api/payment-handles', requireAdmin, (req, res) => {
   res.json({ venmo: venmoHandleStore.get(), cashapp: cashappHandleStore.get() });
 });
 
-app.post('/api/payment-handles', adminAuth.requireAuth('/admin'), (req, res) => {
+app.post('/api/payment-handles', requireAdmin, (req, res) => {
   const { venmo, cashapp } = req.body || {};
   const cleanVenmo = typeof venmo === 'string' ? venmo.trim().replace(/^@/, '').slice(0, 100) : '';
   const cleanCashapp = typeof cashapp === 'string' ? cashapp.trim().replace(/^\$/, '').slice(0, 100) : '';
@@ -421,14 +432,14 @@ app.post('/api/payment-handles', adminAuth.requireAuth('/admin'), (req, res) => 
 // shape where reordering, renaming and deleting are all the same
 // operation.
 
-app.get('/api/concession-menu', adminAuth.requireAuth('/admin'), (req, res) => {
+app.get('/api/concession-menu', requireAdmin, (req, res) => {
   // The rate rides along with the menu rather than getting an endpoint of
   // its own: the editor already fetches this at load, and the only thing
   // it needs the rate for is the order roll-up's total.
   res.json({ ...concessionMenuStore.get(), taxRate: CONCESSION_TAX_RATE });
 });
 
-app.post('/api/concession-menu', adminAuth.requireAuth('/admin'), (req, res) => {
+app.post('/api/concession-menu', requireAdmin, (req, res) => {
   const { items, optionGroups } = req.body || {};
   if (items !== undefined && !Array.isArray(items)) {
     return res.status(400).json({ error: 'items must be an array' });
@@ -446,7 +457,7 @@ app.post('/api/concession-menu', adminAuth.requireAuth('/admin'), (req, res) => 
 // (see DEFAULT_ITEMS in lib/concessionMenu.js). Doesn't touch
 // anyone's existing orders -- those carry their own copy of whatever
 // they were placed against.
-app.post('/api/concession-menu/reset', adminAuth.requireAuth('/admin'), (req, res) => {
+app.post('/api/concession-menu/reset', requireAdmin, (req, res) => {
   res.json({ ok: true, ...concessionMenuStore.reset(), taxRate: CONCESSION_TAX_RATE });
 });
 
@@ -468,8 +479,8 @@ const siteImageUpload = multer({
 // a friend's order could write that order back off the seat. Writing one
 // seat can't touch any other, so that whole class of problem is gone.
 
-app.use('/api/showtimes', adminAuth.requireAuth('/admin'));
-app.use('/api/movies', adminAuth.requireAuth('/admin'));
+app.use('/api/showtimes', requireAdmin);
+app.use('/api/movies', requireAdmin);
 
 // Movies need the SQLite store; the JSON fallback (lib/store.js) only
 // exists to keep friends reserving if the migration ever fails.
@@ -560,23 +571,13 @@ app.patch('/api/movies/:id', (req, res) => {
 
 // ---------------- People (admin) ----------------
 
-app.use('/api/people', adminAuth.requireAuth('/admin'), requireSqlite);
+app.use('/api/people', requireAdmin, requireSqlite);
 
 app.get('/api/people', (req, res) => {
   res.json({
     people: store.listPeople().map((p) => ({ ...p, photoUrl: photoUrlFor(p) })),
-    hostPersonId: store.getHostPersonId()
+    adminPersonId: store.getAdminPersonId()
   });
-});
-
-// "This is me": which profile is the admin's own. Their seat owes nothing
-// (they pay for everything) and the peanut rule follows them -- see
-// lib/seats.js and views/public.html. personId null clears it.
-app.put('/api/people-host', adminAuth.requireAuth('/admin'), requireSqlite, (req, res) => {
-  const { personId } = req.body || {};
-  if (personId !== null && typeof personId !== 'string') return res.status(400).json({ error: 'personId must be a string or null' });
-  if (!store.setHostPersonId(personId)) return res.status(404).json({ error: 'not found' });
-  res.json({ hostPersonId: store.getHostPersonId() });
 });
 
 app.patch('/api/people/:id', (req, res) => {
@@ -590,12 +591,15 @@ app.patch('/api/people/:id', (req, res) => {
 // Lost phone: their passkeys go and they're signed out everywhere. They
 // set up a new one with any movie's password, like the first time.
 app.post('/api/people/:id/reset-passkeys', (req, res) => {
+  // Your own would lock you out of here; that's ADMIN_RECOVERY's job.
+  if (req.params.id === store.getAdminPersonId()) return res.status(409).json({ error: 'not the admin', reason: 'is_admin' });
   sendResult(res, store.resetPasskeys(req.params.id));
 });
 
 // Their seats stay reserved under the names on them; they just stop
 // belonging to anyone. For a typo'd duplicate, mostly.
 app.delete('/api/people/:id', (req, res) => {
+  if (req.params.id === store.getAdminPersonId()) return res.status(409).json({ error: 'not the admin', reason: 'is_admin' });
   if (!store.deletePerson(req.params.id)) return res.status(404).json({ error: 'not found' });
   try { photoStore.remove(req.params.id); } catch (e) {}
   res.json({ ok: true });
@@ -816,7 +820,7 @@ function cleanVenmo(raw) {
 
 function meView(req) {
   return {
-    person: req.person ? { ...req.person, photoUrl: photoUrlFor(req.person) } : null,
+    person: req.person ? { ...req.person, photoUrl: photoUrlFor(req.person), isAdmin: isAdmin(req) } : null,
     unlockedMovieIds: Array.from(req.unlocked)
   };
 }
@@ -880,6 +884,41 @@ async function registrationOptions(req, rp, { userId, email, displayName, existi
   });
 }
 
+// What the sign-in page should open with: the setup password while
+// there's no admin yet (or in recovery), unless this browser already
+// entered it.
+// `fresh`: nobody has a profile yet, so the setup step can show at / too;
+// otherwise only /admin offers it, so friends never see it.
+app.get('/api/auth/state', attachDevice(false), (req, res) => {
+  res.json({
+    adminSetup: adminSetupOpen(),
+    adminSetupGranted: hasAdminSetupGrant(req),
+    fresh: store.kind === 'sqlite' && store.listPeople().length === 0
+  });
+});
+
+app.post('/api/auth/admin-setup', attachDevice(true), (req, res) => {
+  if (!adminSetupOpen()) return res.status(409).json({ error: 'there is already an admin', reason: 'closed' });
+  const password = String((req.body || {}).password || '');
+  const outcome = checkMovieGuess(req, req.device.id, 'admin-setup', () => checkPassword(password, ADMIN_PASSWORD));
+  if (outcome !== 'ok') return sendGuessRefusal(res, outcome);
+  store.grantAdminSetup(req.device.id);
+  res.json({ ok: true });
+});
+
+// A passkey just checked out for personId: sign this browser in, and if
+// it entered the setup password, they're the admin now.
+function finishSignIn(req, personId) {
+  const granted = hasAdminSetupGrant(req);
+  store.signInDevice(req.device.id, personId);
+  if (granted) {
+    store.takeAdminSetup(req.device.id);
+    store.setAdminPersonId(personId);
+  }
+  req.person = store.getPerson(personId);
+  req.unlocked = store.personUnlockedMovieIds(personId);
+}
+
 // What's on the other end of an email. 'new': no profile yet. 'setup': a
 // profile with no passkey (first time since passkeys, or reset by the
 // admin) -- takes any movie's password. 'passkey': sign in with it.
@@ -890,7 +929,9 @@ app.post('/api/auth/lookup', attachDevice(true), (req, res) => {
   const person = store.getPersonByEmail(email);
   if (!person) return res.json({ state: 'new', email });
   const state = store.passkeysOf(person.id).length ? 'passkey' : 'setup';
-  res.json({ state, email, firstName: person.firstName });
+  // After the setup password, an existing profile can add a passkey with
+  // no movie password -- and even if it has one (a lost phone, in recovery).
+  res.json({ state, email, firstName: person.firstName, canEnroll: hasAdminSetupGrant(req) });
 });
 
 // A new profile: its details wait on this browser until the passkey
@@ -923,21 +964,26 @@ app.post('/api/auth/register/setup', attachDevice(true), async (req, res) => {
   const body = req.body || {};
   const person = store.getPersonByEmail(cleanEmail(body.email) || '');
   if (!person) return res.status(404).json({ error: 'not found' });
-  if (store.passkeysOf(person.id).length) {
+  const viaSetup = hasAdminSetupGrant(req);
+  const existing = store.passkeysOf(person.id);
+  if (existing.length && !viaSetup) {
     return res.status(409).json({ error: 'this profile already has a passkey', reason: 'has_passkey' });
   }
-  const password = String(body.moviePassword || '');
   let movie = null;
-  const outcome = checkMovieGuess(req, req.device.id, 'setup', () => {
-    movie = store.listMovies().find((m) => m.password && checkPassword(password, m.password)) || null;
-    return !!movie;
-  });
-  if (outcome !== 'ok') return sendGuessRefusal(res, outcome);
+  if (!viaSetup) {
+    const password = String(body.moviePassword || '');
+    const outcome = checkMovieGuess(req, req.device.id, 'setup', () => {
+      movie = store.listMovies().find((m) => m.password && checkPassword(password, m.password)) || null;
+      return !!movie;
+    });
+    if (outcome !== 'ok') return sendGuessRefusal(res, outcome);
+  }
   const options = await registrationOptions(req, rp, {
-    userId: person.id, email: person.email, displayName: `${person.firstName} ${person.lastName}`
+    userId: person.id, email: person.email, displayName: `${person.firstName} ${person.lastName}`, existing
   });
   store.setPending(req.device.id, {
-    challenge: options.challenge, kind: 'register', personId: person.id, profile: { unlockMovieId: movie.id }
+    challenge: options.challenge, kind: 'register', personId: person.id,
+    profile: { unlockMovieId: movie ? movie.id : null, viaSetup }
   });
   res.json({ options });
 });
@@ -970,8 +1016,10 @@ app.post('/api/auth/register/verify', attachDevice(true), async (req, res) => {
 
   let personId;
   if (pending.personId) {
-    // Someone else may have set one up in the meantime.
-    if (store.passkeysOf(pending.personId).length) {
+    // Someone else may have set one up in the meantime. (After the setup
+    // password, adding another is the point.)
+    const viaSetup = !!(pending.profile && pending.profile.viaSetup) && hasAdminSetupGrant(req);
+    if (!viaSetup && store.passkeysOf(pending.personId).length) {
       return res.status(409).json({ error: 'this profile already has a passkey', reason: 'has_passkey' });
     }
     store.addPasskey(pending.personId, cred);
@@ -984,9 +1032,7 @@ app.post('/api/auth/register/verify', attachDevice(true), async (req, res) => {
   } else {
     return res.status(400).json({ error: 'start again', reason: 'expired' });
   }
-  store.signInDevice(req.device.id, personId);
-  req.person = store.getPerson(personId);
-  req.unlocked = store.personUnlockedMovieIds(personId);
+  finishSignIn(req, personId);
   res.status(201).json(meView(req));
 });
 
@@ -1025,9 +1071,7 @@ app.post('/api/auth/login/verify', attachDevice(true), async (req, res) => {
   }
   if (!result.verified) return res.status(400).json({ error: 'that passkey could not be verified', reason: 'not_verified' });
   store.usePasskey(passkey.id, result.authenticationInfo.newCounter);
-  store.signInDevice(req.device.id, passkey.personId);
-  req.person = store.getPerson(passkey.personId);
-  req.unlocked = store.personUnlockedMovieIds(passkey.personId);
+  finishSignIn(req, passkey.personId);
   res.json(meView(req));
 });
 
@@ -1064,7 +1108,7 @@ app.post('/api/signout', attachDevice(false), (req, res) => {
 
 // Photos are for signed-in friends and the host, not the open web.
 app.get('/photo/:personId', attachDevice(false), (req, res) => {
-  if (!req.person && !adminAuth.isAuthed(req)) return res.status(404).end();
+  if (!req.person) return res.status(404).end();
   let file = null;
   try { file = photoStore.pathFor(req.params.personId); } catch (e) {}
   if (!file) return res.status(404).end();
@@ -1553,7 +1597,7 @@ app.put('/api/public/showtimes/:id/seats/:seatId/concessions', async (req, res) 
 // instead of assuming. Hit /api/amc-test directly while logged in as
 // admin, read the JSON, then this whole block should come back out --
 // it's a debug tool, not a feature.
-app.get('/api/amc-test', adminAuth.requireAuth('/admin'), async (req, res) => {
+app.get('/api/amc-test', requireAdmin, async (req, res) => {
   const apiKey = process.env.AMC_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'AMC_API_KEY not set in this environment' });
 
@@ -1639,9 +1683,10 @@ app.get('/api/amc-test', adminAuth.requireAuth('/admin'), async (req, res) => {
 // ---------------- Pages ----------------
 //
 // / is the friend side: the reservation page for a browser someone's
-// signed in on, otherwise the welcome page (email, and a profile for a
-// new one). /admin is the host's editor behind login.html and the admin
-// password.
+// signed in on, otherwise the welcome page (passkey sign-in, email for a
+// first passkey, and the setup password on first run). /admin is the
+// editor, for the admin's passkey session; signed out it's the same
+// welcome page (signing in reloads /admin), and anyone else is sent to /.
 //
 // admin.html, public.html and welcome.html live outside /public so they
 // can never be fetched directly, bypassing the checks below.
@@ -1655,11 +1700,10 @@ app.get('/', attachDevice(false), (req, res) => {
   renderHtmlPage(res, req, path.join(__dirname, 'views', 'welcome.html'));
 });
 
-app.get('/admin', (req, res) => {
-  if (adminAuth.isAuthed(req)) {
-    return renderHtmlPage(res, req, path.join(__dirname, 'views', 'admin.html'));
-  }
-  renderHtmlPage(res, req, path.join(__dirname, 'public', 'login.html'));
+app.get('/admin', attachDevice(false), (req, res) => {
+  if (isAdmin(req)) return renderHtmlPage(res, req, path.join(__dirname, 'views', 'admin.html'));
+  if (req.person) return res.redirect('/');
+  renderHtmlPage(res, req, path.join(__dirname, 'views', 'welcome.html'));
 });
 
 // /reserve was the old dedicated friend-facing URL -- keep it working as
@@ -1672,12 +1716,12 @@ app.get('/reserve', (req, res) => res.redirect('/'));
 // no-auth file serve) trio for one named image store. The og-image and
 // logo-image endpoints are identical apart from which store/URLs they use.
 function mountImageRoutes(urlName, imageStore) {
-  app.get(`/api/${urlName}`, adminAuth.requireAuth('/admin'), (req, res) => {
+  app.get(`/api/${urlName}`, requireAdmin, (req, res) => {
     const meta = imageStore.getMeta();
     res.json(meta ? { uploadedAt: meta.uploadedAt, url: `/${urlName}?v=${meta.uploadedAt}` } : { uploadedAt: null, url: null });
   });
 
-  app.post(`/api/${urlName}`, adminAuth.requireAuth('/admin'), siteImageUpload.single('image'), (req, res) => {
+  app.post(`/api/${urlName}`, requireAdmin, siteImageUpload.single('image'), (req, res) => {
     if (!req.file) {
       return res.status(400).json({ error: 'choose a PNG, JPEG, WebP, or GIF image' });
     }
