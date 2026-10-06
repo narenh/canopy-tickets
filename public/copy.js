@@ -142,6 +142,14 @@ const COPY = {
       button: 'Claim now'
     },
 
+    // Under the calendar banner while you have no favorites and no usual,
+    // until dismissed or tapped.
+    favBanner: {
+      title: 'Pick your favorite concessions',
+      text: 'Select your favorite items and create a usual order you can choose with one tap.',
+      button: 'Add favorites'
+    },
+
     // The banner at the top of My showtimes, until dismissed or tapped.
     calBanner: {
       title: 'Subscribe to your showtimes',
@@ -168,6 +176,7 @@ const COPY = {
       failed: "Couldn't save. Try again.",
       // The cart's section, and the usual's row in it.
       cartSection: 'Favorites',
+      cartEdit: 'Edit',
       cartUsual: 'Your usual'
     },
 

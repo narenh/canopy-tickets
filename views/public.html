@@ -172,6 +172,19 @@
   /* A problem rather than a suggestion: a red tint. */
   .warn-banner{background:#1e1415;border-color:#4d2a2c;}
   .warn-banner .cal-banner-icon{color:#e2857a;}
+  /* Opened from the cart's Favorites "Edit" too, so it sits over the cart. */
+  #favoritesOverlay{z-index:55;}
+  .cart-section summary .fav-edit-btn{
+    flex:0 0 auto;
+    background:none;
+    border:none;
+    padding:2px 2px 2px 8px;
+    font:inherit;
+    font-size:13px;
+    font-weight:600;
+    color:var(--muted);
+    cursor:pointer;
+  }
   .warn-banner:not(.hidden) ~ .cal-banner{margin-top:10px;}
   /* The same warning on "Your usual" in the cart. */
   .ci-warn{font-size:12.5px;color:#e2857a;margin-top:3px;}
@@ -1486,6 +1499,19 @@
           <button type="button" class="cal-banner-btn" onclick="openExisting(true)" data-copy="friend.claimBanner.button"></button>
         </div>
       </div>
+      <!-- While you have no favorites and no usual, until it's dismissed or
+           tapped (remembered on the person, like the calendar banner). -->
+      <div class="cal-banner hidden" id="favBanner">
+        <svg class="cal-banner-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 3.6l2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+        </svg>
+        <div class="cal-banner-body">
+          <div class="cal-banner-title" data-copy="friend.favBanner.title"></div>
+          <div class="cal-banner-text" data-copy="friend.favBanner.text"></div>
+          <button type="button" class="cal-banner-btn" onclick="markFavPromptDone(); openFavorites()" data-copy="friend.favBanner.button"></button>
+        </div>
+        <button type="button" class="cal-banner-close" onclick="markFavPromptDone()" aria-label="Dismiss">&#215;</button>
+      </div>
       <div class="cards" id="mineCards"><div class="loading-state">Loading...</div></div>
     </div>
 
@@ -2137,6 +2163,7 @@ function renderMe(){
   document.getElementById('claimForMe').textContent = t('friend.claim.forMe', { name: me.shortName });
   document.getElementById('meMenuAdmin').classList.toggle('hidden', !me.isAdmin);
   renderCalBanner();
+  renderFavBanner();
 }
 
 // ---------------- TABS ----------------
@@ -3215,11 +3242,12 @@ document.getElementById('profilePhotoInput').addEventListener('change', async (e
 // Kept on your account; the server drops any whose item or option has
 // left the menu. They lead the cart (see renderCart).
 let myFavorites = { favorites: [], usual: [] };
+let favoritesLoaded = false;
 
 async function loadFavorites(){
   try{
     const res = await fetch('/api/public/favorites');
-    if (res.ok) myFavorites = await res.json();
+    if (res.ok){ myFavorites = await res.json(); favoritesLoaded = true; }
   }catch(e){}
   renderUsualBanner();
 }
@@ -3228,6 +3256,23 @@ async function loadFavorites(){
 // looked. Goes once you've opened Favorites (or edited them) or tapped ×.
 function renderUsualBanner(){
   document.getElementById('usualBanner').classList.toggle('hidden', !myFavorites.usualGone);
+  renderFavBanner();
+}
+
+// "Pick your favorite concessions": while you have no favorites and no
+// usual, until dismissed or tapped -- remembered on the person
+// (favoritesPromptDone). Not alongside the red banner, which already
+// sends you to Favorites.
+function renderFavBanner(){
+  const none = !(myFavorites.favorites || []).length && !(myFavorites.usual || []).length;
+  const show = !!me && favoritesLoaded && none && !me.favoritesPromptDone && !myFavorites.usualGone;
+  document.getElementById('favBanner').classList.toggle('hidden', !show);
+}
+
+function markFavPromptDone(){
+  if (me) me.favoritesPromptDone = true;
+  renderFavBanner();
+  fetch('/api/public/favorites-prompt-done', { method: 'POST', keepalive: true }).catch(() => {});
 }
 
 function markUsualReviewed(){
@@ -3282,6 +3327,8 @@ function closeFavorites(){
   markUsualReviewed();
   document.getElementById('favoritesOverlay').classList.add('hidden');
   overlayClosed();
+  // Opened from the cart: show it with the favorites as they are now.
+  if (!document.getElementById('cartOverlay').classList.contains('hidden')) renderCart();
 }
 
 function showFavList(){
@@ -4088,6 +4135,17 @@ function buildFavoritesSectionEl(favs, usual){
   const label = document.createElement('span');
   label.textContent = t('friend.favorites.cartSection');
   summary.appendChild(label);
+  const editBtn = document.createElement('button');
+  editBtn.type = 'button';
+  editBtn.className = 'fav-edit-btn';
+  editBtn.textContent = t('friend.favorites.cartEdit');
+  editBtn.addEventListener('click', (e) => {
+    // Not a tap on the header: leave the section open.
+    e.preventDefault();
+    e.stopPropagation();
+    openFavorites();
+  });
+  summary.appendChild(editBtn);
   wrap.appendChild(summary);
 
   const inner = document.createElement('div');

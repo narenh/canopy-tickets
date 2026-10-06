@@ -1489,6 +1489,13 @@ app.post('/api/public/calendar-prompt-done', (req, res) => {
   res.json({ ok: true });
 });
 
+// The "Pick your favorite concessions" banner: dismissed, or its button
+// tapped.
+app.post('/api/public/favorites-prompt-done', (req, res) => {
+  store.markFavoritesPromptDone(req.person.id);
+  res.json({ ok: true });
+});
+
 app.get('/calendar/feed/:token.ics', (req, res) => {
   if (store.kind !== 'sqlite') return res.status(404).end();
   const person = store.personByCalendarToken(req.params.token);

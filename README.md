@@ -572,6 +572,11 @@ set and My showtimes leads with a red **Item discontinued** banner ("Update
 order" opens Favorites), and the cart's "Your usual" row says so too. It
 clears once they open Favorites, save them, or tap ×.
 
+Someone with no favorites and no usual gets a **Pick your favorite
+concessions** banner on My showtimes until they tap "Add favorites" or ×
+(`people.favorites_prompt_done`, schema v14). The cart's Favorites header
+has an **Edit** button that opens the same sheet over the cart.
+
 ## Payment handles
 
 Like movie passwords, Venmo and Cash App handles are **not**
