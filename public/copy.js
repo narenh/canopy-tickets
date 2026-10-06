@@ -90,7 +90,8 @@ const COPY = {
       browse: 'Browse movies',
       locked: 'Unlock this movie on this phone to make changes',
       going: "Who's going ({count})",
-      yourOrders: 'Your concessions'
+      // The order line on a My showtimes card when there's nothing in it.
+      noOrder: '🍿 No concessions yet'
     },
 
     profile: {

@@ -163,6 +163,25 @@
     padding:1px 6px;
   }
   .mine-section{margin-top:12px;}
+  .mine-seat .unpaid-tag{color:#e2857a;font-size:11px;}
+  .mine-orders{border-top:1px solid #26262a;margin-top:10px;padding-top:2px;}
+  .order-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    width:100%;
+    background:none;
+    border:none;
+    color:#ccc;
+    font:inherit;
+    font-size:13.5px;
+    padding:9px 0 3px;
+    text-align:left;
+    cursor:pointer;
+  }
+  .order-row b{color:#eee;font-weight:600;}
+  .order-row .concession-cta{flex:0 0 auto;}
   .mine-section-head{
     color:var(--muted);
     font-size:11px;
@@ -2104,8 +2123,11 @@ function buildMineCard(item){
   goingIds.forEach(seatId => {
     const row = document.createElement('div');
     row.className = 'mine-seat' + (seats[seatId].mine ? ' is-mine' : '');
+    // Whether you (or your guest) still owe lives here, so the order
+    // rows below don't have to repeat who's who.
     row.innerHTML = seatWhoHtml(seatId, seats[seatId]) +
-      (seats[seatId].mine && !seats[seatId].guest ? '<span class="you-tag">' + escapeHtml(t('friend.list.you')) + '</span>' : '');
+      (seats[seatId].mine && !seats[seatId].guest ? '<span class="you-tag">' + escapeHtml(t('friend.list.you')) + '</span>' : '') +
+      (seats[seatId].mine && seatOwesAnything(obj, seats[seatId]) ? '<span class="unpaid-tag">unpaid</span>' : '');
     going.appendChild(row);
   });
   card.appendChild(going);
@@ -2114,13 +2136,12 @@ function buildMineCard(item){
   // its order. Other people's orders are theirs to look after.
   if (item.unlocked){
     const orders = document.createElement('div');
-    orders.className = 'mine-section';
-    const head = document.createElement('div');
-    head.className = 'mine-section-head';
-    head.textContent = t('friend.mine.yourOrders');
-    orders.appendChild(head);
+    orders.className = 'mine-section mine-orders';
     const ordersOpen = concessionsOpen(obj);
-    myIds.forEach(seatId => orders.appendChild(buildClaimedSeatLine(obj, seatId, ordersOpen)));
+    // Just you: one line, no name -- it can only be yours. With guests,
+    // each line says whose it is.
+    const withNames = myIds.length > 1;
+    myIds.forEach(seatId => orders.appendChild(buildOrderRow(obj, seatId, ordersOpen, withNames)));
     card.appendChild(orders);
   }
 
@@ -2133,6 +2154,24 @@ function buildMineCard(item){
     card.appendChild(lock);
   }
   return card;
+}
+
+// A light line for one of your orders on My showtimes: what's in it and
+// the way into it. The seat and person are already in Who's going above.
+function buildOrderRow(obj, seatId, ordersOpen, withName){
+  const seat = (obj.seats || {})[seatId] || {};
+  const lines = seat.concessions || [];
+  const row = document.createElement('button');
+  row.type = 'button';
+  row.className = 'order-row';
+  row.addEventListener('click', () => openCart(obj.id, seatId));
+  const what = lines.length
+    ? t(lines.length === 1 ? 'friend.list.concessionsOne' : 'friend.list.concessionsMany', { count: lines.length })
+    : t('friend.mine.noOrder');
+  const who = withName ? '<b>' + escapeHtml((seat.name || '').split(/\s+/)[0]) + '</b> ' : '';
+  row.innerHTML = '<span class="order-row-what">' + who + escapeHtml(what) + '</span>' +
+    '<span class="concession-cta">' + escapeHtml(ordersOpen ? (lines.length ? 'Edit' : '+ Add') : 'View') + '</span>';
+  return row;
 }
 
 function openFilm(title){
