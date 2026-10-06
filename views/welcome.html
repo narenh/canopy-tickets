@@ -256,7 +256,7 @@
     <div class="error" id="adminSetupError"></div>
     <input type="password" id="adminSetupPassword" placeholder="Setup password" autocomplete="off">
     <button type="submit" id="adminSetupBtn" data-copy="welcome.setupButton"></button>
-    <p class="for-email" style="margin:14px 0 0"><button type="button" onclick="showCard('emailForm')" data-copy="welcome.back"></button></p>
+    <p class="for-email" id="adminSetupBack" style="margin:14px 0 0"><button type="button" onclick="showCard('emailForm')" data-copy="welcome.back"></button></p>
   </form>
 
   <!-- Step 1: sign in with a passkey, or an email to get one. -->
@@ -529,11 +529,11 @@ function backToEmail(){
 }
 
 // ---------------- First run: the setup password ----------------
-// While there's no admin (or in recovery): a brand-new install opens on
-// it; otherwise it's the small "Admin setup" link under sign-in, so
-// friends aren't asked for a password they don't have. Once it's right,
-// the usual sign-in / sign-up follows, and whoever finishes it on this
-// browser is the admin.
+// With no admin (a brand-new install) the page is only this: no account
+// can exist before the admin's, and the server refuses everything else
+// until it's done. In recovery it's the small "Admin setup" link under
+// sign-in, so friends aren't asked for a password they don't have. Once
+// it's right, the usual sign-up / sign-in follows on this browser.
 function showAdminSetup(){
   showCard('adminSetupForm');
   document.getElementById('adminSetupPassword').focus();
@@ -551,8 +551,13 @@ function adminSetupDone(){
     const st = await (await fetch('/api/auth/state')).json();
     if (!st.adminSetup) return;
     if (st.adminSetupGranted){ adminSetupDone(); return; }
-    document.getElementById('adminSetupLink').classList.remove('hidden');
-    if (st.fresh) showAdminSetup();
+    if (st.adminExists){
+      document.getElementById('adminSetupLink').classList.remove('hidden');
+      return;
+    }
+    // Nothing to go back to.
+    document.getElementById('adminSetupBack').classList.add('hidden');
+    showAdminSetup();
   }catch(e){}
 })();
 

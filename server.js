@@ -370,12 +370,13 @@ function publicShowtimeView(s, viewer, onlySeatIds, lookup) {
 // with its passkey. Which profile is the admin is stored in meta
 // (admin_person_id); it's also the host (see lib/seats.js).
 //
-// First run: with no admin yet, the sign-in page at / offers the setup
-// password (ADMIN_PASSWORD) -- straight away on a brand-new install, as
-// a small "Admin setup" link otherwise -- and whoever then signs in or up
-// on that browser becomes the admin. ADMIN_RECOVERY=1 reopens
-// that step after the fact -- for an admin who's lost their passkey, it
-// lets them add a new one -- and needs access to the server's settings to
+// There is never an account without an admin. With no admin (a brand-new
+// install), the sign-in page at / is only the setup password
+// (ADMIN_PASSWORD), and the server refuses every other sign-in and
+// sign-up until it's been entered; whoever then signs up on that browser
+// is the admin. ADMIN_RECOVERY=1 reopens the setup password for an admin
+// who's lost their passkey -- it lets the admin's own profile add a new
+// one and nothing else -- and needs access to the server's settings to
 // turn on, which is the right bar for the keys to everything.
 
 const ADMIN_RECOVERY = process.env.ADMIN_RECOVERY === '1';
@@ -393,6 +394,23 @@ function isAdmin(req) {
 function hasAdminSetupGrant(req) {
   const at = req.device && req.device.admin_setup_at;
   return adminSetupOpen() && !!at && Date.now() - at < ADMIN_SETUP_MS;
+}
+
+// The setup password lets a profile add a passkey without a movie
+// password: any profile on first run (it's about to be the admin), only
+// the admin's own in recovery.
+function canEnrollViaSetup(req, personId) {
+  if (!hasAdminSetupGrant(req)) return false;
+  const adminId = store.getAdminPersonId();
+  return !adminId || personId === adminId;
+}
+
+// No admin yet: nothing but the setup password until it's been entered
+// here. Sends the refusal itself and returns false.
+function accountsOpen(req, res) {
+  if (store.kind !== 'sqlite' || store.getAdminPersonId() || hasAdminSetupGrant(req)) return true;
+  res.status(403).json({ error: 'set up the admin account first', reason: 'setup_required' });
+  return false;
 }
 
 // For every admin API: signed in, as the admin.
@@ -888,13 +906,13 @@ async function registrationOptions(req, rp, { userId, email, displayName, existi
 // What the sign-in page should open with: the setup password while
 // there's no admin yet (or in recovery), unless this browser already
 // entered it.
-// `fresh`: nobody has a profile yet, so the sign-in page opens on the
-// setup step; otherwise it's a small link friends can ignore.
+// adminExists false: the sign-in page is only the setup step. True with
+// adminSetup (recovery): a small "Admin setup" link friends can ignore.
 app.get('/api/auth/state', attachDevice(false), (req, res) => {
   res.json({
+    adminExists: store.kind === 'sqlite' && !!store.getAdminPersonId(),
     adminSetup: adminSetupOpen(),
-    adminSetupGranted: hasAdminSetupGrant(req),
-    fresh: store.kind === 'sqlite' && store.listPeople().length === 0
+    adminSetupGranted: hasAdminSetupGrant(req)
   });
 });
 
@@ -907,14 +925,15 @@ app.post('/api/auth/admin-setup', attachDevice(true), (req, res) => {
   res.json({ ok: true });
 });
 
-// A passkey just checked out for personId: sign this browser in, and if
-// it entered the setup password, they're the admin now.
+// A passkey just checked out for personId: sign this browser in. On
+// first run (the setup password entered here, no admin yet) they're the
+// admin now; in recovery the admin stays who it was.
 function finishSignIn(req, personId) {
   const granted = hasAdminSetupGrant(req);
   store.signInDevice(req.device.id, personId);
   if (granted) {
     store.takeAdminSetup(req.device.id);
-    store.setAdminPersonId(personId);
+    if (!store.getAdminPersonId()) store.setAdminPersonId(personId);
   }
   req.person = store.getPerson(personId);
   req.unlocked = store.personUnlockedMovieIds(personId);
@@ -925,6 +944,7 @@ function finishSignIn(req, personId) {
 // admin) -- takes any movie's password. 'passkey': sign in with it.
 app.post('/api/auth/lookup', attachDevice(true), (req, res) => {
   if (store.kind !== 'sqlite') return res.status(503).json({ error: 'unavailable' });
+  if (!accountsOpen(req, res)) return;
   const email = cleanEmail((req.body || {}).email);
   if (!email) return res.status(400).json({ error: 'enter a valid email' });
   const person = store.getPersonByEmail(email);
@@ -932,14 +952,14 @@ app.post('/api/auth/lookup', attachDevice(true), (req, res) => {
   const state = store.passkeysOf(person.id).length ? 'passkey' : 'setup';
   // After the setup password, an existing profile can add a passkey with
   // no movie password -- and even if it has one (a lost phone, in recovery).
-  res.json({ state, email, firstName: person.firstName, canEnroll: hasAdminSetupGrant(req) });
+  res.json({ state, email, firstName: person.firstName, canEnroll: canEnrollViaSetup(req, person.id) });
 });
 
 // A new profile: its details wait on this browser until the passkey
 // exists (register/verify creates both). The photo is uploaded after.
 app.post('/api/auth/register/new', attachDevice(true), async (req, res) => {
   const rp = requirePasskeyRp(req, res);
-  if (!rp) return;
+  if (!rp || !accountsOpen(req, res)) return;
   const body = req.body || {};
   const email = cleanEmail(body.email);
   if (!email) return res.status(400).json({ error: 'enter a valid email' });
@@ -961,11 +981,11 @@ app.post('/api/auth/register/new', attachDevice(true), async (req, res) => {
 // is made).
 app.post('/api/auth/register/setup', attachDevice(true), async (req, res) => {
   const rp = requirePasskeyRp(req, res);
-  if (!rp) return;
+  if (!rp || !accountsOpen(req, res)) return;
   const body = req.body || {};
   const person = store.getPersonByEmail(cleanEmail(body.email) || '');
   if (!person) return res.status(404).json({ error: 'not found' });
-  const viaSetup = hasAdminSetupGrant(req);
+  const viaSetup = canEnrollViaSetup(req, person.id);
   const existing = store.passkeysOf(person.id);
   if (existing.length && !viaSetup) {
     return res.status(409).json({ error: 'this profile already has a passkey', reason: 'has_passkey' });
@@ -991,7 +1011,8 @@ app.post('/api/auth/register/setup', attachDevice(true), async (req, res) => {
 
 app.post('/api/auth/register/verify', attachDevice(true), async (req, res) => {
   const rp = requirePasskeyRp(req, res);
-  if (!rp) return;
+  // Checked again here: the setup password may have expired since.
+  if (!rp || !accountsOpen(req, res)) return;
   const pending = store.takePending(req.device.id);
   if (!pending || pending.kind !== 'register' || Date.now() - pending.at > PASSKEY_CEREMONY_MS) {
     return res.status(400).json({ error: 'start again', reason: 'expired' });
@@ -1019,7 +1040,7 @@ app.post('/api/auth/register/verify', attachDevice(true), async (req, res) => {
   if (pending.personId) {
     // Someone else may have set one up in the meantime. (After the setup
     // password, adding another is the point.)
-    const viaSetup = !!(pending.profile && pending.profile.viaSetup) && hasAdminSetupGrant(req);
+    const viaSetup = !!(pending.profile && pending.profile.viaSetup) && canEnrollViaSetup(req, pending.personId);
     if (!viaSetup && store.passkeysOf(pending.personId).length) {
       return res.status(409).json({ error: 'this profile already has a passkey', reason: 'has_passkey' });
     }
@@ -1040,7 +1061,7 @@ app.post('/api/auth/register/verify', attachDevice(true), async (req, res) => {
 // Sign in: no email -- the phone offers whichever passkey it has here.
 app.post('/api/auth/login/options', attachDevice(true), async (req, res) => {
   const rp = requirePasskeyRp(req, res);
-  if (!rp) return;
+  if (!rp || !accountsOpen(req, res)) return;
   const options = await webauthn.generateAuthenticationOptions({ rpID: rp.rpID, userVerification: 'preferred' });
   store.setPending(req.device.id, { challenge: options.challenge, kind: 'login' });
   res.json({ options });
@@ -1048,7 +1069,7 @@ app.post('/api/auth/login/options', attachDevice(true), async (req, res) => {
 
 app.post('/api/auth/login/verify', attachDevice(true), async (req, res) => {
   const rp = requirePasskeyRp(req, res);
-  if (!rp) return;
+  if (!rp || !accountsOpen(req, res)) return;
   const pending = store.takePending(req.device.id);
   if (!pending || pending.kind !== 'login' || Date.now() - pending.at > PASSKEY_CEREMONY_MS) {
     return res.status(400).json({ error: 'start again', reason: 'expired' });

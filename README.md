@@ -234,25 +234,26 @@ signed in as the admin, the friend-side menu has **Ticket Manager**, and
 `/admin` is just a shortcut to it (anyone else is sent to `/`). The admin
 is also the host (below).
 
-- **First run:** while there's no admin, the sign-in page at `/` offers
-  the setup password — `ADMIN_PASSWORD` — straight away on a brand-new
-  install with no profiles, otherwise behind a small **Admin setup** link
-  (so friends aren't asked for it). Whoever then signs up or signs in on
-  that browser, within 15 minutes, becomes the admin and lands in the
-  editor. An existing profile there adds its passkey without a movie
-  password.
+- **There is never an account without an admin.** On a brand-new
+  install the sign-in page at `/` is only "Enter the setup password to
+  set up your admin account" (`ADMIN_PASSWORD`), and the server refuses
+  every other sign-up and sign-in until it's been entered. Whoever then
+  signs up on that browser, within 15 minutes, is the admin and lands in
+  the editor.
 - **After that** the setup password does nothing: there's no password
   login to the editor at all.
 - **Lost your passkey?** Set `ADMIN_RECOVERY=1` in the server's settings
-  and redeploy. The sign-in page shows **Admin setup** again; after the
-  setup password, your email offers **Set up a new passkey**. Remove the setting afterwards.
+  and redeploy. The sign-in page shows a small **Admin setup** link; after
+  the setup password, your email offers **Set up a new passkey**. It only
+  ever adds a passkey to the admin's own profile — it can't make anyone
+  else the admin or get into anyone else's account. Remove the setting afterwards.
   It takes access to the server's settings, which is the right bar for
   the keys to everything.
 - In People, the admin's row is tagged **Admin** and can't be deleted or
   have its passkeys reset from there — either would lock you out.
 
 Upgrading from "This is me" (schema v11): the profile marked that way
-became the admin.
+became the admin — or, if nobody was marked, the first profile made.
 
 ## Add to calendar
 
