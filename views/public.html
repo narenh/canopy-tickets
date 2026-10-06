@@ -1012,6 +1012,8 @@
       border-radius:0;
       border:none;
     }
+    /* Still the whole screen when it's only a receipt (see is-final). */
+    #cartOverlay .cart-card.is-final{max-height:none;}
   }
   .cart-card{
     max-width:420px;
@@ -1253,6 +1255,15 @@
   .cart-order:not(.is-collapsed) .cart-order-toggle::before{transform:rotate(90deg);}
   .cart-order-toggle span:first-of-type{flex:1;}
   .cart-order.is-collapsed .cart-order-list{display:none;}
+  /* A placed order is a receipt: no menu, so the sheet fits what's left
+     (wider screens; a phone keeps the whole screen), and the order list
+     takes the room the menu had -- always open, nothing to remove. */
+  .cart-card.is-final{height:auto;max-height:min(88vh, 760px);}
+  .cart-card.is-final .cart-body{flex:0 0 auto;min-height:0;}
+  .cart-card.is-final .cart-order{flex:0 1 auto;max-height:none;border-top:none;}
+  .cart-card.is-final .cart-order-toggle{cursor:default;pointer-events:none;}
+  .cart-card.is-final .cart-order-toggle::before{display:none;}
+  .cart-card.is-final .order-remove{display:none;}
   .cart-order-count{
     flex:0 0 auto;
     text-transform:none;
@@ -4330,14 +4341,25 @@ function renderCartLockedBanner(){
 
 function renderCart(){
   renderCartLockedBanner();
+  // Once the order's placed the sheet is just the receipt: what was
+  // ordered and what it came to, no menu to add from.
+  document.querySelector('#cartOverlay .cart-card').classList.toggle('is-final', cartLocked);
   const body = document.getElementById('cartBody');
   body.innerHTML = '';
   menuRowEls.clear();
   closeOptionMenu();
   sectionEls = [];
 
-  const menuRows = buildMenuRows();
-  if (menuRows.length === 0){
+  const menuRows = cartLocked ? [] : buildMenuRows();
+  if (cartLocked){
+    setOrderPanelCollapsed(false);
+    if (!cartOrder.length){
+      const empty = document.createElement('div');
+      empty.className = 'cart-empty-menu';
+      empty.textContent = t('friend.cart.finalEmpty');
+      body.appendChild(empty);
+    }
+  } else if (menuRows.length === 0){
     const empty = document.createElement('div');
     empty.className = 'cart-empty-menu';
     empty.textContent = t('friend.cart.menuEmpty');
@@ -4866,6 +4888,10 @@ async function runSave(){
         const obj = currentCartShowtime();
         if (obj) obj.ordersClosed = true;
         cartLocked = true;
+        // What the host has is the last cart that saved, not the change
+        // just refused -- the receipt (and any pay button) shows that.
+        const saved = obj && (obj.seats || {})[cartSeatId];
+        cartOrder = buildCartOrder(saved ? saved.concessions : []);
         document.getElementById('cartError').textContent = t('friend.cart.saveClosed');
         renderCart();
         renderCards();

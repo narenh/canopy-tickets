@@ -283,7 +283,8 @@ const COPY = {
 
     cart: {
       subtitle: 'Seat {seat} · {name}',
-      locked: 'The order for this showtime is final — it’s gone in at the counter. Message the host if you still need to change something.',
+      locked: 'This order has been placed and can no longer be changed or refunded.',
+      finalEmpty: 'Nothing was ordered for this seat.',
       menuEmpty: "The host hasn't put up a concessions menu yet. Check back later.",
       noPriceSet: 'No price set',
       sectionItemsOne: '{count} item',

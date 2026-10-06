@@ -501,9 +501,12 @@ A few things worth knowing about how this actually works:
   have owners, limiting carts to your own seats and guests is possible
   later.
 - **Orders close when you finalize them**, from the **Finalize Order**
-  button under the roll-up in the editor. After that the cart still
-  opens, but read-only, with a note pointing people at you; **Reopen
-  Order** puts it back. It takes effect the moment you press it.
+  button under the roll-up in the editor. After that the cart opens as
+  a receipt — no menu, just what was ordered, the total and the pay
+  buttons — under "This order has been placed and can no longer be
+  changed or refunded." A change someone was in the middle of when you
+  pressed it is dropped, and their receipt shows what was saved.
+  **Reopen Order** puts it back. It takes effect the moment you press it.
 
   It used to be a clock — two hours before showtime — which was wrong
   twice over. It could only ever guess at when the order actually gets
