@@ -7,8 +7,8 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      # Persists showtimes.json, the friend password, and uploaded
-      # images. Without this, all of it is gone on every rebuild/restart.
+      # Persists the database (canopy.db), settings, photos and
+      # uploaded images. Without this, all of it is gone on every rebuild/restart.
       - canopy-data:/app/data
 
 volumes:

@@ -16,9 +16,8 @@ const webauthn = require('@simplewebauthn/server');
 const ogImageStore = createImageStore('og');
 const logoImageStore = createImageStore('logo');
 
-// Replaces the old HOST_VENMO env var: like the friend password, these are
-// admin-settable from the admin's Settings tab instead of
-// fixed at deploy time, and either/both/neither can be set -- the
+// Admin-settable from the admin's Settings tab, and
+// either/both/neither can be set -- the
 // reservation page only shows a pay button for the one(s) that are.
 const venmoHandleStore = createTextSettingStore('venmo-handle');
 const cashappHandleStore = createTextSettingStore('cashapp-handle');
@@ -46,11 +45,8 @@ function requireEnvPassword(envVar, label) {
 
 const ADMIN_PASSWORD = requireEnvPassword('ADMIN_PASSWORD', 'admin');
 
-// There's no friend password any more: each movie has its own (set on
-// the movie's page in the admin), and friends sign in by email. The old
-// friend password is only read once, to give the movies that existed then
-// a password friends already know -- see seedMovieAccess in
-// lib/sqliteStore.js.
+// Each movie has its own password (set on the movie's page in the
+// admin), and friends sign in with passkeys.
 
 // This MUST be the same value on every process that ever serves this app
 // -- a random-per-process fallback (what this used to do) is actively
@@ -144,12 +140,9 @@ function parsePrice(raw) {
 // by hand with the same-named one there, since that file is browser-only
 // and can't be required from here.
 //
-// DEFAULT_SCREEN is IMAX at Metreon -- every showtime made before this
-// field existed gets treated as that wherever it's read (see the
-// `|| DEFAULT_SCREEN` fallbacks below), so nothing needs a one-time
-// migration: an old record with no `screen` on disk just keeps rendering
-// the IMAX map it always implicitly meant, forever, unless the admin
-// re-saves it with a different one.
+// DEFAULT_SCREEN is IMAX at Metreon -- a showtime with no screen saved
+// (made before this field existed, or without one picked) is treated as
+// that wherever it's read (see the `|| DEFAULT_SCREEN` fallbacks below).
 const DEFAULT_SCREEN = 'amc-metreon-16';
 function normalizeScreenInput(raw) {
   if (typeof raw === 'string' && raw.trim()) return raw.trim().slice(0, 60);
@@ -282,13 +275,6 @@ function posterUrlForKey(key) {
   return `/poster-image?key=${key}&v=${meta.uploadedAt}`;
 }
 
-// The JSON fallback store (see lib/store.js) predates movies, so it
-// has no poster keys: there, posters are still found by title.
-function posterUrlFor(showtime) {
-  if (showtime.posterKey) return posterUrlForKey(showtime.posterKey);
-  return showtime.title ? posterUrlForKey(posterStore.keyFor(showtime.title)) : null;
-}
-
 // Looks people up at most once per request -- a showtime's seats name the
 // same few people over and over.
 function peopleLookup() {
@@ -373,7 +359,7 @@ function publicShowtimeView(s, viewer, onlySeatIds, lookup) {
     screen: s.screen || DEFAULT_SCREEN,
     price: s.price,
     info: s.info || '',
-    posterUrl: posterUrlFor(s),
+    posterUrl: posterUrlForKey(s.posterKey),
     // Set by the host when they go and place the order -- see the
     // orders-closed route below for why it isn't a clock.
     ordersClosed: !!s.ordersClosed,
@@ -400,11 +386,11 @@ const ADMIN_RECOVERY = process.env.ADMIN_RECOVERY === '1';
 const ADMIN_SETUP_MS = 15 * 60 * 1000;
 
 function adminSetupOpen() {
-  return store.kind === 'sqlite' && (ADMIN_RECOVERY || !store.getAdminPersonId());
+  return ADMIN_RECOVERY || !store.getAdminPersonId();
 }
 
 function isAdmin(req) {
-  return store.kind === 'sqlite' && !!req.person && req.person.id === store.getAdminPersonId();
+  return !!req.person && req.person.id === store.getAdminPersonId();
 }
 
 // This browser entered the setup password recently, and setup is open.
@@ -425,7 +411,7 @@ function canEnrollViaSetup(req, personId) {
 // No admin yet: nothing but the setup password until it's been entered
 // here. Sends the refusal itself and returns false.
 function accountsOpen(req, res) {
-  if (store.kind !== 'sqlite' || store.getAdminPersonId() || hasAdminSetupGrant(req)) return true;
+  if (store.getAdminPersonId() || hasAdminSetupGrant(req)) return true;
   res.status(403).json({ error: 'set up the admin account first', reason: 'setup_required' });
   return false;
 }
@@ -440,7 +426,7 @@ function requireAdmin(req, res, next) {
 
 // ---------------- Payment handles (admin auth required) ----------------
 //
-// Replaces HOST_VENMO. Both are optional and independent -- leaving one
+// Both are optional and independent -- leaving one
 // blank just means the reservation page won't show a button for it.
 // Stored without a leading @ (Venmo) or $ (Cash App), same convention as
 // how each service's own share sheets display a handle; the leading
@@ -488,7 +474,7 @@ app.post('/api/concession-menu', requireAdmin, (req, res) => {
   // same row instead of creating a duplicate on the next save.
   const saved = concessionMenuStore.set(items || [], optionGroups || []);
   // A favorite whose item or option just left the menu goes for good.
-  if (store.kind === 'sqlite') store.pruneAllFavorites((f) => cleanFavorites(f, saved));
+  store.pruneAllFavorites((f) => cleanFavorites(f, saved));
   res.json({ ok: true, ...saved, taxRate: CONCESSION_TAX_RATE });
 });
 
@@ -498,7 +484,7 @@ app.post('/api/concession-menu', requireAdmin, (req, res) => {
 // they were placed against.
 app.post('/api/concession-menu/reset', requireAdmin, (req, res) => {
   const menu = concessionMenuStore.reset();
-  if (store.kind === 'sqlite') store.pruneAllFavorites((f) => cleanFavorites(f, menu));
+  store.pruneAllFavorites((f) => cleanFavorites(f, menu));
   res.json({ ok: true, ...menu, taxRate: CONCESSION_TAX_RATE });
 });
 
@@ -523,18 +509,10 @@ const siteImageUpload = multer({
 app.use('/api/showtimes', requireAdmin);
 app.use('/api/movies', requireAdmin);
 
-// Movies need the SQLite store; the JSON fallback (lib/store.js) only
-// exists to keep friends reserving if the migration ever fails.
-function requireSqlite(req, res, next) {
-  if (store.kind === 'sqlite') return next();
-  res.status(503).json({ error: 'the database is unavailable -- see the server log' });
-}
-app.use('/api/movies', requireSqlite);
-
-// Read-side fallback for showtimes saved before `screen` existed -- see
-// the DEFAULT_SCREEN comment above. Also attaches posterUrl.
+// A showtime with no screen picked gets DEFAULT_SCREEN's -- see the
+// comment there. Also attaches posterUrl.
 function withScreenFallback(item) {
-  return { ...item, screen: item.screen || DEFAULT_SCREEN, posterUrl: posterUrlFor(item) };
+  return { ...item, screen: item.screen || DEFAULT_SCREEN, posterUrl: posterUrlForKey(item.posterKey) };
 }
 
 function movieView(m) {
@@ -612,7 +590,7 @@ app.patch('/api/movies/:id', (req, res) => {
 
 // ---------------- People (admin) ----------------
 
-app.use('/api/people', requireAdmin, requireSqlite);
+app.use('/api/people', requireAdmin);
 
 app.get('/api/people', (req, res) => {
   res.json({
@@ -680,7 +658,7 @@ app.get('/api/showtimes/:id', (req, res) => {
   res.json({ showtime: withScreenFallback(item) });
 });
 
-app.patch('/api/showtimes/:id', requireSqlite, (req, res) => {
+app.patch('/api/showtimes/:id', (req, res) => {
   const { fields, error } = showtimeFields(req.body || {});
   if (error) return res.status(400).json({ error });
   if (!Object.keys(fields).length) return res.status(400).json({ error: 'nothing to change' });
@@ -689,7 +667,7 @@ app.patch('/api/showtimes/:id', requireSqlite, (req, res) => {
   res.json({ showtime: withScreenFallback(result.showtime) });
 });
 
-app.post('/api/showtimes/:id/duplicate', requireSqlite, (req, res) => {
+app.post('/api/showtimes/:id/duplicate', (req, res) => {
   const result = store.duplicateShowtime(req.params.id);
   if (!result.ok) return sendResult(res, result);
   res.status(201).json({ showtime: withScreenFallback(result.showtime) });
@@ -698,7 +676,7 @@ app.post('/api/showtimes/:id/duplicate', requireSqlite, (req, res) => {
 // One seat in your block: who it's for and whether they've paid. Their
 // concession order isn't the editor's to change and stays on the seat
 // unless the name is cleared (see setSeat in lib/sqliteStore.js).
-app.put('/api/showtimes/:id/seats/:seatId', requireSqlite, (req, res) => {
+app.put('/api/showtimes/:id/seats/:seatId', (req, res) => {
   if (!SEAT_ID_RE.test(req.params.seatId)) return res.status(400).json({ error: 'bad seat id' });
   const body = req.body || {};
   const result = store.setSeat(req.params.id, req.params.seatId, {
@@ -710,7 +688,7 @@ app.put('/api/showtimes/:id/seats/:seatId', requireSqlite, (req, res) => {
   res.json({ showtime: withScreenFallback(result.showtime) });
 });
 
-app.delete('/api/showtimes/:id/seats/:seatId', requireSqlite, (req, res) => {
+app.delete('/api/showtimes/:id/seats/:seatId', (req, res) => {
   if (!SEAT_ID_RE.test(req.params.seatId)) return res.status(400).json({ error: 'bad seat id' });
   const result = store.releaseSeat(req.params.id, req.params.seatId);
   if (!result.ok) return sendResult(res, result);
@@ -727,7 +705,7 @@ app.delete('/api/showtimes/:id/seats/:seatId', requireSqlite, (req, res) => {
 // stored as bare local strings and this process runs somewhere
 // effectively UTC -- so the server couldn't have enforced it honestly
 // even if it wanted to. A flag it owns, it can.
-app.post('/api/showtimes/:id/orders-closed', requireSqlite, (req, res) => {
+app.post('/api/showtimes/:id/orders-closed', (req, res) => {
   const { closed } = req.body || {};
   if (typeof closed !== 'boolean') {
     return res.status(400).json({ error: 'closed must be a boolean' });
@@ -821,7 +799,6 @@ function attachDevice(create) {
   return (req, res, next) => {
     req.unlocked = new Set();
     req.person = null;
-    if (store.kind !== 'sqlite') return next();
     const cookie = deviceAuth.read(req);
     let device = cookie ? store.getDevice(cookie.id) : null;
     if (!device && create) device = store.createDevice();
@@ -904,7 +881,6 @@ function passkeyRp(req) {
 }
 
 function requirePasskeyRp(req, res) {
-  if (store.kind !== 'sqlite') { res.status(503).json({ error: 'unavailable' }); return null; }
   const rp = passkeyRp(req);
   if (!rp) res.status(400).json({ error: 'passkeys are not available on this address' });
   return rp;
@@ -932,7 +908,7 @@ async function registrationOptions(req, rp, { userId, email, displayName, existi
 // adminSetup (recovery): a small "Admin setup" link friends can ignore.
 app.get('/api/auth/state', attachDevice(false), (req, res) => {
   res.json({
-    adminExists: store.kind === 'sqlite' && !!store.getAdminPersonId(),
+    adminExists: !!store.getAdminPersonId(),
     adminSetup: adminSetupOpen(),
     adminSetupGranted: hasAdminSetupGrant(req)
   });
@@ -965,7 +941,6 @@ function finishSignIn(req, personId) {
 // profile with no passkey (first time since passkeys, or reset by the
 // admin) -- takes any movie's password. 'passkey': sign in with it.
 app.post('/api/auth/lookup', attachDevice(true), (req, res) => {
-  if (store.kind !== 'sqlite') return res.status(503).json({ error: 'unavailable' });
   if (!accountsOpen(req, res)) return;
   const email = cleanEmail((req.body || {}).email);
   if (!email) return res.status(400).json({ error: 'enter a valid email' });
@@ -1167,7 +1142,6 @@ app.get('/photo/:personId', attachDevice(false), (req, res) => {
 // ---------------- Public API (signed-in friends) ----------------
 
 app.use('/api/public', attachDevice(false), (req, res, next) => {
-  if (store.kind !== 'sqlite') return res.status(503).json({ error: 'unavailable' });
   if (!req.person) return res.status(401).json({ error: 'unauthorized' });
   next();
 });
@@ -1514,7 +1488,6 @@ app.post('/api/public/favorites-prompt-done', (req, res) => {
 });
 
 app.get('/calendar/feed/:token.ics', (req, res) => {
-  if (store.kind !== 'sqlite') return res.status(404).end();
   const person = store.personByCalendarToken(req.params.token);
   if (!person) return res.status(404).end();
   const events = [];
@@ -1638,7 +1611,7 @@ app.post('/api/public/showtimes/:id/seats/:seatId/release', (req, res) => {
   const show = unlockedShowtime(req, res);
   if (!show || !ownSeat(req, res, show)) return;
   const now = Date.now();
-  if (typeof store.unclaimSeat !== 'function' || !canReleaseSeat(show, show.seats[req.params.seatId], req.person, now)) {
+  if (!canReleaseSeat(show, show.seats[req.params.seatId], req.person, now)) {
     return res.status(409).json({ error: "that seat can't be released any more", reason: 'not_releasable' });
   }
   const result = store.unclaimSeat(req.params.id, req.params.seatId, req.person.id, now - RELEASE_WINDOW_MS);

@@ -44,12 +44,9 @@ files and images (see "Storage & backups" below).
   APIs for both sides. `GET /` serves the reservation page to a browser
   someone's signed in on and the sign-in page to anyone else; `GET /admin`
   serves the editor to the admin's session and redirects anyone else to `/`.
-- `lib/store.js` — persistence: movies, showtimes and seats live in one
-  SQLite file, `data/canopy.db` (`lib/sqliteStore.js`). On its first start
-  it imports the old `data/showtimes.json` and checks every showtime and
-  seat against the original before switching over (see "Storage &
-  backups" below). If that check ever fails it runs on the JSON instead
-  (`lib/jsonStore.js`). `claimSeat` does the friend-facing claim in one
+- `lib/store.js` — persistence: movies, showtimes, seats and people live
+  in one SQLite file, `data/canopy.db` (`lib/sqliteStore.js`; see
+  "Storage & backups" below). `claimSeat` does the friend-facing claim in one
   transaction, so two people tapping the same seat at the same instant
   can't both win it. Every
   showtime carries a `screen` (which auditorium/seat-map it uses, see
@@ -57,9 +54,6 @@ files and images (see "Storage & backups" below).
   (`"amc-metreon-16"`) via a fallback in `server.js` if unset.
   `setSeatConcessions` does the same read-check-write dance for a friend
   editing a reserved seat's concession order.
-- `lib/sharedPassword.js` — the old site-wide friend password. Only read
-  once now, to give the movies that existed then that password as their
-  own (see "Friends: sign-in and movie passwords").
 - `lib/deviceAuth.js` — the friend side's cookie: a signed id for this
   browser, good for a year from the last visit.
 - `lib/photoStore.js` — profile photos (already cropped to 512px by the
@@ -81,11 +75,10 @@ files and images (see "Storage & backups" below).
   concessions}`,
   where `concessions` is that seat's cart (`{itemId, name, price, qty,
   note?, options?}` per line, `options` holding one pick per unit
-  ordered). A seat saved before concessions existed just normalizes to an
-  empty cart, so there's no migration step.
+  ordered).
 - `lib/uploadedImage.js` — persistence for admin-uploaded site images (the
   link-preview image, the logo): `createImageStore(name)` gives each one
-  its own file in `DATA_DIR`, same durability story as `showtimes.json`.
+  its own file in `DATA_DIR`, same durability story as `canopy.db`.
 - `public/seat-layout.js` — `SEAT_LAYOUTS`, keyed by a theater+auditorium
   id (e.g. `"amc-metreon-16"`) rather than a bare auditorium number,
   since a number alone only means something within one specific theater
@@ -215,12 +208,11 @@ A movie without a password can't be unlocked by anyone; the admin's
 movie grid flags those. Changing a movie's password doesn't re-lock
 people who already unlocked it.
 
-**Moving over from before passkeys:** everyone was signed out once
-(schema v9), and what browsers had unlocked was dropped (v10) — a friend
-types each movie's password once, on their account. After setting up a
-new profile, a friend is offered the seats reserved under their name
-before profiles existed ("Are any of these yours?"); the same list is
-under **Claim existing seats** later.
+Unlocks belong to the account, not the browser: a friend types each
+movie's password once. After setting up a new profile, a friend is
+offered the seats reserved under their name before profiles existed
+("Are any of these yours?"); the same list is under **Claim existing
+seats** later.
 
 Tapping your photo in the header opens a menu: **Edit profile**,
 **Calendar feed**, **Claim existing seats**, **Sign out**.
@@ -250,9 +242,6 @@ is also the host (below).
   the keys to everything.
 - In People, the admin's row is tagged **Admin** and can't be deleted or
   have its passkeys reset from there — either would lock you out.
-
-Upgrading from "This is me" (schema v11): the profile marked that way
-became the admin — or, if nobody was marked, the first profile made.
 
 ## Calendar feed
 
@@ -557,7 +546,7 @@ A few things worth knowing about how this actually works:
 Profile menu → **Favorites**. A favorite is an item **and** its option
 (tenders with buffalo and tenders with ranch are two), in an order you set
 (↑ ↓); "your usual" is a whole order's worth of such lines. Both are kept
-on the account (`people.favorites` / `people.usual`, schema v12) and added
+on the account (`people.favorites` / `people.usual`) and added
 from the same menu and option picker as the cart.
 
 When either exists, the cart opens with a **Favorites** section at the
@@ -567,14 +556,14 @@ host saves or resets the menu, a favorite whose item or option is gone is
 deleted; for the usual only that line goes. Reads are checked against the
 current menu too.
 
-When a line of someone's usual goes, `people.usual_gone` (schema v13) is
+When a line of someone's usual goes, `people.usual_gone` is
 set and My showtimes leads with a red **Item discontinued** banner ("Update
 order" opens Favorites), and the cart's "Your usual" row says so too. It
 clears once they open Favorites, save them, or tap ×.
 
 Someone with a showtime but no favorites and no usual gets a **Pick your
 favorite concessions** banner on My showtimes until they tap "Add
-favorites" or × (`people.favorites_prompt_done`, schema v14). The cart's
+favorites" or × (`people.favorites_prompt_done`). The cart's
 Favorites header has an **Edit** button that opens the same sheet over the
 cart. The claim banner (no showtimes, unclaimed seats waiting) always
 shows on its own.
@@ -603,11 +592,9 @@ marked instead.
 
 The same ⋯ menu offers **Release seat** for each seat a friend can still
 give back: unpaid (ticket and food), reserved by them in the last 24
-hours (`seats.reserved_at`, schema v15), and the showtime more than 24
-hours away. It asks once, then the seat goes back to being an open seat
-in the block. Seats reserved before v15 were stamped with the time of
-the v16 upgrade, so their 24 hours started then; an old seat claimed into
-an account keeps its time.
+hours (`seats.reserved_at`), and the showtime more than 24 hours away.
+It asks once, then the seat goes back to being an open seat in the
+block. An old seat claimed into an account keeps its reservation time.
 
 ## Link-preview image & logo
 
@@ -624,7 +611,7 @@ The admin's Settings tab has two image uploads:
 
 A few things worth knowing about how these actually work:
 
-- Both live in `DATA_DIR`, same as `showtimes.json` — they need the same
+- Both live in `DATA_DIR`, same as `canopy.db` — they need the same
   persistent volume (see below) to survive a redeploy.
 - The Open Graph/Twitter meta tags (for the link-preview image) only
   matter on the page an unauthenticated request sees, because crawlers
@@ -775,30 +762,15 @@ images survive a redeploy, so this check covers all of it.
 Showtimes, seats and orders are in `DATA_DIR/canopy.db` (SQLite). The
 other settings and the uploaded images are still files next to it.
 
-**Moving off `showtimes.json`.** The first start of a version with SQLite
-imports `showtimes.json` into `canopy.db`:
+**Schema version.** A new `canopy.db` is created with the whole current
+schema. An existing one must already be at the current version (16): the
+app refuses to start on an older file rather than run with columns
+missing. That only matters for a database from before version 16, such
+as an old snapshot below; start it once under commit `f50b354`, which
+still has the upgrade steps, and it's brought up to date.
 
-1. It copies `showtimes.json` to `backups/pre-sqlite-<time>/` first.
-2. It imports everything into a temporary database, then reads every
-   showtime back and compares it with the original, field by field and
-   seat by seat. Only a database that matches exactly is moved into
-   place. Any difference, and the temporary file is deleted, the problem
-   is logged, and the app keeps running on `showtimes.json` exactly as
-   before; the next start tries again.
-3. `showtimes.json` itself is never modified, renamed or deleted. After a
-   successful import it simply isn't read any more.
-
-The log says which happened. Success looks like:
-
-```
-[canopy-tickets] Moved showtimes.json into SQLite (/app/data/canopy.db): 12 showtime(s) across 4 movie(s), ...
-```
-
-Failure is a line starting `!!! SQLite store unavailable`. If a later
-start logs `!!! showtimes.json has changed since it was moved into
-SQLite`, something wrote to the JSON after the import (most likely the
-old container, still running during the deploy, took a reservation).
-That change is not in the database, and the message says where to look.
+`showtimes.json`, `shared-password.json` and `backups/pre-sqlite-*/` may
+still be on the volume from before SQLite. Nothing reads them any more.
 
 **Backups.** Two layers:
 
@@ -813,7 +785,3 @@ That change is not in the database, and the message says where to look.
   S3-compatible storage. Coolify's archive of the live `canopy.db` itself
   may be inconsistent if it's taken mid-write, which is why the snapshots
   above exist.
-
-**Rolling back** to a version from before SQLite is possible (it reads
-`showtimes.json`, which is untouched), but anything changed since the
-import exists only in `canopy.db` and won't be there.

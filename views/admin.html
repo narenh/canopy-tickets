@@ -1396,11 +1396,8 @@ function todayISO(){
   return d.getFullYear() + '-' + month + '-' + day;
 }
 
-// Normalizes a raw seat entry -- handles the legacy string format
-// ('selected' / 'occupied') from before per-seat names/paid tracking
-// existed, alongside the current object format. Returns null for
-// "available" (i.e. no entry at all). Mirrors lib/seats.js -- keep the
-// two in sync.
+// Normalizes a raw seat entry. Returns null for "available" (i.e. no
+// entry at all). Mirrors lib/seats.js -- keep the two in sync.
 //
 // The `concessions` and `concessionsPaid` passthroughs matter more than
 // they look: this editor saves the WHOLE seats object, so anything this
@@ -1409,13 +1406,7 @@ function todayISO(){
 // them here would quietly delete every order -- and re-bill everyone who
 // had already paid -- the moment the host touched a showtime.
 function normalizeSeatEntry(raw){
-  if (!raw) return null;
-  if (typeof raw === 'string'){
-    if (raw === 'selected') return { status: 'assigned', name: '', paid: true, concessionsPaid: false, concessions: [] };
-    if (raw === 'occupied') return { status: 'occupied' };
-    return null;
-  }
-  if (typeof raw === 'object'){
+  if (raw && typeof raw === 'object'){
     if (raw.status === 'assigned'){
       const name = raw.name || '';
       return {
