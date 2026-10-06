@@ -302,16 +302,16 @@ they can't land out of order; closing the card flushes anything still
 pending. A failed write says so and offers a retry, because silent loss
 is the one thing autosave must not do.
 
-**The host owes nothing.** A seat whose name matches `HOST_SEAT_NAME` in
-`lib/seats.js` reads as paid everywhere and its cart drops the "You owe"
-line, the pay buttons and the "mark as paid" control entirely —
-they buy every ticket and every tray on their own card, so there's nobody
-for them to pay, and the reservation page stops offering to send them
-money. It's derived rather than stored, so it holds however the name got
-onto the seat: claimed from the reservation page, or typed into the
-editor. Hardcoded to one name for now, deliberately in one place so
-generalising it is a matter of replacing that constant rather than
-hunting the idea through the views.
+**The host owes nothing.** In the admin's People tab, Edit on your own
+profile → **This is me** marks it as the host (stored in `meta` as
+`host_person_id`). That person's own seats — not their guests' — come
+out of the store with `host: true`, read as paid everywhere, and their
+cart drops the "You owe" line, the pay buttons and the "mark as paid"
+control entirely — they buy every ticket and every tray on their own
+card, so there's nobody for them to pay. It's derived rather than
+stored on the seat, so marking a different profile moves it. A seat
+reserved before profiles counts once the host claims it ("Claim existing
+seats").
 
 **Sales tax** is added on the concessions, at `CONCESSION_TAX_RATE` in
 `lib/seats.js` — San Francisco's combined rate, served to both the cart and
@@ -496,9 +496,9 @@ A few things worth knowing about how this actually works:
   longer on the menu", and can still be edited down to zero). Same for
   options: a sauce the host has since deleted still shows as the pick on
   an order that chose it.
-- **Nobody sitting next to Naren is offered peanut candy.** Played for a
+- **Nobody sitting next to the host is offered peanut candy.** Played for a
   laugh, built to fail safe: when a neighbouring seat in the same row is
-  reserved by a Naren (matched on a word boundary, any capitalization),
+  the host's own (see "The host owes nothing"; hardcoded to them for now),
   peanut items quietly drop out of that seat's menu. No banner explaining
   the bit — the people it applies to are in on it. It will *not* hide a
   peanut item already in the cart — an invisible line

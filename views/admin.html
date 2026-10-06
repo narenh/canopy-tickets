@@ -218,6 +218,26 @@
   .person-photo{width:44px;height:44px;border-radius:50%;object-fit:cover;background:#2a2a2a;flex:0 0 auto;}
   .person-main{flex:1;min-width:0;}
   .person-name{font-weight:700;font-size:15px;}
+  .host-tag{
+    display:inline-block;
+    margin-left:8px;
+    vertical-align:2px;
+    font-size:11px;
+    font-weight:700;
+    color:#241c07;
+    background:var(--gold);
+    border-radius:8px;
+    padding:1px 7px;
+  }
+  .people-host-note{
+    color:#f0dda9;
+    font-size:13px;
+    line-height:1.4;
+    background:#1f1a0e;
+    border:1px solid #4a3c1a;
+    border-radius:10px;
+    padding:10px 12px;
+  }
   .person-meta{color:var(--muted);font-size:12.5px;margin-top:2px;overflow-wrap:anywhere;}
   .person-edit{margin-top:10px;}
   .person-edit-row{display:flex;gap:8px;margin-bottom:8px;}
@@ -1364,13 +1384,6 @@ function todayISO(){
   return d.getFullYear() + '-' + month + '-' + day;
 }
 
-// The host's name, hardcoded for now in both here and lib/seats.js (see
-// the comment on HOST_SEAT_NAME there). They buy every ticket and every
-// tray, so a seat with their name on it is settled by definition -- if
-// the editor showed those as unpaid it would be arguing with the server
-// about money that doesn't exist.
-const HOST_SEAT_NAME = /\bnaren\b/i;
-
 // Normalizes a raw seat entry -- handles the legacy string format
 // ('selected' / 'occupied') from before per-seat names/paid tracking
 // existed, alongside the current object format. Returns null for
@@ -1396,7 +1409,11 @@ function normalizeSeatEntry(raw){
       return {
         status: 'assigned',
         name,
-        paid: !!raw.paid || HOST_SEAT_NAME.test(name),
+        // The host's own seat (People -> This is me) arrives with
+        // host: true. They buy every ticket and every tray, so it's
+        // settled by definition -- see lib/seats.js.
+        paid: !!raw.paid || !!raw.host,
+        host: !!raw.host,
         // Tracked apart from the ticket because the two are paid at
         // different times -- the ticket when the seat is claimed, the
         // food once the order goes in. Mirrors lib/seats.js.
@@ -1430,7 +1447,7 @@ function concessionsGrandTotal(lines){
 // What this seat still owes the host, ticket and food together. The
 // host's own seat owes nothing by definition.
 function seatOutstanding(s, price){
-  if (!s || !s.name || HOST_SEAT_NAME.test(s.name)) return 0;
+  if (!s || !s.name || s.host) return 0;
   const ticket = s.paid ? 0 : (typeof price === 'number' ? price : 0);
   const food = s.concessionsPaid ? 0 : concessionsGrandTotal(s.concessions);
   return Math.round((ticket + food) * 100) / 100;
@@ -1835,17 +1852,44 @@ document.getElementById('moviePassword').addEventListener('input', () => {
 document.getElementById('moviePassword').addEventListener('blur', saveMoviePassword);
 
 // ---------------- PEOPLE ----------------
+let hostPersonId = null;   // the admin's own profile ("This is me")
+
+async function setHostPerson(personId){
+  try{
+    const res = await fetch('/api/people-host', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ personId })
+    });
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok) throw new Error('failed');
+  }catch(e){
+    alert(t('admin.status.saveFailed'));
+  }
+  loadPeople();
+}
+
 async function loadPeople(){
   const list = document.getElementById('peopleList');
   try{
     const res = await fetch('/api/people');
     if (await handleAuthFailure(res)) return;
     if (!res.ok) throw new Error('failed');
-    const people = (await res.json()).people || [];
+    const data = await res.json();
+    const people = data.people || [];
+    hostPersonId = data.hostPersonId || null;
     list.innerHTML = '';
     if (!people.length){
       list.innerHTML = '<div class="empty-state">' + escapeHtml(t('admin.people.none')) + '</div>';
       return;
+    }
+    // Until the admin has said which profile is theirs, their own seats
+    // are billed like anyone's -- say so up top.
+    if (!hostPersonId || !people.some(p => p.id === hostPersonId)){
+      const note = document.createElement('div');
+      note.className = 'people-host-note';
+      note.textContent = t('admin.people.pickHost');
+      list.appendChild(note);
     }
     people.forEach(p => list.appendChild(buildPersonRow(p)));
   }catch(e){
@@ -1866,10 +1910,21 @@ function buildPersonRow(p){
     '<input type="text" class="pe-last" maxlength="60" placeholder="Last name"></div>' +
     '<div class="person-edit-actions"><button type="button" class="pe-save">Save</button>' +
     '<button type="button" class="pe-cancel">Cancel</button>' +
+    '<button type="button" class="pe-host"></button>' +
     '<button type="button" class="delete-btn pe-delete">Delete</button></div>' +
     '<div class="og-status pe-status"></div></div></div>' +
     '<button type="button" class="pe-open">Edit</button>';
+  const isHost = p.id === hostPersonId;
   row.querySelector('.person-name').textContent = p.firstName + ' ' + p.lastName;
+  if (isHost){
+    const tag = document.createElement('span');
+    tag.className = 'host-tag';
+    tag.textContent = t('admin.people.youTag');
+    row.querySelector('.person-name').appendChild(tag);
+  }
+  const hostBtn = row.querySelector('.pe-host');
+  hostBtn.textContent = t(isHost ? 'admin.people.notMe' : 'admin.people.thisIsMe');
+  hostBtn.addEventListener('click', () => setHostPerson(isHost ? null : p.id));
   row.querySelector('.person-meta').textContent = [
     t('admin.people.shownAs', { name: p.shortName }),
     p.email,
@@ -2303,7 +2358,7 @@ function renderSeatEditorConcessionsPaid(seat){
   const label = document.getElementById('seatEditorConcessionsPaidLabel');
   const lines = seat && seat.status === 'assigned' && seat.name ? (seat.concessions || []) : [];
   const cost = concessionsGrandTotal(lines);
-  const isHost = !!(seat && seat.name && HOST_SEAT_NAME.test(seat.name));
+  const isHost = !!(seat && seat.host);
 
   wrap.classList.toggle('hidden', cost <= 0 || isHost);
   box.checked = cost > 0 && !!seat.concessionsPaid;

@@ -328,7 +328,7 @@ function publicShowtimeView(s, viewer, onlySeatIds, lookup) {
         // The host's own seat owes nothing at all -- not the ticket and
         // not the concessions -- because they're the one paying for the
         // lot. `paid` alone only covers the ticket.
-        host: isHostSeat(seats[id].name),
+        host: isHostSeat(raw),
         concessions: seats[id].concessions,
         // Whose it is, without handing out ids: theirs, a guest someone
         // booked (and who), and the owner's photo for their own seat.
@@ -558,7 +558,20 @@ app.patch('/api/movies/:id', (req, res) => {
 app.use('/api/people', adminAuth.requireAuth('/admin'), requireSqlite);
 
 app.get('/api/people', (req, res) => {
-  res.json({ people: store.listPeople().map((p) => ({ ...p, photoUrl: photoUrlFor(p) })) });
+  res.json({
+    people: store.listPeople().map((p) => ({ ...p, photoUrl: photoUrlFor(p) })),
+    hostPersonId: store.getHostPersonId()
+  });
+});
+
+// "This is me": which profile is the admin's own. Their seat owes nothing
+// (they pay for everything) and the peanut rule follows them -- see
+// lib/seats.js and views/public.html. personId null clears it.
+app.put('/api/people-host', adminAuth.requireAuth('/admin'), requireSqlite, (req, res) => {
+  const { personId } = req.body || {};
+  if (personId !== null && typeof personId !== 'string') return res.status(400).json({ error: 'personId must be a string or null' });
+  if (!store.setHostPersonId(personId)) return res.status(404).json({ error: 'not found' });
+  res.json({ hostPersonId: store.getHostPersonId() });
 });
 
 app.patch('/api/people/:id', (req, res) => {
@@ -1142,44 +1155,57 @@ function icsUtcStamp(instantMs, addMinutes) {
 app.get('/calendar/:id.ics', sendCalendar);
 app.get('/api/public/showtimes/:id/calendar.ics', sendCalendar);
 
-function sendCalendar(req, res) {
-  const show = store.getShowtime(req.params.id);
-  if (!show) return res.status(404).json({ error: 'not found' });
-
+// One showtime as VEVENT lines, or null when it has no usable date and
+// time. `seatText` goes first in the description ("Seat H4").
+function icsEventLines(show, uid, seatText) {
   const instant = showtimeInstantMs(show.date, show.time);
-  if (instant === null) return res.status(400).json({ error: 'this showtime has no usable date and time' });
-  const start = icsUtcStamp(instant);
-  const end = icsUtcStamp(instant, CALENDAR_EVENT_MINUTES);
-
-  const seatId = typeof req.query.seat === 'string' ? req.query.seat.trim().slice(0, 12) : '';
-  const title = show.title || 'Movie';
-  const details = [seatId ? `Seat ${seatId}` : '', show.format, typeof show.price === 'number' ? `$${show.price.toFixed(2)}` : '']
+  if (instant === null) return null;
+  const details = [seatText, show.format, typeof show.price === 'number' ? `$${show.price.toFixed(2)}` : '']
     .filter(Boolean)
     .join(' \u00b7 ');
-
-  // Stable per seat, so re-adding replaces the event someone already has
-  // rather than leaving them with two.
-  const uid = `${show.id}${seatId ? '-' + seatId.toLowerCase() : ''}@canopy-tickets`;
   const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  const lines = [
+    'BEGIN:VEVENT',
+    `UID:${uid}`,
+    `DTSTAMP:${stamp}`,
+    `DTSTART:${icsUtcStamp(instant)}`,
+    `DTEND:${icsUtcStamp(instant, CALENDAR_EVENT_MINUTES)}`,
+    `SUMMARY:${icsEscape(show.title || 'Movie')}`
+  ];
+  if (show.theater) lines.push(`LOCATION:${icsEscape(show.theater)}`);
+  if (details) lines.push(`DESCRIPTION:${icsEscape(details)}`);
+  lines.push('END:VEVENT');
+  return lines;
+}
 
+// A whole file around some events. `extra` is calendar-level properties
+// (a feed's name and refresh interval).
+function icsCalendar(eventLines, extra) {
   const lines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
     'PRODID:-//canopy-tickets//EN',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
-    'BEGIN:VEVENT',
-    `UID:${uid}`,
-    `DTSTAMP:${stamp}`,
-    `DTSTART:${start}`,
-    `DTEND:${end}`,
-    `SUMMARY:${icsEscape(title)}`
+    ...(extra || []),
+    ...eventLines,
+    'END:VCALENDAR'
   ];
-  if (show.theater) lines.push(`LOCATION:${icsEscape(show.theater)}`);
-  if (details) lines.push(`DESCRIPTION:${icsEscape(details)}`);
-  lines.push('END:VEVENT', 'END:VCALENDAR');
+  return lines.map(icsFold).join('\r\n') + '\r\n';
+}
 
-  const body = lines.map(icsFold).join('\r\n') + '\r\n';
+function sendCalendar(req, res) {
+  const show = store.getShowtime(req.params.id);
+  if (!show) return res.status(404).json({ error: 'not found' });
+
+  const seatId = typeof req.query.seat === 'string' ? req.query.seat.trim().slice(0, 12) : '';
+  // Stable per seat, so re-adding replaces the event someone already has
+  // rather than leaving them with two.
+  const uid = `${show.id}${seatId ? '-' + seatId.toLowerCase() : ''}@canopy-tickets`;
+  const event = icsEventLines(show, uid, seatId ? `Seat ${seatId}` : '');
+  if (!event) return res.status(400).json({ error: 'this showtime has no usable date and time' });
+
+  const title = show.title || 'Movie';
   const filename = (title.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '') || 'showtime').toLowerCase();
 
   // attachment, not inline: it's what gets iOS to offer "Add to Calendar"
@@ -1187,8 +1213,53 @@ function sendCalendar(req, res) {
   res.set('Content-Type', 'text/calendar; charset=utf-8');
   res.set('Content-Disposition', `attachment; filename="${filename}.ics"`);
   res.set('Cache-Control', 'no-store');
-  res.send(body);
+  res.send(icsCalendar(event));
 }
+
+// ---------------- Calendar feed (per person) ----------------
+//
+// A calendar to SUBSCRIBE to rather than a file to import: every showtime
+// the person has a seat in (theirs or a guest's), kept up to date as they
+// reserve and as the host changes times -- the calendar app re-fetches it.
+//
+// Calendar apps fetch it without cookies, so the URL itself is the key:
+// a random token per person (lib/sqliteStore.js calendarTokenFor). It
+// shows the same thing My showtimes does to anyone signed in as them --
+// which showtimes and which seats -- and nothing else.
+app.get('/api/public/calendar-feed', (req, res) => {
+  const token = store.calendarTokenFor(req.person.id);
+  if (!token) return res.status(404).json({ error: 'not found' });
+  const host = req.get('host');
+  res.json({
+    url: `${req.protocol}://${host}/calendar/feed/${token}.ics`,
+    webcalUrl: `webcal://${host}/calendar/feed/${token}.ics`
+  });
+});
+
+app.get('/calendar/feed/:token.ics', (req, res) => {
+  if (store.kind !== 'sqlite') return res.status(404).end();
+  const person = store.personByCalendarToken(req.params.token);
+  if (!person) return res.status(404).end();
+  const events = [];
+  store.seatsOf(person.id).forEach(({ showtime, seatIds }) => {
+    const seats = showtime.seats || {};
+    // "Seat H4" for just you; "Seats H4, H3 (Alex)" with guests, yours first.
+    const isGuest = (id) => !!(seats[id] && seats[id].guest);
+    const labels = seatIds.slice().sort((x, y) => isGuest(x) - isGuest(y))
+      .map((id) => (isGuest(id) ? `${id} (${seats[id].name})` : id));
+    const seatText = `${labels.length > 1 ? 'Seats' : 'Seat'} ${labels.join(', ')}`;
+    const lines = icsEventLines(showtime, `feed-${showtime.id}-${person.id}@canopy-tickets`, seatText);
+    if (lines) events.push(...lines);
+  });
+  res.set('Content-Type', 'text/calendar; charset=utf-8');
+  res.set('Cache-Control', 'no-store');
+  res.send(icsCalendar(events, [
+    'X-WR-CALNAME:Canopy Tickets',
+    // How often to check for changes, for the apps that read it.
+    'REFRESH-INTERVAL;VALUE=DURATION:PT1H',
+    'X-PUBLISHED-TTL:PT1H'
+  ]));
+});
 
 // The menu a friend picks from. Read-only on this side -- only the admin
 // editor changes it (see /api/concession-menu above).

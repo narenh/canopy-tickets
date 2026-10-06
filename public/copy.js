@@ -101,9 +101,21 @@ const COPY = {
       noneFor: 'No concessions for {name}'
     },
 
+    // Your subscribe-once calendar of every showtime you have a seat in.
+    calendar: {
+      heading: 'Calendar feed',
+      hint: "Subscribe once and every showtime you reserve shows up in your calendar, kept up to date. The link is private to you, so don't share it.",
+      subscribe: 'Subscribe in Calendar',
+      copy: 'Copy link',
+      copied: 'Copied',
+      copyPrompt: 'Copy this link:',
+      failed: "Couldn't load your calendar link. Try again."
+    },
+
     // The menu under your photo in the header.
     menu: {
       editProfile: 'Edit profile',
+      calendar: 'Calendar feed',
       claimExisting: 'Claim existing seats',
       signOut: 'Sign out'
     },
@@ -237,7 +249,12 @@ const COPY = {
       shownAs: 'shown as {name}',
       seatsOne: '{count} seat',
       seatsMany: '{count} seats',
-      deleteConfirm: 'Delete {name} ({email})? Their seats stay reserved under the same names; they just stop being linked to a profile.'
+      deleteConfirm: 'Delete {name} ({email})? Their seats stay reserved under the same names; they just stop being linked to a profile.',
+      // Marking the admin's own profile. Their seats owe nothing.
+      pickHost: "Which one is you? Tap Edit on your profile and choose This is me. Until then your own seats are billed like everyone else's.",
+      thisIsMe: 'This is me',
+      notMe: 'Not me',
+      youTag: 'You'
     },
 
     // The pill at the bottom of a showtime while it saves.

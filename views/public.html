@@ -1396,6 +1396,7 @@
         </button>
         <div class="me-menu hidden" id="meMenu" role="menu">
           <button type="button" role="menuitem" onclick="closeMeMenu(); openProfile()" data-copy="friend.menu.editProfile"></button>
+          <button type="button" role="menuitem" onclick="closeMeMenu(); openCalendarFeed()" data-copy="friend.menu.calendar"></button>
           <button type="button" role="menuitem" onclick="closeMeMenu(); openExisting(true)" data-copy="friend.menu.claimExisting"></button>
           <button type="button" role="menuitem" class="me-menu-signout" onclick="signOut()" data-copy="friend.menu.signOut"></button>
         </div>
@@ -1506,6 +1507,23 @@
       <div class="claim-actions">
         <button type="button" class="claim-submit-btn" id="profileSave" onclick="saveProfile()">Save</button>
         <button type="button" id="profileCancel" onclick="closeProfile()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== CALENDAR FEED ===================== -->
+  <!-- Your own subscribe-once calendar of every showtime you have a seat
+       in. The link is private to you (it's the key -- calendar apps
+       can't sign in). -->
+  <div class="claim-overlay hidden" id="calendarOverlay">
+    <div class="claim-card">
+      <div class="claim-title" data-copy="friend.calendar.heading"></div>
+      <div class="claim-sub" data-copy="friend.calendar.hint"></div>
+      <div class="claim-error" id="calendarError"></div>
+      <div class="claim-actions">
+        <a class="cal-btn" id="calendarSubscribe" href="#" data-copy="friend.calendar.subscribe"></a>
+        <button type="button" id="calendarCopy" onclick="copyCalendarFeed()" data-copy="friend.calendar.copy"></button>
+        <button type="button" onclick="closeCalendarFeed()">Close</button>
       </div>
     </div>
   </div>
@@ -1883,7 +1901,7 @@ function isShowingState(state){
 // open one straight after closing the last), which is why closing checks
 // a tick later whether another sheet took over before stepping back.
 function anyOverlayOpen(){
-  return ['claimOverlay', 'successOverlay', 'cartOverlay', 'profileOverlay', 'existingOverlay'].some(id =>
+  return ['claimOverlay', 'successOverlay', 'cartOverlay', 'profileOverlay', 'existingOverlay', 'calendarOverlay'].some(id =>
     !document.getElementById(id).classList.contains('hidden'));
 }
 function overlayOpened(){
@@ -1923,6 +1941,7 @@ function closeAllOverlays(){
   if (!document.getElementById('cartOverlay').classList.contains('hidden')) closeCartOverlay();
   if (!document.getElementById('profileOverlay').classList.contains('hidden')) closeProfile();
   if (!document.getElementById('existingOverlay').classList.contains('hidden')) closeExisting();
+  if (!document.getElementById('calendarOverlay').classList.contains('hidden')) closeCalendarFeed();
 }
 
 // Today's date as the calendar on the wall has it, NOT as UTC has it.
@@ -3111,6 +3130,49 @@ document.getElementById('profilePhotoInput').addEventListener('change', async (e
   }
 });
 
+// ---------------- CALENDAR FEED ----------------
+// Subscribe opens the webcal:// link, which phones hand to their calendar
+// app as a subscription; Copy is for pasting the https:// one into a
+// calendar that asks for a URL (Google Calendar's "From URL").
+let calendarFeed = null;   // { url, webcalUrl }
+
+async function openCalendarFeed(){
+  document.getElementById('calendarError').textContent = '';
+  document.getElementById('calendarCopy').textContent = t('friend.calendar.copy');
+  const sub = document.getElementById('calendarSubscribe');
+  sub.href = calendarFeed ? calendarFeed.webcalUrl : '#';
+  document.getElementById('calendarOverlay').classList.remove('hidden');
+  overlayOpened();
+  if (calendarFeed) return;
+  try{
+    const res = await fetch('/api/public/calendar-feed');
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok) throw new Error('failed');
+    calendarFeed = await res.json();
+    sub.href = calendarFeed.webcalUrl;
+  }catch(e){
+    document.getElementById('calendarError').textContent = t('friend.calendar.failed');
+  }
+}
+
+function closeCalendarFeed(){
+  document.getElementById('calendarOverlay').classList.add('hidden');
+  overlayClosed();
+}
+
+async function copyCalendarFeed(){
+  if (!calendarFeed) return;
+  const btn = document.getElementById('calendarCopy');
+  try{
+    await navigator.clipboard.writeText(calendarFeed.url);
+    btn.textContent = t('friend.calendar.copied');
+  }catch(e){
+    // No clipboard access (older browsers, some in-app ones): show it to
+    // copy by hand.
+    window.prompt(t('friend.calendar.copyPrompt'), calendarFeed.url);
+  }
+}
+
 // ---------------- "ARE THESE YOURS?" ----------------
 // Seats reserved before profiles existed carry a name and no owner. These
 // are the ones in movies unlocked here, grouped by the name on them;
@@ -3279,13 +3341,13 @@ async function submitExistingPassword(e){
 // honest instead of letting it disagree with what got saved.
 const MAX_CART_QTY = 99;
 
-// Nobody sitting next to Naren gets offered peanut candy. Played for a
-// laugh, but it's an allergy, so it's built to fail safe rather than to
-// be cute: see hidePeanutRows() for what it deliberately does NOT do.
+// Nobody sitting next to the host gets offered peanut candy. Played for
+// a laugh, but it's an allergy, so it's built to fail safe rather than to
+// be cute: see hiddenPeanutItemIds() for what it deliberately does NOT do.
 //
-// Matched on a word boundary so "Naren", "naren" and "Naren H" all count
-// while a "Karen" two seats over doesn't.
-const PEANUT_NEIGHBOR = /\bnaren\b/i;
+// HARDCODED to the host for now -- the admin's own profile (People ->
+// This is me), whose seat arrives with host: true. The allergy happens to
+// be theirs; when it's anyone else's this wants its own setting.
 // Name-matched rather than by a list of ids, so it keeps working after
 // the host renames an item or adds one of their own. Reese's is on here
 // by brand: the word "peanut" isn't in the name, the peanut butter is.
@@ -3503,7 +3565,7 @@ function neighborSeatIds(seatId){
 
 function hasPeanutNeighbor(showtime, seatId){
   const seats = (showtime && showtime.seats) || {};
-  return neighborSeatIds(seatId).some(id => seats[id] && PEANUT_NEIGHBOR.test(seats[id].name || ''));
+  return neighborSeatIds(seatId).some(id => seats[id] && seats[id].host);
 }
 
 // Menu items to leave out of the catalog. Silent by design: the people
