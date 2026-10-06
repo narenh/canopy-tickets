@@ -31,7 +31,24 @@ const COPY = {
 
   // ---------------- WELCOME (friends signing in, at /) ----------------
   welcome: {
-    tagline: 'Enter your email address to continue.',
+    tagline: 'Sign in with your passkey, or enter your email to get started.',
+    signIn: 'Sign in with passkey',
+    or: 'or',
+    continueEmail: 'Continue with email',
+    signUpHint: "Next, your phone will offer to save a passkey for Canopy Tickets. That's how you'll sign in.",
+    welcomeBack: 'Welcome back, {name}',
+    setupHint: "Sign-in now uses passkeys. Enter the password for any movie you've been invited to, then save a passkey on this phone.",
+    setupButton: 'Continue',
+    hasPasskeyHint: 'This profile already has a passkey. Sign in with it below. Lost it? Ask the host to reset it.',
+    wrongMoviePassword: "That isn't the password for any movie.",
+    tooMany: 'Too many tries. Wait a few minutes.',
+    passkeyNotSaved: "The passkey wasn't saved. Try again.",
+    signInCancelled: "Sign-in didn't finish. If this phone has no passkey for Canopy Tickets yet, continue with your email instead.",
+    passkeyExists: 'This phone already has a passkey for that profile. Sign in with it instead.',
+    hasPasskeyNow: 'This profile already has a passkey. Go back and sign in with it.',
+    unknownPasskey: "That passkey isn't linked to a profile anymore. Continue with your email to set up a new one.",
+    expired: 'That took too long. Try again.',
+    noPasskeys: "This browser can't use passkeys. Open this page in Safari or Chrome.",
     badEmail: "That doesn't look like an email address.",
     failed: 'Something went wrong. Try again.',
     unreachable: 'Could not reach the server. Try again.',
@@ -46,7 +63,7 @@ const COPY = {
   // ---------------- RESERVATION PAGE (what friends see) ----------------
   friend: {
     // Above the All movies grid.
-    intro: 'Tap a movie to see its showtimes. Locked ones need their password once on this phone.',
+    intro: 'Tap a movie to see its showtimes. Locked ones need their password once.',
 
     // One film's showtimes, after tapping its poster.
     film: {
@@ -88,7 +105,7 @@ const COPY = {
     mine: {
       empty: "You don't have any seats yet.",
       browse: 'Browse movies',
-      locked: 'Unlock this movie on this phone to make changes',
+      locked: 'Unlock this movie to make changes',
       going: 'Going ({count})',
       // Your order (or a guest's) on a My showtimes card.
       add: '+ Add concessions',
@@ -130,8 +147,6 @@ const COPY = {
     profile: {
       heading: 'Edit profile',
       venmoPlaceholder: 'Venmo username',
-      // Read-only profile on a phone without one of your movies unlocked.
-      locked: 'To edit your profile on this phone, unlock one of your movies first.',
       badVenmo: 'A Venmo username is letters, numbers, - and _ only.',
       failed: "Couldn't save. Try again."
     },
@@ -142,7 +157,7 @@ const COPY = {
       hint: 'Seats reserved before profiles. Tick yours and they join your showtimes.',
       submit: 'These are mine',
       skip: 'Not now',
-      none: 'No unclaimed seats in the movies unlocked on this phone.',
+      none: "No unclaimed seats in the movies you've unlocked.",
       failed: "Couldn't save. Try again.",
       // Claiming always takes the movie's password, one movie at a time.
       pwHeading: 'Password for {title}',
@@ -260,6 +275,11 @@ const COPY = {
       // Marking the admin's own profile. Their seats owe nothing.
       pickHost: "Which one is you? Tap Edit on your profile and choose This is me. Until then your own seats are billed like everyone else's.",
       thisIsMe: 'This is me',
+      noPasskey: 'no passkey yet',
+      passkeysOne: '{count} passkey',
+      passkeysMany: '{count} passkeys',
+      resetPasskeys: 'Reset passkeys',
+      resetConfirm: "Reset {name}'s passkeys? They'll be signed out everywhere and set up a new passkey with any movie's password, like the first time.",
       notMe: 'Not me',
       youTag: 'You'
     },

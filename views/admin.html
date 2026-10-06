@@ -1911,6 +1911,7 @@ function buildPersonRow(p){
     '<div class="person-edit-actions"><button type="button" class="pe-save">Save</button>' +
     '<button type="button" class="pe-cancel">Cancel</button>' +
     '<button type="button" class="pe-host"></button>' +
+    '<button type="button" class="pe-reset"></button>' +
     '<button type="button" class="delete-btn pe-delete">Delete</button></div>' +
     '<div class="og-status pe-status"></div></div></div>' +
     '<button type="button" class="pe-open">Edit</button>';
@@ -1925,10 +1926,27 @@ function buildPersonRow(p){
   const hostBtn = row.querySelector('.pe-host');
   hostBtn.textContent = t(isHost ? 'admin.people.notMe' : 'admin.people.thisIsMe');
   hostBtn.addEventListener('click', () => setHostPerson(isHost ? null : p.id));
+  // Lost phone: their passkeys go and they set up a new one with any
+  // movie's password. Nothing to reset for someone who has none.
+  const resetBtn = row.querySelector('.pe-reset');
+  resetBtn.textContent = t('admin.people.resetPasskeys');
+  resetBtn.classList.toggle('hidden', !p.passkeyCount);
+  resetBtn.addEventListener('click', async () => {
+    if (!confirm(t('admin.people.resetConfirm', { name: p.firstName + ' ' + p.lastName }))) return;
+    try{
+      const res = await fetch('/api/people/' + encodeURIComponent(p.id) + '/reset-passkeys', { method: 'POST' });
+      if (await handleAuthFailure(res)) return;
+      if (!res.ok) throw new Error('failed');
+    }catch(e){
+      alert(t('admin.status.saveFailed'));
+    }
+    loadPeople();
+  });
   row.querySelector('.person-meta').textContent = [
     t('admin.people.shownAs', { name: p.shortName }),
     p.email,
     p.venmo ? 'Venmo @' + p.venmo : '',
+    t(p.passkeyCount ? (p.passkeyCount === 1 ? 'admin.people.passkeysOne' : 'admin.people.passkeysMany') : 'admin.people.noPasskey', { count: p.passkeyCount }),
     t(p.seatCount === 1 ? 'admin.people.seatsOne' : 'admin.people.seatsMany', { count: p.seatCount })
   ].filter(Boolean).join(' · ');
   const edit = row.querySelector('.person-edit');

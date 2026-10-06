@@ -12,6 +12,7 @@ const { createPasswordAuth } = require('./lib/auth');
 const { createDeviceAuth } = require('./lib/deviceAuth');
 const photoStore = require('./lib/photoStore');
 const { normalizeSeats, isHostSeat, CONCESSION_TAX_RATE } = require('./lib/seats');
+const webauthn = require('@simplewebauthn/server');
 
 const ogImageStore = createImageStore('og');
 const logoImageStore = createImageStore('logo');
@@ -582,6 +583,12 @@ app.patch('/api/people/:id', (req, res) => {
   res.json({ person: { ...result.person, photoUrl: photoUrlFor(result.person) } });
 });
 
+// Lost phone: their passkeys go and they're signed out everywhere. They
+// set up a new one with any movie's password, like the first time.
+app.post('/api/people/:id/reset-passkeys', (req, res) => {
+  sendResult(res, store.resetPasskeys(req.params.id));
+});
+
 // Their seats stay reserved under the names on them; they just stop
 // belonging to anyone. For a typo'd duplicate, mostly.
 app.delete('/api/people/:id', (req, res) => {
@@ -689,14 +696,23 @@ app.delete('/api/showtimes/:id', async (req, res) => {
 
 // ---------------- Friends: devices, sign-in, profiles ----------------
 //
-// No password at the door. A friend signs in with their email, and a new
-// email sets up a profile (first and last name and a photo, all
-// required). That is an honor system -- anyone who knows your email can
-// sign in as you -- so the account carries nothing worth taking: movie
-// unlocks belong to the BROWSER (devices / device_unlocks), and anything
-// that changes something needs the movie unlocked on the browser doing
-// it. Someone with only your email can see which showtimes you're in, and
-// that's all.
+// Friends sign in with a passkey (WebAuthn: Face ID / Touch ID / the
+// phone's screen lock), and nothing else -- there are no friend passwords
+// to store or forget. The browser's device cookie is the session once a
+// passkey has been verified on it.
+//
+// Getting a first passkey:
+//   - a new email: name and photo, then the passkey; the profile is only
+//     created once the passkey exists;
+//   - an existing profile with no passkey (everyone, the first time after
+//     passkeys arrived, or after the admin resets theirs): the password
+//     of ANY movie first, then the passkey.
+// A profile that already has a passkey can only be signed into with it;
+// a lost phone is the admin's "Reset passkeys".
+//
+// Movie unlocks belong to the PERSON (person_unlocks) and follow them to
+// every device. What a browser unlocked before (device_unlocks, and the
+// old friend-password cookie) carries over to whoever first signs in on it.
 
 // Too many tries at something, per key, per window. In memory: a restart
 // forgives everyone, which is fine at this scale.
@@ -718,6 +734,37 @@ function attemptLimiter(max, windowMs) {
 }
 const unlockLimiter = attemptLimiter(8, 15 * 60 * 1000);
 const unlockIpLimiter = attemptLimiter(40, 15 * 60 * 1000);
+// Across everyone, per movie (or 'setup' for "any movie's password"): the
+// backstop when the per-person and per-address limits are dodged with
+// fresh profiles and addresses. Trips for everyone, which is the point.
+const movieGuessLimiter = attemptLimiter(100, 60 * 60 * 1000);
+
+// The visitor's address. Cloudflare puts the real one in CF-Connecting-IP
+// and overwrites anything the visitor sent; X-Forwarded-For (what req.ip
+// reads, with trust proxy on) keeps whatever the visitor put first, so
+// limiting on req.ip alone could be dodged by sending a fake one.
+function clientIp(req) {
+  return req.get('cf-connecting-ip') || req.ip;
+}
+
+// Checks a movie password against every limit. 'ok', 'wrong' or
+// 'limited'. `who` is the person (or browser) trying.
+function checkMovieGuess(req, who, scope, isRight) {
+  const key = `${who}:${scope}`;
+  const ip = clientIp(req);
+  if (unlockLimiter.blocked(key) || unlockIpLimiter.blocked(ip) || movieGuessLimiter.blocked(scope)) return 'limited';
+  if (isRight()) return 'ok';
+  unlockLimiter.fail(key);
+  unlockIpLimiter.fail(ip);
+  movieGuessLimiter.fail(scope);
+  return 'wrong';
+}
+
+function sendGuessRefusal(res, outcome) {
+  if (outcome === 'limited') return res.status(429).json({ error: 'too many tries -- wait a few minutes', reason: 'rate_limited' });
+  // 403, not 401: the page reads a 401 as "you've been signed out".
+  return res.status(403).json({ error: 'wrong password', reason: 'wrong_password' });
+}
 
 // Finds this browser's device (from its cookie), making one if `create`
 // is set. Puts req.device, req.person and req.unlocked (movie ids) on the
@@ -739,11 +786,13 @@ function attachDevice(create) {
     }
     if (legacy) {
       store.grantLegacyUnlocks(device.id);
+      // Already signed in: hand them over now rather than at next sign-in.
+      if (device.person_id) store.signInDevice(device.id, device.person_id);
       sharedAuth.clearSessionCookie(res);
     }
     req.device = device;
     req.person = device.person_id ? store.getPerson(device.person_id) : null;
-    req.unlocked = store.unlockedMovieIds(device.id);
+    req.unlocked = req.person ? store.personUnlockedMovieIds(req.person.id) : new Set();
     next();
   };
 }
@@ -772,7 +821,7 @@ function cleanVenmo(raw) {
 
 function meView(req) {
   return {
-    person: req.person ? { ...req.person, photoUrl: photoUrlFor(req.person), canEdit: canEditProfile(req) } : null,
+    person: req.person ? { ...req.person, photoUrl: photoUrlFor(req.person) } : null,
     unlockedMovieIds: Array.from(req.unlocked)
   };
 }
@@ -787,53 +836,208 @@ const photoUpload = multer({
   }
 });
 
-// A profile is read-only on a browser that hasn't unlocked a movie:
-// knowing someone's email signs you in as them, so the email alone must
-// not be enough to rename them or change their photo. Someone with seats
-// needs one of THEIR movies unlocked here; someone with none yet, any.
-function canEditProfile(req) {
-  if (!req.person) return false;
-  const mine = store.seatsOf(req.person.id);
-  if (!mine.length) return req.unlocked.size > 0;
-  return mine.some((m) => req.unlocked.has(m.showtime.movieId));
-}
-
 app.get('/api/me', attachDevice(false), (req, res) => {
   res.json(meView(req));
 });
 
-// A known email signs this browser in. An unknown one is told to set up
-// a profile (and nothing is created until it has been).
-app.post('/api/signin', attachDevice(true), (req, res) => {
+// ---------------- Passkeys ----------------
+
+const PASSKEY_RP_NAME = 'Canopy Tickets';
+const PASSKEY_CEREMONY_MS = 5 * 60 * 1000;
+
+// Passkeys belong to a domain (the "relying party"). Made for
+// canopysf.com, they work on tix.canopysf.com and any other subdomain, so
+// the app can move to another subdomain without everyone starting over.
+// PASSKEY_RP_ID overrides; anywhere else (localhost in development) uses
+// the page's own host. Null when this host can't use passkeys at all.
+//
+// The expected origin is always https outside localhost: browsers only
+// offer passkeys on secure pages, and behind Cloudflare and Coolify's
+// proxy req.protocol may well read http.
+function passkeyRp(req) {
+  const host = String(req.hostname || '').toLowerCase();
+  const rpID = process.env.PASSKEY_RP_ID ||
+    (host === 'canopysf.com' || host.endsWith('.canopysf.com') ? 'canopysf.com' : host);
+  if (!host || (host !== rpID && !host.endsWith('.' + rpID))) return null;
+  const local = host === 'localhost' || host === '127.0.0.1';
+  return { rpID, origin: `${local ? req.protocol : 'https'}://${req.get('host')}` };
+}
+
+function requirePasskeyRp(req, res) {
+  if (store.kind !== 'sqlite') { res.status(503).json({ error: 'unavailable' }); return null; }
+  const rp = passkeyRp(req);
+  if (!rp) res.status(400).json({ error: 'passkeys are not available on this address' });
+  return rp;
+}
+
+async function registrationOptions(req, rp, { userId, email, displayName, existing }) {
+  return webauthn.generateRegistrationOptions({
+    rpName: PASSKEY_RP_NAME,
+    rpID: rp.rpID,
+    userID: new TextEncoder().encode(userId),
+    userName: email,
+    userDisplayName: displayName,
+    attestationType: 'none',
+    excludeCredentials: (existing || []).map((k) => ({ id: k.id, transports: k.transports })),
+    // Discoverable, so signing in needs no email: the phone offers the
+    // passkeys it has for this site.
+    authenticatorSelection: { residentKey: 'required', userVerification: 'preferred' }
+  });
+}
+
+// What's on the other end of an email. 'new': no profile yet. 'setup': a
+// profile with no passkey (first time since passkeys, or reset by the
+// admin) -- takes any movie's password. 'passkey': sign in with it.
+app.post('/api/auth/lookup', attachDevice(true), (req, res) => {
   if (store.kind !== 'sqlite') return res.status(503).json({ error: 'unavailable' });
   const email = cleanEmail((req.body || {}).email);
   if (!email) return res.status(400).json({ error: 'enter a valid email' });
   const person = store.getPersonByEmail(email);
-  if (!person) return res.json({ needsProfile: true, email });
-  store.setDevicePerson(req.device.id, person.id);
-  req.person = person;
-  res.json(meView(req));
+  if (!person) return res.json({ state: 'new', email });
+  const state = store.passkeysOf(person.id).length ? 'passkey' : 'setup';
+  res.json({ state, email, firstName: person.firstName });
 });
 
-app.post('/api/profile', attachDevice(true), photoUpload.single('photo'), (req, res) => {
-  if (store.kind !== 'sqlite') return res.status(503).json({ error: 'unavailable' });
-  const email = cleanEmail((req.body || {}).email);
+// A new profile: its details wait on this browser until the passkey
+// exists (register/verify creates both). The photo is uploaded after.
+app.post('/api/auth/register/new', attachDevice(true), async (req, res) => {
+  const rp = requirePasskeyRp(req, res);
+  if (!rp) return;
+  const body = req.body || {};
+  const email = cleanEmail(body.email);
   if (!email) return res.status(400).json({ error: 'enter a valid email' });
-  const names = cleanNames(req.body || {});
+  const names = cleanNames(body);
   if (names.error) return res.status(400).json({ error: names.error });
-  if (!req.file) return res.status(400).json({ error: 'a photo is required' });
-  const result = store.createPerson({ email, ...names });
-  if (!result.ok) return res.status(409).json({ error: 'that email already has a profile', reason: 'conflict' });
-  photoStore.save(result.person.id, req.file.buffer);
-  const person = store.setPersonPhoto(result.person.id, Date.now());
-  store.setDevicePerson(req.device.id, person.id);
-  req.person = person;
+  if (store.getPersonByEmail(email)) return res.status(409).json({ error: 'that email already has a profile', reason: 'conflict' });
+  const id = crypto.randomUUID();
+  const options = await registrationOptions(req, rp, {
+    userId: id, email, displayName: `${names.firstName} ${names.lastName}`
+  });
+  store.setPending(req.device.id, {
+    challenge: options.challenge, kind: 'register', profile: { id, email, ...names }
+  });
+  res.json({ options });
+});
+
+// First passkey for an existing profile: proves membership with the
+// password of any movie (the movie is unlocked for them once the passkey
+// is made).
+app.post('/api/auth/register/setup', attachDevice(true), async (req, res) => {
+  const rp = requirePasskeyRp(req, res);
+  if (!rp) return;
+  const body = req.body || {};
+  const person = store.getPersonByEmail(cleanEmail(body.email) || '');
+  if (!person) return res.status(404).json({ error: 'not found' });
+  if (store.passkeysOf(person.id).length) {
+    return res.status(409).json({ error: 'this profile already has a passkey', reason: 'has_passkey' });
+  }
+  const password = String(body.moviePassword || '');
+  let movie = null;
+  const outcome = checkMovieGuess(req, req.device.id, 'setup', () => {
+    movie = store.listMovies().find((m) => m.password && checkPassword(password, m.password)) || null;
+    return !!movie;
+  });
+  if (outcome !== 'ok') return sendGuessRefusal(res, outcome);
+  const options = await registrationOptions(req, rp, {
+    userId: person.id, email: person.email, displayName: `${person.firstName} ${person.lastName}`
+  });
+  store.setPending(req.device.id, {
+    challenge: options.challenge, kind: 'register', personId: person.id, profile: { unlockMovieId: movie.id }
+  });
+  res.json({ options });
+});
+
+app.post('/api/auth/register/verify', attachDevice(true), async (req, res) => {
+  const rp = requirePasskeyRp(req, res);
+  if (!rp) return;
+  const pending = store.takePending(req.device.id);
+  if (!pending || pending.kind !== 'register' || Date.now() - pending.at > PASSKEY_CEREMONY_MS) {
+    return res.status(400).json({ error: 'start again', reason: 'expired' });
+  }
+  let result;
+  try {
+    result = await webauthn.verifyRegistrationResponse({
+      response: (req.body || {}).response,
+      expectedChallenge: pending.challenge,
+      expectedOrigin: rp.origin,
+      expectedRPID: rp.rpID,
+      requireUserVerification: false
+    });
+  } catch (e) {
+    return res.status(400).json({ error: 'that passkey could not be verified', reason: 'not_verified' });
+  }
+  if (!result.verified) return res.status(400).json({ error: 'that passkey could not be verified', reason: 'not_verified' });
+  const cred = {
+    ...result.registrationInfo.credential,
+    deviceType: result.registrationInfo.credentialDeviceType,
+    backedUp: result.registrationInfo.credentialBackedUp
+  };
+
+  let personId;
+  if (pending.personId) {
+    // Someone else may have set one up in the meantime.
+    if (store.passkeysOf(pending.personId).length) {
+      return res.status(409).json({ error: 'this profile already has a passkey', reason: 'has_passkey' });
+    }
+    store.addPasskey(pending.personId, cred);
+    personId = pending.personId;
+    if (pending.profile && pending.profile.unlockMovieId) store.unlockMovieForPerson(personId, pending.profile.unlockMovieId);
+  } else if (pending.profile && pending.profile.email) {
+    const made = store.createPersonWithPasskey(pending.profile, cred);
+    if (!made.ok) return res.status(409).json({ error: 'that email already has a profile', reason: 'conflict' });
+    personId = made.person.id;
+  } else {
+    return res.status(400).json({ error: 'start again', reason: 'expired' });
+  }
+  store.signInDevice(req.device.id, personId);
+  req.person = store.getPerson(personId);
+  req.unlocked = store.personUnlockedMovieIds(personId);
   res.status(201).json(meView(req));
+});
+
+// Sign in: no email -- the phone offers whichever passkey it has here.
+app.post('/api/auth/login/options', attachDevice(true), async (req, res) => {
+  const rp = requirePasskeyRp(req, res);
+  if (!rp) return;
+  const options = await webauthn.generateAuthenticationOptions({ rpID: rp.rpID, userVerification: 'preferred' });
+  store.setPending(req.device.id, { challenge: options.challenge, kind: 'login' });
+  res.json({ options });
+});
+
+app.post('/api/auth/login/verify', attachDevice(true), async (req, res) => {
+  const rp = requirePasskeyRp(req, res);
+  if (!rp) return;
+  const pending = store.takePending(req.device.id);
+  if (!pending || pending.kind !== 'login' || Date.now() - pending.at > PASSKEY_CEREMONY_MS) {
+    return res.status(400).json({ error: 'start again', reason: 'expired' });
+  }
+  const response = (req.body || {}).response;
+  const passkey = store.getPasskey(response && response.id);
+  // Deleted by a reset, or made for a profile that's since gone.
+  if (!passkey) return res.status(400).json({ error: 'that passkey is no longer linked to a profile', reason: 'unknown_passkey' });
+  let result;
+  try {
+    result = await webauthn.verifyAuthenticationResponse({
+      response,
+      expectedChallenge: pending.challenge,
+      expectedOrigin: rp.origin,
+      expectedRPID: rp.rpID,
+      credential: { id: passkey.id, publicKey: passkey.publicKey, counter: passkey.counter, transports: passkey.transports },
+      requireUserVerification: false
+    });
+  } catch (e) {
+    return res.status(400).json({ error: 'that passkey could not be verified', reason: 'not_verified' });
+  }
+  if (!result.verified) return res.status(400).json({ error: 'that passkey could not be verified', reason: 'not_verified' });
+  store.usePasskey(passkey.id, result.authenticationInfo.newCounter);
+  store.signInDevice(req.device.id, passkey.personId);
+  req.person = store.getPerson(passkey.personId);
+  req.unlocked = store.personUnlockedMovieIds(passkey.personId);
+  res.json(meView(req));
 });
 
 app.patch('/api/profile', attachDevice(false), (req, res) => {
   if (!req.person) return res.status(401).json({ error: 'unauthorized' });
-  if (!canEditProfile(req)) return res.status(403).json({ error: 'unlock one of your movies on this device first', reason: 'locked' });
   const body = req.body || {};
   const names = cleanNames(body);
   if (names.error) return res.status(400).json({ error: names.error });
@@ -850,15 +1054,14 @@ app.patch('/api/profile', attachDevice(false), (req, res) => {
 
 app.post('/api/profile/photo', attachDevice(false), photoUpload.single('photo'), (req, res) => {
   if (!req.person) return res.status(401).json({ error: 'unauthorized' });
-  if (!canEditProfile(req)) return res.status(403).json({ error: 'unlock one of your movies on this device first', reason: 'locked' });
   if (!req.file) return res.status(400).json({ error: 'choose a photo' });
   photoStore.save(req.person.id, req.file.buffer);
   req.person = store.setPersonPhoto(req.person.id, Date.now());
   res.json(meView(req));
 });
 
-// Signs the person out of this browser. Its unlocks stay -- they're the
-// browser's.
+// Signs the person out of this browser. Their unlocks are theirs and go
+// with them.
 app.post('/api/signout', attachDevice(false), (req, res) => {
   if (req.device) store.setDevicePerson(req.device.id, null);
   res.json({ ok: true });
@@ -913,23 +1116,16 @@ app.post('/api/public/movies/:id/unlock', (req, res) => {
   const movie = store.getMovie(req.params.id);
   if (!movie) return res.status(404).json({ error: 'not found' });
   if (req.unlocked.has(movie.id)) return res.json(meView(req));
-  const key = `${req.device.id}:${movie.id}`;
-  if (unlockLimiter.blocked(key) || unlockIpLimiter.blocked(req.ip)) {
-    return res.status(429).json({ error: 'too many tries -- wait a few minutes', reason: 'rate_limited' });
-  }
   const { password } = req.body || {};
-  if (!movie.password || !checkPassword(String(password || ''), movie.password)) {
-    unlockLimiter.fail(key);
-    unlockIpLimiter.fail(req.ip);
-    // 403, not 401: the page reads a 401 as "you've been signed out".
-    return res.status(403).json({ error: 'wrong password', reason: 'wrong_password' });
-  }
-  store.unlockMovie(req.device.id, movie.id);
+  const outcome = checkMovieGuess(req, req.person.id, movie.id,
+    () => !!movie.password && checkPassword(String(password || ''), movie.password));
+  if (outcome !== 'ok') return sendGuessRefusal(res, outcome);
+  store.unlockMovieForPerson(req.person.id, movie.id);
   req.unlocked.add(movie.id);
   res.json(meView(req));
 });
 
-// Showtimes of the movies this browser has unlocked.
+// Showtimes of the movies the signed-in person has unlocked.
 app.get('/api/public/showtimes', (req, res) => {
   const lookup = peopleLookup();
   const items = store.listShowtimes()
@@ -940,8 +1136,8 @@ app.get('/api/public/showtimes', (req, res) => {
 });
 
 // The signed-in person's seats, theirs and their guests', in every movie
-// -- read-only where this browser hasn't unlocked the movie, and then
-// only their own seats are included.
+// -- read-only where they haven't unlocked the movie, and then only their
+// own seats are included.
 app.get('/api/public/mine', (req, res) => {
   const lookup = peopleLookup();
   const items = store.seatsOf(req.person.id).map(({ showtime, seatIds }) => {
@@ -1004,11 +1200,10 @@ app.get('/api/public/claimable', (req, res) => {
 });
 
 // Claims seats reserved before profiles, one movie per request, and
-// ALWAYS with that movie's password in the request -- even when this
-// browser has the movie unlocked. Unlocks belong to the browser, so
-// without this a new profile made on a phone with everything unlocked
-// could take over anyone's old seat (and its order). Wrong passwords
-// count against the same limits as unlocking.
+// ALWAYS with that movie's password typed right then -- even when they've
+// unlocked the movie already. Taking over someone's old seat (and its
+// order) is worth asking again for. Wrong passwords count against the
+// same limits as unlocking.
 app.post('/api/public/claim-existing', (req, res) => {
   const { movieId, password, seats } = req.body || {};
   if (typeof movieId !== 'string' || !Array.isArray(seats)) {
@@ -1016,16 +1211,10 @@ app.post('/api/public/claim-existing', (req, res) => {
   }
   const movie = store.getMovie(movieId);
   if (!movie) return res.status(404).json({ error: 'not found' });
-  const key = `${req.device.id}:${movie.id}`;
-  if (unlockLimiter.blocked(key) || unlockIpLimiter.blocked(req.ip)) {
-    return res.status(429).json({ error: 'too many tries -- wait a few minutes', reason: 'rate_limited' });
-  }
-  if (!movie.password || !checkPassword(String(password || ''), movie.password)) {
-    unlockLimiter.fail(key);
-    unlockIpLimiter.fail(req.ip);
-    return res.status(403).json({ error: 'wrong password', reason: 'wrong_password' });
-  }
-  store.unlockMovie(req.device.id, movie.id);
+  const outcome = checkMovieGuess(req, req.person.id, movie.id,
+    () => !!movie.password && checkPassword(String(password || ''), movie.password));
+  if (outcome !== 'ok') return sendGuessRefusal(res, outcome);
+  store.unlockMovieForPerson(req.person.id, movie.id);
   const items = seats.slice(0, 50).filter((x) => x && typeof x.showtimeId === 'string' && typeof x.seatId === 'string');
   // Only seats in this movie; any others in the list are skipped.
   const result = store.claimExistingSeats(req.person.id, items, new Set([movie.id]));
@@ -1230,8 +1419,10 @@ app.get('/api/public/calendar-feed', (req, res) => {
   const token = store.calendarTokenFor(req.person.id);
   if (!token) return res.status(404).json({ error: 'not found' });
   const host = req.get('host');
+  // https outside development: behind the proxies req.protocol can read http.
+  const local = /^(localhost|127\.0\.0\.1)$/.test(req.hostname);
   res.json({
-    url: `${req.protocol}://${host}/calendar/feed/${token}.ics`,
+    url: `${local ? req.protocol : 'https'}://${host}/calendar/feed/${token}.ics`,
     webcalUrl: `webcal://${host}/calendar/feed/${token}.ics`
   });
 });

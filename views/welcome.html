@@ -66,7 +66,7 @@
     font-weight:600;
   }
   /* 16px: iOS Safari zooms the page in when a smaller control takes focus. */
-  input[type="email"], input[type="text"]{
+  input[type="email"], input[type="text"], input[type="password"]{
     width:100%;
     background:#0f0f10;
     color:#fff;
@@ -90,6 +90,24 @@
     cursor:pointer;
   }
   button:disabled{opacity:.5;cursor:not-allowed;}
+  /* The second way in, under "or": quieter than the passkey button. */
+  button.secondary{
+    background:#1e1e21;
+    color:#fff;
+    border:1px solid #3a3a3a;
+  }
+  .passkey-btn{display:flex;align-items:center;justify-content:center;gap:8px;}
+  .passkey-btn svg{width:18px;height:18px;flex:0 0 auto;}
+  .or{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    color:var(--muted);
+    font-size:12px;
+    margin:18px 0 14px;
+  }
+  .or::before, .or::after{content:"";flex:1;height:1px;background:rgba(255,255,255,.14);}
+  .hint{font-size:12px;margin:12px 0 0;}
   .error{
     color:#e2857a;
     font-size:13px;
@@ -208,7 +226,7 @@
     box-shadow:0 10px 40px rgba(0,0,0,0.35);
   }
   body.has-backdrop p{color:#d0d0d0;}
-  body.has-backdrop input[type="email"], body.has-backdrop input[type="text"]{
+  body.has-backdrop input[type="email"], body.has-backdrop input[type="text"], body.has-backdrop input[type="password"]{
     background:rgba(0,0,0,0.35);
     border-color:rgba(255,255,255,0.18);
   }
@@ -218,20 +236,45 @@
   <div class="edge-tint top" id="edgeTop" aria-hidden="true"></div>
   <div class="edge-tint bottom" id="edgeBottom" aria-hidden="true"></div>
 
-  <!-- Step 1: who are you? A known email is all it takes to come back. -->
+  <!-- Step 1: sign in with a passkey, or an email to get one. -->
   <form class="card" id="emailForm">
     <!-- LOGO_IMG -->
     <h1>Canopy Tickets</h1>
     <p data-copy="welcome.tagline"></p>
     <div class="error" id="emailError"></div>
-    <input type="email" id="email" placeholder="Email" autocomplete="email" autocapitalize="off" spellcheck="false" autofocus required>
-    <button type="submit" id="emailBtn">Continue</button>
+    <button type="button" class="passkey-btn" id="signInBtn" onclick="signIn('emailError', 'signInBtn')">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="9" r="4.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M11.5 12.5l8.5 8.5M17 18l2-2M15 16l1.6-1.6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+      <span data-copy="welcome.signIn"></span>
+    </button>
+    <div class="or" data-copy="welcome.or"></div>
+    <input type="email" id="email" placeholder="Email" autocomplete="email" autocapitalize="off" spellcheck="false" required>
+    <button type="submit" class="secondary" id="emailBtn" data-copy="welcome.continueEmail"></button>
   </form>
+
+  <!-- A profile from before passkeys (or reset by the host): any movie's
+       password, then the passkey. -->
+  <form class="card hidden" id="setupForm">
+    <h2 id="setupHeading"></h2>
+    <p class="for-email"><span class="email-label"></span> &middot; <button type="button" onclick="backToEmail()">Change</button></p>
+    <p data-copy="welcome.setupHint"></p>
+    <div class="error" id="setupError"></div>
+    <input type="password" id="moviePassword" placeholder="Movie password" autocomplete="off">
+    <button type="submit" id="setupBtn" data-copy="welcome.setupButton"></button>
+  </form>
+
+  <!-- A profile that already has a passkey: only that gets in. -->
+  <div class="card hidden" id="hasPasskeyCard">
+    <h2 id="hasPasskeyHeading"></h2>
+    <p class="for-email"><span class="email-label"></span> &middot; <button type="button" onclick="backToEmail()">Change</button></p>
+    <p data-copy="welcome.hasPasskeyHint"></p>
+    <div class="error" id="hasPasskeyError"></div>
+    <button type="button" class="passkey-btn" id="hasPasskeyBtn" onclick="signIn('hasPasskeyError', 'hasPasskeyBtn')" data-copy="welcome.signIn"></button>
+  </div>
 
   <!-- Step 2, for an email we haven't seen: name and photo, all required. -->
   <form class="card hidden" id="profileForm">
     <h2 data-copy="welcome.profileHeading"></h2>
-    <p class="for-email"><span id="profileEmail"></span> &middot; <button type="button" onclick="backToEmail()">Change</button></p>
+    <p class="for-email"><span class="email-label"></span> &middot; <button type="button" onclick="backToEmail()">Change</button></p>
     <label class="photo-pick" id="photoPick">
       <span class="photo-circle">
         <img id="photoPreview" class="hidden" alt="">
@@ -253,11 +296,13 @@
     </div>
     <div class="error" id="profileError"></div>
     <button type="submit" id="profileBtn">Sign up</button>
+    <p class="hint" data-copy="welcome.signUpHint"></p>
   </form>
 
 <script src="/copy.js"></script>
 <script src="/vendor/cropperjs-1.6.3/cropper.min.js"></script>
 <script src="/photo-crop.js"></script>
+<script src="/vendor/simplewebauthn-browser-14.0.0/index.umd.min.js"></script>
 <script>
 applyCopy();
 
@@ -307,11 +352,93 @@ function tintEdgesFrom(url){
   img.src = url;
 }
 
-// ---------------- Step 1: email ----------------
+// ---------------- Passkeys ----------------
+// Signing in is a passkey (Face ID / Touch ID / the phone's lock) and
+// nothing else. The server hands out a challenge, the browser has the
+// phone sign it, the server checks it -- SimpleWebAuthnBrowser does the
+// browser half.
+const { startRegistration, startAuthentication, browserSupportsWebAuthn } = SimpleWebAuthnBrowser;
+
 let email = '';
 
 // Signed in: the same URL now serves the reservation page.
 function enter(){ window.location.reload(); }
+
+async function postJson(url, body){
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body || {})
+  });
+  const data = await res.json().catch(() => ({}));
+  return { res, data };
+}
+
+// What a failed passkey prompt means, in words. NotAllowedError is the
+// browser's answer for cancelled, timed out, and "no passkey here" alike.
+function passkeyErrorText(err, making){
+  if (err && err.name === 'NotAllowedError') return t(making ? 'welcome.passkeyNotSaved' : 'welcome.signInCancelled');
+  if (err && err.name === 'InvalidStateError') return t('welcome.passkeyExists');
+  return t('welcome.failed');
+}
+
+// Makes the passkey from the server's options and sends it back. Returns
+// true once signed in; otherwise puts the reason in errorEl.
+async function finishRegistration(options, errorEl){
+  let response;
+  try{
+    response = await startRegistration({ optionsJSON: options });
+  }catch(err){
+    errorEl.textContent = passkeyErrorText(err, true);
+    return false;
+  }
+  const { res, data } = await postJson('/api/auth/register/verify', { response });
+  if (res.ok) return true;
+  errorEl.textContent = data.reason === 'has_passkey' ? t('welcome.hasPasskeyNow')
+    : data.reason === 'conflict' ? t('welcome.emailTaken')
+    : data.reason === 'expired' ? t('welcome.expired')
+    : t('welcome.failed');
+  return false;
+}
+
+async function signIn(errorId, btnId){
+  const errorEl = document.getElementById(errorId);
+  const btn = document.getElementById(btnId);
+  errorEl.textContent = '';
+  btn.disabled = true;
+  try{
+    const start = await postJson('/api/auth/login/options');
+    if (!start.res.ok){ errorEl.textContent = start.data.error || t('welcome.failed'); return; }
+    let response;
+    try{
+      response = await startAuthentication({ optionsJSON: start.data.options });
+    }catch(err){
+      errorEl.textContent = passkeyErrorText(err, false);
+      return;
+    }
+    const { res, data } = await postJson('/api/auth/login/verify', { response });
+    if (res.ok){ enter(); return; }
+    errorEl.textContent = data.reason === 'unknown_passkey' ? t('welcome.unknownPasskey') : t('welcome.failed');
+  }catch(err){
+    errorEl.textContent = t('welcome.unreachable');
+  }finally{
+    btn.disabled = false;
+  }
+}
+
+// No passkeys in this browser at all (old phones, some in-app browsers):
+// say so up front rather than failing at the last step.
+if (!browserSupportsWebAuthn()){
+  document.getElementById('emailError').textContent = t('welcome.noPasskeys');
+  document.getElementById('signInBtn').disabled = true;
+}
+
+// ---------------- Step 1: email ----------------
+const CARDS = ['emailForm', 'profileForm', 'setupForm', 'hasPasskeyCard'];
+function showCard(id){
+  CARDS.forEach(c => document.getElementById(c).classList.toggle('hidden', c !== id));
+  document.querySelectorAll('.email-label').forEach(el => { el.textContent = email; });
+}
 
 document.getElementById('emailForm').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -320,17 +447,23 @@ document.getElementById('emailForm').addEventListener('submit', async (e) => {
   errorEl.textContent = '';
   btn.disabled = true;
   try{
-    const res = await fetch('/api/signin', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: document.getElementById('email').value })
-    });
-    const data = await res.json().catch(() => ({}));
+    const { res, data } = await postJson('/api/auth/lookup', { email: document.getElementById('email').value });
     if (res.status === 400){ errorEl.textContent = t('welcome.badEmail'); return; }
     if (!res.ok){ errorEl.textContent = t('welcome.failed'); return; }
-    if (data.person){ enter(); return; }
     email = data.email;
-    showProfile();
+    if (data.state === 'new'){
+      showCard('profileForm');
+      document.getElementById('firstName').focus();
+    } else if (data.state === 'setup'){
+      document.getElementById('setupHeading').textContent = t('welcome.welcomeBack', { name: data.firstName });
+      document.getElementById('setupError').textContent = '';
+      showCard('setupForm');
+      document.getElementById('moviePassword').focus();
+    } else {
+      document.getElementById('hasPasskeyHeading').textContent = t('welcome.welcomeBack', { name: data.firstName });
+      document.getElementById('hasPasskeyError').textContent = '';
+      showCard('hasPasskeyCard');
+    }
   }catch(err){
     errorEl.textContent = t('welcome.unreachable');
   }finally{
@@ -338,20 +471,38 @@ document.getElementById('emailForm').addEventListener('submit', async (e) => {
   }
 });
 
-function showProfile(){
-  document.getElementById('emailForm').classList.add('hidden');
-  document.getElementById('profileForm').classList.remove('hidden');
-  document.getElementById('profileEmail').textContent = email;
-  document.getElementById('firstName').focus();
-}
-
 function backToEmail(){
-  document.getElementById('profileForm').classList.add('hidden');
-  document.getElementById('emailForm').classList.remove('hidden');
+  showCard('emailForm');
   document.getElementById('email').focus();
 }
 
-// ---------------- Step 2: name + photo ----------------
+// ---------------- First passkey for an existing profile ----------------
+document.getElementById('setupForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const errorEl = document.getElementById('setupError');
+  const btn = document.getElementById('setupBtn');
+  errorEl.textContent = '';
+  btn.disabled = true;
+  try{
+    const { res, data } = await postJson('/api/auth/register/setup', {
+      email, moviePassword: document.getElementById('moviePassword').value
+    });
+    if (!res.ok){
+      errorEl.textContent = res.status === 403 ? t('welcome.wrongMoviePassword')
+        : res.status === 429 ? t('welcome.tooMany')
+        : data.reason === 'has_passkey' ? t('welcome.hasPasskeyNow')
+        : t('welcome.failed');
+      return;
+    }
+    if (await finishRegistration(data.options, errorEl)) enter();
+  }catch(err){
+    errorEl.textContent = t('welcome.unreachable');
+  }finally{
+    btn.disabled = false;
+  }
+});
+
+// ---------------- New profile: name + photo, then the passkey ----------------
 let photoBlob = null;
 
 // Sign up stays tappable; what's missing is said when it's tapped.
@@ -364,7 +515,7 @@ function missingForProfile(){
 }
 
 // Picking a photo opens it for framing (public/photo-crop.js). Nothing
-// leaves the phone until "Create profile", and then only the framed
+// leaves the phone until the passkey is made, and then only the framed
 // square.
 document.getElementById('photoInput').addEventListener('change', async (e) => {
   const file = e.target.files && e.target.files[0];
@@ -389,6 +540,8 @@ document.getElementById('photoInput').addEventListener('change', async (e) => {
   if (errorEl.textContent === t('welcome.photoRequired')) errorEl.textContent = '';
 });
 
+// The profile only exists once its passkey does (the server creates both
+// together), so the photo goes up straight after, signed in.
 document.getElementById('profileForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const errorEl = document.getElementById('profileError');
@@ -396,19 +549,18 @@ document.getElementById('profileForm').addEventListener('submit', async (e) => {
   errorEl.textContent = missingForProfile();
   if (errorEl.textContent) return;
   btn.disabled = true;
-  const form = new FormData();
-  form.append('email', email);
-  form.append('firstName', document.getElementById('firstName').value);
-  form.append('lastName', document.getElementById('lastName').value);
-  form.append('photo', photoBlob, 'photo.jpg');
   try{
-    const res = await fetch('/api/profile', { method: 'POST', body: form });
+    const { res, data } = await postJson('/api/auth/register/new', {
+      email,
+      firstName: document.getElementById('firstName').value,
+      lastName: document.getElementById('lastName').value
+    });
     if (res.status === 409){ errorEl.textContent = t('welcome.emailTaken'); return; }
-    if (!res.ok){
-      const data = await res.json().catch(() => ({}));
-      errorEl.textContent = data.error || t('welcome.failed');
-      return;
-    }
+    if (!res.ok){ errorEl.textContent = data.error || t('welcome.failed'); return; }
+    if (!(await finishRegistration(data.options, errorEl))) return;
+    const form = new FormData();
+    form.append('photo', photoBlob, 'photo.jpg');
+    await fetch('/api/profile/photo', { method: 'POST', body: form }).catch(() => {});
     // The reservation page offers "are these yours?" once, after this.
     try{ sessionStorage.setItem('canopy_new_profile', '1'); }catch(err){}
     enter();

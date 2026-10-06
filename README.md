@@ -169,50 +169,66 @@ from; and anything only a developer sees.
 
 ## Friends: sign-in and movie passwords
 
-There's no password at the front door. A friend types their **email**; a
-known one is signed in, a new one sets up a profile (first name, last
-name, photo — all required). That's an honor system: nothing checks the
-email is really theirs. So the account is deliberately worth very little
-on its own:
+**Friends sign in with a passkey** (Face ID / Touch ID / the phone's
+screen lock) — no friend passwords to store, guess or forget. Passkeys are
+made for `canopysf.com` (override with `PASSKEY_RP_ID`), so they keep
+working if the app moves to another subdomain; on any other host
+(localhost in development) they're made for that host. The server keeps
+only each passkey's public key (`passkeys` table); the browser half is
+SimpleWebAuthn, vendored in `public/vendor/simplewebauthn-browser-*`.
+
+- **Sign in:** "Sign in with passkey" — no email; the phone offers the
+  passkey it has for the site. iCloud Keychain / Google Password Manager
+  sync it to the person's other devices.
+- **New email:** first and last name and a photo (all required), then the
+  phone saves a passkey. The profile is only created once the passkey
+  exists.
+- **Existing profile with no passkey** (everyone, the first time after
+  passkeys arrived, or after a reset): the password of **any** movie, then
+  the passkey. That movie gets unlocked for them too.
+- **Profile that already has a passkey:** only the passkey gets in. A lost
+  phone (or a switch to a phone that doesn't have it) is **Reset passkeys**
+  in the admin's People tab: their passkeys are deleted, they're signed
+  out everywhere, and they set up again with any movie's password.
+
+Once signed in, the session is the browser's device cookie (a year from
+the last visit). Your profile — name, photo, optional Venmo username —
+is yours to edit whenever you're signed in.
+
+**Movie passwords** gate everything inside a movie:
 
 - **Each movie has its own password**, set on the movie's page in the
   admin and shown there in plain text (it's for handing out). A friend
-  types it once and the movie stays unlocked **on that browser** for good.
-  Unlocks belong to the browser, not the profile.
-- **Changing anything needs the movie unlocked on the browser doing it**:
-  reserving, concession orders, marking paid. A profile (name, photo,
-  Venmo username) is read-only on a browser that hasn't unlocked one of
-  that person's movies (any movie, for someone with no seats yet) —
-  otherwise knowing an email would be enough to rename someone.
+  types it once and the movie stays unlocked **for them, on every device**
+  (`person_unlocks`).
+- **Reserving, concession orders and marking paid** need the movie
+  unlocked.
 - **A seat's order and payment are its owner's**: your own seat and the
   guests you booked. Other people's seats show who's sitting there and
   can't be opened; the server refuses writes to them too.
 - **Claiming a seat reserved before profiles always takes that movie's
-  password, typed in the claim itself** — even if the movie is unlocked
-  on that browser. Otherwise a new profile made on a phone with
-  everything unlocked could claim anyone's seat. Seats picked across
-  several movies ask for one password at a time.
-- Wrong movie passwords are limited (8 tries per movie per browser, 40
-  per network address, per 15 minutes).
+  password, typed in the claim itself**, even if it's unlocked. Seats
+  picked across several movies ask for one password at a time.
+- **Wrong movie passwords are limited**: 8 tries per movie per person (or
+  browser, for first-time setup), 40 per network address, per 15 minutes,
+  and 100 per movie per hour across everyone, as a backstop. The address
+  is Cloudflare's `CF-Connecting-IP` when present — `X-Forwarded-For`
+  keeps whatever the visitor sent first, so it can't be trusted for this.
 
 A movie without a password can't be unlocked by anyone; the admin's
 movie grid flags those. Changing a movie's password doesn't re-lock
-browsers that already unlocked it.
+people who already unlocked it.
 
-**Moving over from the single friend password:** every movie that existed
-then got the old friend password as its own (change any of them on the
-movie's page). A browser still signed in with the old password gets all
-of those movies unlocked automatically, then is asked for an email once.
-After setting up a profile, a friend is offered the seats reserved under
-their name before profiles existed ("Are any of these yours?"); the same
-list is under **Claim existing seats** later.
+**Moving over from before passkeys:** everyone was signed out once
+(schema v9). Whatever a browser had unlocked (and a browser still holding
+the old single friend password gets every movie of that era) carries over
+to the first person who signs in on it with a passkey. After setting up a
+new profile, a friend is offered the seats reserved under their name
+before profiles existed ("Are any of these yours?"); the same list is
+under **Claim existing seats** later.
 
-Tapping your photo in the header opens a menu: **Edit profile** (photo,
-name, and an optional Venmo username, shown to the host in People),
-**Claim existing seats**, **Sign out**.
-
-Sessions last a year from the last visit, so someone who drops by now and
-then is never signed out.
+Tapping your photo in the header opens a menu: **Edit profile**,
+**Calendar feed**, **Claim existing seats**, **Sign out**.
 
 ## Add to calendar
 
