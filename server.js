@@ -162,6 +162,13 @@ function normalizeScreenInput(raw) {
   return DEFAULT_SCREEN;
 }
 
+// Optional free-text note about one showing -- "Japanese Spoken", "Open
+// Caption", "Fan event" -- shown to friends on the showtime's card. Blank
+// is the normal case and means nothing gets shown.
+function normalizeInfoInput(raw) {
+  return typeof raw === 'string' ? raw.trim().slice(0, 120) : '';
+}
+
 // Builds the Open Graph / Twitter Card <meta> tags for the link-preview
 // shown by iMessage, Facebook, Instagram, etc. when tix.canopysf.com gets
 // shared. Same title/description everywhere on purpose -- there's one
@@ -297,6 +304,7 @@ function publicShowtimeView(s) {
     format: s.format,
     screen: s.screen || DEFAULT_SCREEN,
     price: s.price,
+    info: s.info || '',
     posterUrl: posterUrlForTitle(s.title),
     // Set by the host when they go and place the order -- see the
     // orders-closed route below for why it isn't a clock.
@@ -511,6 +519,7 @@ app.post('/api/showtimes', async (req, res) => {
     format: String(body.format || '').slice(0, 100),
     screen: normalizeScreenInput(body.screen),
     price: parsePrice(body.price),
+    info: normalizeInfoInput(body.info),
     seats: body.seats,
     createdAt: now,
     updatedAt: now
@@ -535,6 +544,7 @@ app.put('/api/showtimes/:id', async (req, res) => {
     format: String(body.format ?? existing.format).slice(0, 100),
     screen: body.screen !== undefined ? normalizeScreenInput(body.screen) : (existing.screen || DEFAULT_SCREEN),
     price: body.price !== undefined ? parsePrice(body.price) : existing.price,
+    info: body.info !== undefined ? normalizeInfoInput(body.info) : (existing.info || ''),
     seats,
     updatedAt: Date.now()
   };

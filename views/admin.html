@@ -12,6 +12,7 @@
     --red:#e2333d;
     --green:#2ecc71;
     --green-dark:#1f9d57;
+    --info-blue:#4da6ff;
     --outside-bg:#5c5228;
     --outside-dark:#453d1e;
     --outside-text:#cfc48f;
@@ -354,6 +355,25 @@
   .subtitle input::-webkit-calendar-picker-indicator{filter:invert(1);}
   .price-field{display:inline-flex;align-items:center;gap:2px;}
   #price{width:64px;}
+  .info-row{margin-top:10px;}
+  #showInfo{
+    width:100%;
+    max-width:360px;
+    background:transparent;
+    color:var(--info-blue);
+    border:none;
+    border-bottom:1px solid #555;
+    font-size:15px;
+    font-family:inherit;
+    padding:2px 2px;
+  }
+  #showInfo::placeholder{color:#666;}
+  .card .showtime-info{
+    color:var(--info-blue);
+    font-size:14px;
+    font-weight:700;
+    margin-bottom:4px;
+  }
   .price-quick{
     margin-top:8px;
     display:flex;
@@ -1058,6 +1078,14 @@
         <button type="button" class="quick-price-btn" onclick="setPrice(17.49)">$17.49</button>
         <button type="button" class="quick-price-btn" onclick="setPrice(28.99)">$28.99</button>
       </div>
+      <!-- Optional note shown to friends on this showtime's card. The
+           datalist offers every note already used (see
+           refreshTitleSuggestions()), so "Japanese Spoken" is typed once. -->
+      <div class="info-row">
+        <input type="text" id="showInfo" list="infoSuggestions" maxlength="120" autocomplete="off"
+               placeholder="Showtime info (optional), e.g. Japanese Spoken">
+        <datalist id="infoSuggestions"></datalist>
+      </div>
       <div class="edit-hint" data-copy="admin.seatGrid.fieldsHelp"></div>
     </div>
 
@@ -1320,12 +1348,15 @@ function isPastShowtime(obj){
 
 // Every distinct title already used, so the title field's <datalist>
 // can autocomplete instead of risking a typo splitting one movie into
-// two different titles across showtimes.
+// two different titles across showtimes. Showtime info notes get the
+// same treatment from the same list.
 function refreshTitleSuggestions(items){
-  const seen = new Set();
-  items.forEach(obj => { if (obj.title) seen.add(obj.title); });
-  const datalist = document.getElementById('titleSuggestions');
-  datalist.innerHTML = Array.from(seen).sort()
+  fillDatalist('titleSuggestions', items.map(obj => obj.title));
+  fillDatalist('infoSuggestions', items.map(obj => obj.info));
+}
+function fillDatalist(id, values){
+  const seen = new Set(values.filter(Boolean));
+  document.getElementById(id).innerHTML = Array.from(seen).sort()
     .map(t => '<option value="' + escapeHtml(t) + '">')
     .join('');
 }
@@ -1432,6 +1463,13 @@ function buildCard(obj){
   meta.textContent = [obj.theater, obj.format, formatPrice(obj.price)].filter(Boolean).join(' | ');
   info.appendChild(meta);
 
+  if (obj.info){
+    const note = document.createElement('div');
+    note.className = 'showtime-info';
+    note.textContent = obj.info;
+    info.appendChild(note);
+  }
+
   const namedIds = blockIds.filter(id => seats[id].name);
   const availLine = document.createElement('div');
   if (blockIds.length === 0){
@@ -1520,6 +1558,7 @@ function openNew(){
   document.getElementById('screen').value = DEFAULT_SCREEN;
   syncFormatOptions();
   document.getElementById('price').value = '17.49';
+  document.getElementById('showInfo').value = '';
   seatStates = {};
   document.getElementById('deleteBtn').classList.add('hidden');
   document.getElementById('saveStatus').textContent = '';
@@ -1549,6 +1588,7 @@ async function openExisting(id){
     document.getElementById('screen').value = obj.screen || DEFAULT_SCREEN;
     syncFormatOptions(obj.format);
     document.getElementById('price').value = (typeof obj.price === 'number') ? obj.price.toFixed(2) : '';
+    document.getElementById('showInfo').value = obj.info || '';
     seatStates = normalizeSeats(obj.seats);
     document.getElementById('deleteBtn').classList.remove('hidden');
     document.getElementById('saveStatus').textContent = '';
@@ -1983,6 +2023,7 @@ async function saveCurrent(){
     format: document.getElementById('format').value,
     screen: document.getElementById('screen').value,
     price: document.getElementById('price').value,
+    info: document.getElementById('showInfo').value,
     seats: seatStates
   };
   try{

@@ -11,6 +11,7 @@
     --gold-dark:#8a712f;
     --red:#e2333d;
     --green:#2ecc71;
+    --info-blue:#4da6ff;
     --venmo:#008CFF;
     --cashapp:#00D64F;
     --bg:#0b0b0d;
@@ -171,6 +172,15 @@
     margin-bottom:8px;
   }
   .seats-avail-green{color:var(--green);}
+  /* The host's note about this one showing ("Japanese Spoken"). Bright
+     and bold so it isn't missed -- it's usually the thing that would
+     make someone pick a different time. */
+  .card .showtime-info{
+    color:var(--info-blue);
+    font-size:14px;
+    font-weight:700;
+    margin-bottom:4px;
+  }
   .seats-avail-red{color:var(--red);}
   .seats-empty{
     color:var(--muted);
@@ -1669,6 +1679,13 @@ function buildCard(obj){
   meta.className = 'meta';
   meta.textContent = showtimeWhere(obj);
   info.appendChild(meta);
+
+  if (obj.info){
+    const note = document.createElement('div');
+    note.className = 'showtime-info';
+    note.textContent = obj.info;
+    info.appendChild(note);
+  }
 
   const seats = obj.seats || {};
   const ids = Object.keys(seats).sort(compareSeatIds);
