@@ -820,11 +820,7 @@
     border:none;
     font-weight:700;
   }
-  /* The first thing on this card and the one that stops being possible
-     once it's dismissed, so it gets a solid fill rather than the plain
-     dark of the secondary buttons. Gold, not a blue of its own: it's the
-     page's own accent, and it keeps the two blue-ish fills below it
-     reading as the pay buttons rather than as a set of three. */
+  /* The Calendar feed sheet's Subscribe: the page's own gold accent. */
   .claim-actions .cal-btn{
     background:var(--gold);
     color:#241c07;
@@ -1689,8 +1685,6 @@
             <button type="button" class="mark-paid-btn hidden" id="cartMarkPaid" onclick="markCartPaid()"></button>
           </div>
           <div class="food-pending hidden" id="cartFoodPending"></div>
-          <!-- No target: see the same link on the post-claim card. -->
-          <a class="cart-cal-btn" id="cartCalLink" href="#" data-copy="friend.cart.addCalendar"></a>
           <button type="button" id="cartCloseBtn" onclick="closeCartOverlay()">Close</button>
         </div>
       </div>
@@ -2883,11 +2877,12 @@ function closeClaimOverlay(){
 
 // ---------------- SUCCESS / PAY OVERLAY ----------------
 // The card after a seat is claimed asks one thing at a time: settle up,
-// then put it in the calendar, then order something. Each has its own way
-// out, and skipping one moves to the next rather than dismissing the lot.
+// then order something. Each has its own way out, and skipping one moves
+// to the next rather than dismissing the lot. (The calendar is the
+// subscribe-once feed now, not a per-showtime event.)
 //
 // A step that can't do anything is never offered -- no payment handles
-// set, no usable date to build an event from, no menu to order off.
+// set, no menu to order off.
 let successSteps = [];
 let successStepTotal = 0;  // fixed at open, so "2 of 3" doesn't renumber as steps are consumed
 let successShowtime = null;
@@ -2909,7 +2904,6 @@ function openSuccessOverlay(showtime, seatId){
 
   successSteps = [];
   if (canPay) successSteps.push('pay');
-  if (showtimeStart(showtime)) successSteps.push('calendar');
   if (concessionMenu.length) successSteps.push('concessions');
   successStepTotal = successSteps.length;
 
@@ -2968,18 +2962,6 @@ function renderSuccessStep(){
       markSeatPaid(successShowtime.id, successSeatId, { ticket: true });
       advanceSuccessStep();
     }));
-    actions.appendChild(successButton('Skip', '', advanceSuccessStep));
-    return;
-  }
-
-  if (step === 'calendar'){
-    // Not under /api/public: Chrome on iOS doesn't send the login cookie
-    // with a calendar download -- see /calendar/:id.ics in server.js.
-    const href = '/calendar/' + encodeURIComponent(successShowtime.id) +
-      '.ics?seat=' + encodeURIComponent(successSeatId);
-    // No target: iOS shows the Add to Calendar sheet over the page, and a
-    // blank tab is what you get if you fight it.
-    actions.appendChild(successLink(t('friend.success.addCalendar'), 'cal-btn', href, false));
     actions.appendChild(successButton('Skip', '', advanceSuccessStep));
     return;
   }
@@ -3514,20 +3496,6 @@ function concessionTax(subtotal){
 // decimal, and rounding the label makes the arithmetic look wrong.
 function formatTaxRate(rate){
   return (rate * 100).toFixed(3).replace(/0+$/, '').replace(/\.$/, '') + '%';
-}
-
-// Local Date for a showtime's start, or null if it hasn't got a usable
-// date/time. Built field-by-field rather than by parsing "2026-02-12T19:00"
-// as a string, which some browsers read as UTC and some as local.
-function showtimeStart(obj){
-  if (typeof obj.date !== 'string' || typeof obj.time !== 'string') return null;
-  const d = obj.date.split('-').map(Number);
-  // Not `t`: that's the copy lookup from public/copy.js, and shadowing it
-  // inside a function is the kind of thing that only breaks later.
-  const hm = obj.time.split(':').map(Number);
-  if (d.length < 3 || hm.length < 2 || d.some(n => !Number.isFinite(n)) || hm.some(n => !Number.isFinite(n))) return null;
-  const dt = new Date(d[0], d[1] - 1, d[2], hm[0], hm[1], 0, 0);
-  return Number.isFinite(dt.getTime()) ? dt : null;
 }
 
 // Open until the host closes it from the editor, which they do when they
@@ -4401,9 +4369,6 @@ function renderCartFoot(){
   markEl.disabled = paidInFlight;
   // An empty two-thirds would leave "I've paid" floating right.
   document.getElementById('cartPayLinks').classList.toggle('hidden', !venmoUrl && !cashUrl);
-
-  document.getElementById('cartCalLink').href = '/calendar/' + encodeURIComponent(cartShowtimeId) +
-    '.ics?seat=' + encodeURIComponent(cartSeatId);
 
   // Says why the button is asking for less than the row above it does.
   // Without it that gap reads as a bug.

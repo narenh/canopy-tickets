@@ -117,9 +117,8 @@ files and images (see "Storage & backups" below).
   and a pill at the bottom says whether it has (tap it to retry a save
   that failed). The menu still has an explicit Save. Only served to
   authenticated admin requests.
-- `views/public.html` — the friend-facing reservation page. Claiming a
-  seat offers an **Add to calendar** link first (see below), served as a
-  real `.ics` by `server.js`. Only served to a signed-in browser. Two
+- `views/public.html` — the friend-facing reservation page. Only served
+  to a signed-in browser. Two
   tabs: **My showtimes** and **All movies**, a poster grid where a locked
   movie takes its password over its own (blurred) poster; tapping an
   unlocked one lists that film's showtimes. Shows each showtime's remaining spot count
@@ -255,25 +254,20 @@ is also the host (below).
 Upgrading from "This is me" (schema v11): the profile marked that way
 became the admin — or, if nobody was marked, the first profile made.
 
-## Add to calendar
+## Calendar feed
+
+Each person has a subscribe-once calendar of every showtime they have a
+seat in (theirs and their guests'), at `/calendar/feed/<token>.ics`.
+**Calendar feed** in the profile menu offers "Subscribe in Calendar" (the
+`webcal://` link, which phones hand to their calendar app) and Copy link,
+and a banner at the top of My showtimes points at it until it's tapped or
+dismissed. Calendar apps fetch it without cookies, so the random
+per-person token in the URL is the key.
 
 The confirmation card after a claim asks one thing at a time — settle up,
-then put it in the calendar, then order something — each with its own way
-out, and skipping one moves to the next rather than dismissing the lot. A
-step that can't do anything is never offered: no payment handles set, no
-usable date to build an event from, no menu to order off. That's what the
-"Step 2 of 3" line is for, so Skip doesn't look like Close.
-
-The **Add to calendar** step points at
-`/api/public/showtimes/:id/calendar.ics?seat=G15`, which builds a real
-`.ics` on the fly: title, theater as the location, and the seat, format
-and price in the description.
-
-A served `text/calendar` file rather than a `data:` URI or a Google
-Calendar link — it's the one thing every phone knows what to do with, and
-it doesn't assume anyone's calendar lives at a particular provider. The
-`UID` is stable per seat, so adding it twice replaces the event rather
-than leaving someone with two of them.
+then order something — each with its own way out; skipping one moves to
+the next rather than dismissing the lot, and a step that can't do
+anything (no payment handles, no menu) is never offered.
 
 Times are resolved against **San Francisco's own clock** and written as
 real UTC instants, so a January showtime lands on PST and a July one on
@@ -285,9 +279,9 @@ DST change right rather than approximately right. `SHOWTIME_TIMEZONE` in
 is at Metreon; when that stops being true, a showtime will need to carry
 its own zone.
 
-The event is a flat **3 hours**. Nothing here knows a film's real runtime,
-and what the block on someone's calendar is for is trailers, the film and
-getting out.
+Each event is a flat **3 hours**. Nothing here knows a film's real
+runtime, and what the block on someone's calendar is for is trailers, the
+film and getting out.
 
 ## Concessions
 

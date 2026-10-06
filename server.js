@@ -1306,15 +1306,9 @@ app.post('/api/public/claim-existing', (req, res) => {
   res.json({ claimed: result.claimed });
 });
 
-// ---------------- Calendar invite ----------------
+// ---------------- Calendar (.ics) building ----------------
 //
-// Handed out as a real .ics file from a real URL rather than a data: URI
-// or a Google Calendar link: a served text/calendar file is the one thing
-// every phone knows what to do with (iOS offers "Add to Calendar", Android
-// hands it to whichever calendar app is installed), and it doesn't assume
-// anyone's calendar lives at a particular provider.
-//
-// Times are resolved against San Francisco's own clock, so a January
+// For each person's subscribe-once calendar feed (below). Times are resolved against San Francisco's own clock, so a January
 // showtime lands on PST and a July one on PDT with nobody picking which
 // -- see showtimeInstantMs below.
 
@@ -1419,15 +1413,6 @@ function icsUtcStamp(instantMs, addMinutes) {
   )}00Z`;
 }
 
-// Deliberately no login. Chrome on iOS hands an .ics download to the
-// system (its "Calendar file available" prompt), and that request goes
-// out without the page's cookies, so behind /api/public it only ever got
-// {"error":"unauthorized"} (Safari fetches it itself and was fine). The
-// file is a title, a time and a theater -- nothing that needs guarding.
-// The old cookie-guarded path stays for any page still holding it.
-app.get('/calendar/:id.ics', sendCalendar);
-app.get('/api/public/showtimes/:id/calendar.ics', sendCalendar);
-
 // One showtime as VEVENT lines, or null when it has no usable date and
 // time. `seatText` goes first in the description ("Seat H4").
 function icsEventLines(show, uid, seatText) {
@@ -1465,28 +1450,6 @@ function icsCalendar(eventLines, extra) {
     'END:VCALENDAR'
   ];
   return lines.map(icsFold).join('\r\n') + '\r\n';
-}
-
-function sendCalendar(req, res) {
-  const show = store.getShowtime(req.params.id);
-  if (!show) return res.status(404).json({ error: 'not found' });
-
-  const seatId = typeof req.query.seat === 'string' ? req.query.seat.trim().slice(0, 12) : '';
-  // Stable per seat, so re-adding replaces the event someone already has
-  // rather than leaving them with two.
-  const uid = `${show.id}${seatId ? '-' + seatId.toLowerCase() : ''}@canopy-tickets`;
-  const event = icsEventLines(show, uid, seatId ? `Seat ${seatId}` : '');
-  if (!event) return res.status(400).json({ error: 'this showtime has no usable date and time' });
-
-  const title = show.title || 'Movie';
-  const filename = (title.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '') || 'showtime').toLowerCase();
-
-  // attachment, not inline: it's what gets iOS to offer "Add to Calendar"
-  // instead of rendering the file as text in the browser.
-  res.set('Content-Type', 'text/calendar; charset=utf-8');
-  res.set('Content-Disposition', `attachment; filename="${filename}.ics"`);
-  res.set('Cache-Control', 'no-store');
-  res.send(icsCalendar(event));
 }
 
 // ---------------- Calendar feed (per person) ----------------

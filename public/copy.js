@@ -215,7 +215,6 @@ const COPY = {
       payCashApp: 'Pay {amount} via Cash App',
       payCashAppNoPrice: 'Pay via Cash App',
       alreadyPaid: 'I’ve already paid',
-      addCalendar: '📅 Add to calendar',
       addConcessions: '🍿 Add concessions'
     },
 
@@ -239,8 +238,7 @@ const COPY = {
       // comma-joined list of `missingItem` below.
       missingHint: 'Remove and re-add to pick {items}.',
       missingItem: 'a {label} for {name}',
-      missingItemMany: 'a {label} for {name} (×{count})',
-      addCalendar: '📅 Add to calendar'
+      missingItemMany: 'a {label} for {name} (×{count})'
     },
 
     totals: {
