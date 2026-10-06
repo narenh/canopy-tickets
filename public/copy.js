@@ -125,6 +125,15 @@ const COPY = {
       noneFor: 'No concessions for {name}'
     },
 
+    // A line of your usual order left the menu (red, top of My showtimes).
+    usualBanner: {
+      title: 'Item discontinued',
+      text: 'An item in your usual order is no longer available at this theater.',
+      button: 'Update order',
+      // On "Your usual" in the cart while the banner's up.
+      cartNote: "Something you usually get isn't available anymore."
+    },
+
     // Replaces the calendar banner while you have no showtimes and there
     // are seats reserved before profiles still waiting to be claimed.
     claimBanner: {

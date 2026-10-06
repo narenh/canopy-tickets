@@ -1550,14 +1550,30 @@ function cleanFavorites(f, menu) {
   return { favorites, usual };
 }
 
+// usualGone: a line of their usual left the menu since they last looked
+// -- the "Item discontinued" banner. Also caught here, for a menu that
+// changed without a save (the built-in one, after an upgrade).
 app.get('/api/public/favorites', (req, res) => {
-  res.json(cleanFavorites(store.getFavorites(req.person.id) || {}, concessionMenuStore.get()));
+  const stored = store.getFavorites(req.person.id) || {};
+  const cleaned = cleanFavorites(stored, concessionMenuStore.get());
+  let usualGone = !!stored.usualGone;
+  if (cleaned.usual.length < (stored.usual || []).length) {
+    store.pruneAllFavorites((f) => cleanFavorites(f, concessionMenuStore.get()));
+    usualGone = true;
+  }
+  res.json({ ...cleaned, usualGone });
+});
+
+// Looked at their favorites (or dismissed the banner).
+app.post('/api/public/favorites/reviewed', (req, res) => {
+  store.setUsualGone(req.person.id, false);
+  res.json({ ok: true });
 });
 
 app.put('/api/public/favorites', (req, res) => {
   const cleaned = cleanFavorites(req.body || {}, concessionMenuStore.get());
   store.setFavorites(req.person.id, cleaned);
-  res.json(cleaned);
+  res.json({ ...cleaned, usualGone: false });
 });
 
 // The menu a friend picks from. Read-only on this side -- only the admin

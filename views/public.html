@@ -169,6 +169,12 @@
     border-radius:16px;
     padding:7px 16px;
   }
+  /* A problem rather than a suggestion: a red tint. */
+  .warn-banner{background:#1e1415;border-color:#4d2a2c;}
+  .warn-banner .cal-banner-icon{color:#e2857a;}
+  .warn-banner:not(.hidden) ~ .cal-banner{margin-top:10px;}
+  /* The same warning on "Your usual" in the cart. */
+  .ci-warn{font-size:12.5px;color:#e2857a;margin-top:3px;}
   /* No close button on this one: it goes away by itself once you have a
      seat. */
   .claim-banner{padding-right:14px;}
@@ -1436,6 +1442,21 @@
     <!-- Your seats and the guests you booked, in every movie. Read-only
          for a movie you haven't unlocked. -->
     <div id="mineTab" class="hidden">
+      <!-- A line of your usual order left the menu: said first, in red, so
+           nobody orders "the usual" and ends up without the food. -->
+      <div class="cal-banner warn-banner hidden" id="usualBanner">
+        <svg class="cal-banner-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 3.5L21.5 20h-19z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+          <path d="M12 10v4.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+          <circle cx="12" cy="17.2" r="1.1" fill="currentColor"/>
+        </svg>
+        <div class="cal-banner-body">
+          <div class="cal-banner-title" data-copy="friend.usualBanner.title"></div>
+          <div class="cal-banner-text" data-copy="friend.usualBanner.text"></div>
+          <button type="button" class="cal-banner-btn" onclick="openFavorites()" data-copy="friend.usualBanner.button"></button>
+        </div>
+        <button type="button" class="cal-banner-close" onclick="markUsualReviewed()" aria-label="Dismiss">&#215;</button>
+      </div>
       <!-- Until it's dismissed or Subscribe is tapped (remembered on the
            person, not the phone). -->
       <div class="cal-banner hidden" id="calBanner">
@@ -3200,6 +3221,20 @@ async function loadFavorites(){
     const res = await fetch('/api/public/favorites');
     if (res.ok) myFavorites = await res.json();
   }catch(e){}
+  renderUsualBanner();
+}
+
+// "Item discontinued": a line of your usual left the menu since you last
+// looked. Goes once you've opened Favorites (or edited them) or tapped ×.
+function renderUsualBanner(){
+  document.getElementById('usualBanner').classList.toggle('hidden', !myFavorites.usualGone);
+}
+
+function markUsualReviewed(){
+  if (!myFavorites.usualGone) return;
+  myFavorites.usualGone = false;
+  renderUsualBanner();
+  fetch('/api/public/favorites/reviewed', { method: 'POST' }).catch(() => {});
 }
 
 async function saveFavorites(){
@@ -3218,6 +3253,7 @@ async function saveFavorites(){
     errorEl.textContent = t('friend.favorites.failed');
   }
   renderFavLists();
+  renderUsualBanner();
 }
 
 // The menu item a favorite line points at, or null if it's gone.
@@ -3242,6 +3278,8 @@ async function openFavorites(){
 
 function closeFavorites(){
   closeOptionMenu();
+  // They've been shown their usual as it stands now.
+  markUsualReviewed();
   document.getElementById('favoritesOverlay').classList.add('hidden');
   overlayClosed();
 }
@@ -4058,12 +4096,20 @@ function buildFavoritesSectionEl(favs, usual){
 
   if (usual.length){
     const total = usual.reduce((n, l) => n + (favItem(l).price || 0), 0);
-    inner.appendChild(favCartRow(
+    const usualRow = favCartRow(
       t('friend.favorites.cartUsual'),
       usual.map(lineName).join(', ') + (total > 0 ? ' \u00b7 ' + formatPrice(Math.round(total * 100) / 100) : ''),
       'is-usual',
       () => usual.forEach(l => addOrderLine(menuRowFor(favItem(l)), l.option))
-    ));
+    );
+    // Something they usually get is gone: say so right where they'd tap.
+    if (myFavorites.usualGone){
+      const warn = document.createElement('div');
+      warn.className = 'ci-warn';
+      warn.textContent = t('friend.usualBanner.cartNote');
+      usualRow.querySelector('.ci-main').appendChild(warn);
+    }
+    inner.appendChild(usualRow);
   }
   favs.forEach(l => {
     const item = favItem(l);
@@ -4757,6 +4803,7 @@ loadMe().then(loadList).then(() => {
 });
 loadConfig(); // populates venmoHandle for the post-claim pay link
 loadConcessionMenu(); // so the post-claim overlay knows whether to offer concessions
+loadFavorites();      // for the "Item discontinued" banner
 </script>
 
 </body>

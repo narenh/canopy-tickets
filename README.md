@@ -567,6 +567,11 @@ host saves or resets the menu, a favorite whose item or option is gone is
 deleted; for the usual only that line goes. Reads are checked against the
 current menu too.
 
+When a line of someone's usual goes, `people.usual_gone` (schema v13) is
+set and My showtimes leads with a red **Item discontinued** banner ("Update
+order" opens Favorites), and the cart's "Your usual" row says so too. It
+clears once they open Favorites, save them, or tap ×.
+
 ## Payment handles
 
 Like movie passwords, Venmo and Cash App handles are **not**
