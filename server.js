@@ -370,9 +370,10 @@ function publicShowtimeView(s, viewer, onlySeatIds, lookup) {
 // with its passkey. Which profile is the admin is stored in meta
 // (admin_person_id); it's also the host (see lib/seats.js).
 //
-// First run: with no admin yet, the sign-in page asks for the setup
-// password (ADMIN_PASSWORD) before anything else, and whoever then signs
-// in or up on that browser becomes the admin. ADMIN_RECOVERY=1 reopens
+// First run: with no admin yet, the sign-in page at / offers the setup
+// password (ADMIN_PASSWORD) -- straight away on a brand-new install, as
+// a small "Admin setup" link otherwise -- and whoever then signs in or up
+// on that browser becomes the admin. ADMIN_RECOVERY=1 reopens
 // that step after the fact -- for an admin who's lost their passkey, it
 // lets them add a new one -- and needs access to the server's settings to
 // turn on, which is the right bar for the keys to everything.
@@ -887,8 +888,8 @@ async function registrationOptions(req, rp, { userId, email, displayName, existi
 // What the sign-in page should open with: the setup password while
 // there's no admin yet (or in recovery), unless this browser already
 // entered it.
-// `fresh`: nobody has a profile yet, so the setup step can show at / too;
-// otherwise only /admin offers it, so friends never see it.
+// `fresh`: nobody has a profile yet, so the sign-in page opens on the
+// setup step; otherwise it's a small link friends can ignore.
 app.get('/api/auth/state', attachDevice(false), (req, res) => {
   res.json({
     adminSetup: adminSetupOpen(),
@@ -1682,11 +1683,10 @@ app.get('/api/amc-test', requireAdmin, async (req, res) => {
 
 // ---------------- Pages ----------------
 //
-// / is the friend side: the reservation page for a browser someone's
-// signed in on, otherwise the welcome page (passkey sign-in, email for a
-// first passkey, and the setup password on first run). /admin is the
-// editor, for the admin's passkey session; signed out it's the same
-// welcome page (signing in reloads /admin), and anyone else is sent to /.
+// / is where everyone signs in, the admin included (and the first-run
+// setup password): the reservation page for a browser someone's signed in
+// on, otherwise the welcome page. /admin is just a shortcut to the editor
+// for the admin's session; anyone else is sent to /.
 //
 // admin.html, public.html and welcome.html live outside /public so they
 // can never be fetched directly, bypassing the checks below.
@@ -1702,8 +1702,7 @@ app.get('/', attachDevice(false), (req, res) => {
 
 app.get('/admin', attachDevice(false), (req, res) => {
   if (isAdmin(req)) return renderHtmlPage(res, req, path.join(__dirname, 'views', 'admin.html'));
-  if (req.person) return res.redirect('/');
-  renderHtmlPage(res, req, path.join(__dirname, 'views', 'welcome.html'));
+  res.redirect('/');
 });
 
 // /reserve was the old dedicated friend-facing URL -- keep it working as

@@ -108,6 +108,16 @@
   }
   .or::before, .or::after{content:"";flex:1;height:1px;background:rgba(255,255,255,.14);}
   .hint{font-size:12px;margin:12px 0 0;}
+  .admin-setup-link{margin:16px 0 0;}
+  .admin-setup-link button{
+    width:auto;
+    background:none;
+    color:var(--muted);
+    padding:0;
+    font-size:12px;
+    font-weight:600;
+    text-decoration:underline;
+  }
   .error{
     color:#e2857a;
     font-size:13px;
@@ -246,6 +256,7 @@
     <div class="error" id="adminSetupError"></div>
     <input type="password" id="adminSetupPassword" placeholder="Setup password" autocomplete="off">
     <button type="submit" id="adminSetupBtn" data-copy="welcome.setupButton"></button>
+    <p class="for-email" style="margin:14px 0 0"><button type="button" onclick="showCard('emailForm')" data-copy="welcome.back"></button></p>
   </form>
 
   <!-- Step 1: sign in with a passkey, or an email to get one. -->
@@ -261,6 +272,8 @@
     <div class="or" data-copy="welcome.or"></div>
     <input type="email" id="email" placeholder="Email" autocomplete="email" autocapitalize="off" spellcheck="false" required>
     <button type="submit" class="secondary" id="emailBtn" data-copy="welcome.continueEmail"></button>
+    <!-- Only while there's no admin yet (or in recovery). -->
+    <p class="admin-setup-link hidden" id="adminSetupLink"><button type="button" onclick="showAdminSetup()" data-copy="welcome.adminSetupLink"></button></p>
   </form>
 
   <!-- A profile from before passkeys (or reset by the host): any movie's
@@ -381,8 +394,13 @@ const { startRegistration, startAuthentication, browserSupportsWebAuthn } = wind
 
 let email = '';
 
-// Signed in: the same URL now serves the reservation page.
-function enter(){ window.location.reload(); }
+// Signed in: the same URL now serves the reservation page -- or, having
+// just set up (or recovered) the admin account, straight to the editor.
+let adminFlow = false;
+function enter(){
+  if (adminFlow) window.location.href = '/admin';
+  else window.location.reload();
+}
 
 async function postJson(url, body){
   const res = await fetch(url, {
@@ -511,21 +529,30 @@ function backToEmail(){
 }
 
 // ---------------- First run: the setup password ----------------
-// Shown at /admin while there's no admin (or in recovery), and at / on a
-// brand-new install. Once it's right, the usual sign-in / sign-up follows,
-// and whoever finishes it on this browser is the admin.
+// While there's no admin (or in recovery): a brand-new install opens on
+// it; otherwise it's the small "Admin setup" link under sign-in, so
+// friends aren't asked for a password they don't have. Once it's right,
+// the usual sign-in / sign-up follows, and whoever finishes it on this
+// browser is the admin.
+function showAdminSetup(){
+  showCard('adminSetupForm');
+  document.getElementById('adminSetupPassword').focus();
+}
+
+function adminSetupDone(){
+  adminFlow = true;
+  document.getElementById('adminSetupLink').classList.add('hidden');
+  document.querySelector('#emailForm [data-copy="welcome.tagline"]').textContent = t('welcome.taglineAdmin');
+  showCard('emailForm');
+}
+
 (async function checkAdminSetup(){
   try{
-    const res = await fetch('/api/auth/state');
-    const st = await res.json();
-    const here = window.location.pathname === '/admin' || st.fresh;
-    if (!st.adminSetup || !here) return;
-    if (st.adminSetupGranted){
-      document.querySelector('#emailForm [data-copy="welcome.tagline"]').textContent = t('welcome.taglineAdmin');
-      return;
-    }
-    showCard('adminSetupForm');
-    document.getElementById('adminSetupPassword').focus();
+    const st = await (await fetch('/api/auth/state')).json();
+    if (!st.adminSetup) return;
+    if (st.adminSetupGranted){ adminSetupDone(); return; }
+    document.getElementById('adminSetupLink').classList.remove('hidden');
+    if (st.fresh) showAdminSetup();
   }catch(e){}
 })();
 
@@ -542,8 +569,7 @@ document.getElementById('adminSetupForm').addEventListener('submit', async (e) =
         : res.status === 429 ? t('welcome.tooMany') : t('welcome.failed');
       return;
     }
-    document.querySelector('#emailForm [data-copy="welcome.tagline"]').textContent = t('welcome.taglineAdmin');
-    showCard('emailForm');
+    adminSetupDone();
   }catch(err){
     errorEl.textContent = t('welcome.unreachable');
   }finally{

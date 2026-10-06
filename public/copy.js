@@ -35,6 +35,8 @@ const COPY = {
     // First run: the setup password is ADMIN_PASSWORD from the server's settings.
     adminSetupHeading: 'Set up your admin account',
     adminSetupHint: 'Enter the setup password to set up your admin account.',
+    adminSetupLink: 'Admin setup',
+    back: 'Back',
     wrongSetupPassword: "That isn't the setup password.",
     taglineAdmin: 'Now sign in with your passkey, or enter your email to create your profile. That account becomes the admin.',
     setupHintAdmin: 'Save a passkey on this phone to finish setting up your admin account.',

@@ -3,7 +3,7 @@
 A small tool for tracking AMC seat blocks you've bought so friends can
 claim seats.
 
-- At **`/admin`**, sign in with your passkey and you land in the editor — add
+- Sign in at **`/`** with your passkey and **Ticket Manager** (or `/admin`) is the editor — add
   movies and their showtimes, pick which seats you actually bought on a
   real AMC seat map, give each movie a password, assign seats to specific
   friends, and mark them paid. Friends can mark themselves paid too, for
@@ -229,21 +229,23 @@ Tapping your photo in the header opens a menu: **Edit profile**,
 ## The admin
 
 The admin is a profile like any friend's — same passkey, same sign-in —
-marked in `meta` as `admin_person_id`. Signed in as it, `/admin` opens
-the editor (and the friend-side menu has **Ticket Manager**); signed out,
-`/admin` is the sign-in page and reloads into the editor; anyone else is
-sent to `/`. The admin is also the host (below).
+marked in `meta` as `admin_person_id`. Everyone signs in at `/`;
+signed in as the admin, the friend-side menu has **Ticket Manager**, and
+`/admin` is just a shortcut to it (anyone else is sent to `/`). The admin
+is also the host (below).
 
-- **First run:** while there's no admin, the sign-in page at `/admin`
-  (and at `/` on a brand-new install with no profiles) first asks for
-  the setup password — `ADMIN_PASSWORD`. Whoever then signs up or signs
-  in on that browser, within 15 minutes, becomes the admin. An existing
-  profile there adds its passkey without a movie password.
+- **First run:** while there's no admin, the sign-in page at `/` offers
+  the setup password — `ADMIN_PASSWORD` — straight away on a brand-new
+  install with no profiles, otherwise behind a small **Admin setup** link
+  (so friends aren't asked for it). Whoever then signs up or signs in on
+  that browser, within 15 minutes, becomes the admin and lands in the
+  editor. An existing profile there adds its passkey without a movie
+  password.
 - **After that** the setup password does nothing: there's no password
   login to the editor at all.
 - **Lost your passkey?** Set `ADMIN_RECOVERY=1` in the server's settings
-  and redeploy. `/admin` asks for the setup password again; then your
-  email offers **Set up a new passkey**. Remove the setting afterwards.
+  and redeploy. The sign-in page shows **Admin setup** again; after the
+  setup password, your email offers **Set up a new passkey**. Remove the setting afterwards.
   It takes access to the server's settings, which is the right bar for
   the keys to everything.
 - In People, the admin's row is tagged **Admin** and can't be deleted or
@@ -608,7 +610,7 @@ npm install
 ADMIN_PASSWORD=whatever npm start
 ```
 
-Then visit `http://localhost:3000/admin`: enter `ADMIN_PASSWORD` as the
+Then visit `http://localhost:3000`: enter `ADMIN_PASSWORD` as the
 setup password and set up your profile and passkey — that account is the
 admin. Add a movie and give it a password (and, optionally, set
 Venmo/Cash App handles), then sign up at `http://localhost:3000` in
@@ -631,7 +633,7 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-Visit `http://localhost:3000/admin`, enter `ADMIN_PASSWORD` as the setup
+Visit `http://localhost:3000`, enter `ADMIN_PASSWORD` as the setup
 password to make your admin account, and add a movie with a password. The `canopy-data` named volume declared in
 `docker-compose.yml` is what persists the database, photos, the
 concessions menu, and uploaded images across restarts and rebuilds — don't remove it (`docker compose down -v` would
@@ -709,7 +711,7 @@ as static files instead of actually running the Node server.
    domain you actually want to hand out is bound as the app's URL — since
    the domain root is the link friends get, and `/admin` on the same
    domain is the editor.
-6. Deploy. Visit `<app URL>/admin`, enter your `ADMIN_PASSWORD` as the
+6. Deploy. Visit `<app URL>`, enter your `ADMIN_PASSWORD` as the
    setup password, set up your profile and passkey (that's the admin), then
    add a movie, give it a password, and add its showtimes.
 
