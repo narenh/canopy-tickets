@@ -1321,8 +1321,8 @@
     color:#ddd;
     margin-bottom:12px;
   }
-  /* The breakdown is small and quiet; "You owe" below it is the line
-     that matters. */
+  /* The breakdown is small and quiet; Total below it is the line that
+     matters. */
   .cart-total-row{
     display:flex;
     justify-content:space-between;
@@ -1331,7 +1331,7 @@
     font-size:12.5px;
     color:#a8a8ae;
   }
-  .cart-total-row.is-owed{
+  .cart-total-row.is-total{
     font-size:15px;
     font-weight:700;
     color:#fff;
@@ -1354,14 +1354,6 @@
     cursor:pointer;
   }
   .cart-total-row .paid-undo:hover{color:#fff;}
-  .cart-total-row.is-settled{
-    font-size:14px;
-    font-weight:700;
-    color:var(--green);
-    border-top:1px solid #2a2a2a;
-    margin-top:6px;
-    padding-top:7px;
-  }
   /* Full width under the pay links, and outlined rather than filled: it
      sits below two payment buttons and shouldn't compete with them for
      the tap. It's what you press after paying, not instead of. */
@@ -4927,8 +4919,6 @@ function renderCartFoot(){
   const lines = cartLines();
   const concessions = concessionsTotal(lines);
   const tax = concessionTax(concessions);
-  const ticketPrice = obj && typeof obj.price === 'number' ? obj.price : 0;
-  const ticketPaid = !!(seat && seat.paid);
   // The host's seat settles itself: they bought the tickets and they're
   // buying the concessions, so there's nobody for them to pay.
   const isHost = !!(seat && seat.host);
@@ -4951,53 +4941,31 @@ function renderCartFoot(){
   const concessionsCost = Math.round((concessions + tax) * 100) / 100;
   const concessionsSettled = isHost || !!(seat && seat.concessionsPaid);
   const concessionsOwed = concessionsSettled ? 0 : concessionsCost;
-  // Everything still outstanding, draft food included -- what you'll end
-  // up sending, so there are no surprises later.
-  const owed = isHost ? 0 : Math.round(((ticketPaid ? 0 : ticketPrice) + concessionsOwed) * 100) / 100;
   // What this page lets you settle: the food, once orders have closed.
   // Nothing before that -- the ticket is paid from My Showtimes.
   const payable = isHost || !cartLocked ? 0 : concessionsOwed;
   const foodPending = concessionsOwed > 0 && !cartLocked;
 
+  // Just the food: what it comes to, and whether that's been paid. The
+  // ticket is its own bill, paid and shown on My Showtimes.
   totals.innerHTML = '';
-  if (ticketPrice > 0){
-    totals.appendChild(cartTotalRow(
-      t('friend.totals.ticket'),
-      ticketPaid ? '<span class="paid-note">' + escapeHtml(t('friend.totals.paidNote')) + '</span>' : escapeHtml(formatPrice(ticketPrice)),
-      // Not on the host's own seat: it was never owed, so there's nothing
-      // to take back.
-      ticketPaid && !isHost ? () => setCartPaid({ ticket: false }) : null
-    ));
-  }
   totals.appendChild(cartTotalRow(t('friend.totals.concessions'), escapeHtml(concessions > 0 ? formatPrice(concessions) : '--')));
   // Only when there's something to tax -- a row of "Tax $0.00" above an
   // empty order is noise.
   if (tax > 0){
     totals.appendChild(cartTotalRow(t('friend.totals.tax', { rate: formatTaxRate(concessionTaxRate) }), escapeHtml(formatPrice(tax))));
   }
-  if (concessionsSettled && concessionsCost > 0 && !isHost){
-    totals.appendChild(cartTotalRow(
-      t('friend.totals.concessionsPaid'),
-      '<span class="paid-note">&#10003;</span>',
-      () => setCartPaid({ concessions: false })
-    ));
-  }
-  // No owed row at all on the host's own seat -- there's nothing for them
-  // to pay, so the line has nothing to say. The costs above still show,
-  // since what the order comes to is worth knowing either way.
-  if (!isHost){
-    if (owed > 0){
-      const owedRow = cartTotalRow(t('friend.totals.owed'), escapeHtml(formatPrice(owed)));
-      owedRow.classList.add('is-owed');
-      totals.appendChild(owedRow);
-    } else if (ticketPaid || concessionsSettled){
-      // Something was actually settled, as opposed to a seat that's free
-      // and has ordered nothing -- that one owes nothing either, and
-      // congratulating it would be strange.
-      const doneRow = cartTotalRow(t('friend.totals.settled'), '<span class="paid-note">&#10003;</span>');
-      doneRow.classList.add('is-settled');
-      totals.appendChild(doneRow);
-    }
+  if (concessionsCost > 0){
+    // "✓ paid" (with undo) once someone's said so -- never on the host's
+    // own seat, which was never owed.
+    const paid = concessionsSettled && !isHost;
+    const totalRow = cartTotalRow(
+      t('friend.totals.total'),
+      escapeHtml(formatPrice(concessionsCost)) + (paid ? ' <span class="paid-note">' + escapeHtml(t('friend.totals.paidNote')) + '</span>' : ''),
+      paid ? () => setCartPaid({ concessions: false }) : null
+    );
+    totalRow.classList.add('is-total');
+    totals.appendChild(totalRow);
   }
 
   // A locked cart has no save button, so there's nothing to hold back.

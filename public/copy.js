@@ -309,12 +309,9 @@ const COPY = {
     },
 
     totals: {
-      ticket: 'Ticket',
       concessions: 'Concessions',
       tax: 'Tax ({rate})',
-      concessionsPaid: 'Concessions paid',
-      owed: 'You owe',
-      settled: 'All settled',
+      total: 'Total',
       paidNote: '✓ paid',
       undo: 'undo',
       markPaid: 'I’ve paid',

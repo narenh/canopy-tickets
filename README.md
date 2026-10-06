@@ -333,8 +333,8 @@ is the one thing autosave must not do.
 **The host owes nothing.** The host is the admin's own profile (see
 "The admin" above; `meta.admin_person_id`). That person's own seats —
 not their guests' — come out of the store with `host: true`, read as
-paid everywhere, and their cart drops the "You owe" line, the pay
-buttons and the "mark as paid" control entirely — they buy every ticket
+paid everywhere, and their cart drops the pay buttons and the "mark as
+paid" control entirely — they buy every ticket
 and every tray on their own card, so there's nobody for them to pay. A
 seat reserved before profiles counts once the host claims it ("Claim
 existing seats").
