@@ -1675,17 +1675,17 @@ function buildCard(obj){
     info.appendChild(when);
   }
 
-  const meta = document.createElement('div');
-  meta.className = 'meta';
-  meta.textContent = showtimeWhere(obj);
-  info.appendChild(meta);
-
   if (obj.info){
     const note = document.createElement('div');
     note.className = 'showtime-info';
     note.textContent = obj.info;
     info.appendChild(note);
   }
+
+  const meta = document.createElement('div');
+  meta.className = 'meta';
+  meta.textContent = showtimeWhere(obj);
+  info.appendChild(meta);
 
   const seats = obj.seats || {};
   const ids = Object.keys(seats).sort(compareSeatIds);

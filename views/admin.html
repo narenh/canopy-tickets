@@ -360,7 +360,7 @@
     width:100%;
     max-width:360px;
     background:transparent;
-    color:var(--info-blue);
+    color:#e8e8e8;
     border:none;
     border-bottom:1px solid #555;
     font-size:15px;
@@ -1083,7 +1083,7 @@
            refreshTitleSuggestions()), so "Japanese Spoken" is typed once. -->
       <div class="info-row">
         <input type="text" id="showInfo" list="infoSuggestions" maxlength="120" autocomplete="off"
-               placeholder="Showtime info (optional), e.g. Japanese Spoken">
+               placeholder="Showtime info (optional)">
         <datalist id="infoSuggestions"></datalist>
       </div>
       <div class="edit-hint" data-copy="admin.seatGrid.fieldsHelp"></div>
@@ -1458,17 +1458,17 @@ function buildCard(obj){
     info.appendChild(when);
   }
 
-  const meta = document.createElement('div');
-  meta.className = 'meta';
-  meta.textContent = [obj.theater, obj.format, formatPrice(obj.price)].filter(Boolean).join(' | ');
-  info.appendChild(meta);
-
   if (obj.info){
     const note = document.createElement('div');
     note.className = 'showtime-info';
     note.textContent = obj.info;
     info.appendChild(note);
   }
+
+  const meta = document.createElement('div');
+  meta.className = 'meta';
+  meta.textContent = [obj.theater, obj.format, formatPrice(obj.price)].filter(Boolean).join(' | ');
+  info.appendChild(meta);
 
   const namedIds = blockIds.filter(id => seats[id].name);
   const availLine = document.createElement('div');
