@@ -759,7 +759,7 @@ function cleanVenmo(raw) {
 
 function meView(req) {
   return {
-    person: req.person ? { ...req.person, photoUrl: photoUrlFor(req.person) } : null,
+    person: req.person ? { ...req.person, photoUrl: photoUrlFor(req.person), canEdit: canEditProfile(req) } : null,
     unlockedMovieIds: Array.from(req.unlocked)
   };
 }
@@ -773,6 +773,17 @@ const photoUpload = multer({
     cb(null, ['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype));
   }
 });
+
+// A profile is read-only on a browser that hasn't unlocked a movie:
+// knowing someone's email signs you in as them, so the email alone must
+// not be enough to rename them or change their photo. Someone with seats
+// needs one of THEIR movies unlocked here; someone with none yet, any.
+function canEditProfile(req) {
+  if (!req.person) return false;
+  const mine = store.seatsOf(req.person.id);
+  if (!mine.length) return req.unlocked.size > 0;
+  return mine.some((m) => req.unlocked.has(m.showtime.movieId));
+}
 
 app.get('/api/me', attachDevice(false), (req, res) => {
   res.json(meView(req));
@@ -809,6 +820,7 @@ app.post('/api/profile', attachDevice(true), photoUpload.single('photo'), (req, 
 
 app.patch('/api/profile', attachDevice(false), (req, res) => {
   if (!req.person) return res.status(401).json({ error: 'unauthorized' });
+  if (!canEditProfile(req)) return res.status(403).json({ error: 'unlock one of your movies on this device first', reason: 'locked' });
   const body = req.body || {};
   const names = cleanNames(body);
   if (names.error) return res.status(400).json({ error: names.error });
@@ -825,6 +837,7 @@ app.patch('/api/profile', attachDevice(false), (req, res) => {
 
 app.post('/api/profile/photo', attachDevice(false), photoUpload.single('photo'), (req, res) => {
   if (!req.person) return res.status(401).json({ error: 'unauthorized' });
+  if (!canEditProfile(req)) return res.status(403).json({ error: 'unlock one of your movies on this device first', reason: 'locked' });
   if (!req.file) return res.status(400).json({ error: 'choose a photo' });
   photoStore.save(req.person.id, req.file.buffer);
   req.person = store.setPersonPhoto(req.person.id, Date.now());

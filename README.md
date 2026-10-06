@@ -181,8 +181,9 @@ on its own:
   Unlocks belong to the browser, not the profile.
 - **Changing anything needs the movie unlocked on the browser doing it**:
   reserving, concession orders, marking paid. A profile (name, photo,
-  Venmo username) can be edited from any browser signed in as that
-  person, with nothing unlocked.
+  Venmo username) is read-only on a browser that hasn't unlocked one of
+  that person's movies (any movie, for someone with no seats yet) —
+  otherwise knowing an email would be enough to rename someone.
 - **A seat's order and payment are its owner's**: your own seat and the
   guests you booked. Other people's seats show who's sitting there and
   can't be opened; the server refuses writes to them too.

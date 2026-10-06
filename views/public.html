@@ -717,6 +717,20 @@
   .profile-photo .photo-badge svg{width:12px;height:12px;display:block;}
   /* Lined up on the text baseline: centred, the @ (which hangs below
      the line) sat visibly lower than the name. */
+  .profile-locked{
+    color:#f0dda9;
+    font-size:13px;
+    line-height:1.4;
+    background:#1f1a0e;
+    border:1px solid #4a3c1a;
+    border-radius:10px;
+    padding:10px 12px;
+    margin-bottom:12px;
+  }
+  /* Read-only: no pencil, no picker, fields look like text. */
+  .profile-readonly .photo-badge, .profile-readonly .profile-photo input{display:none;}
+  .profile-readonly .profile-photo{cursor:default;}
+  .profile-readonly input[type="text"]{color:#bbb;}
   .venmo-field{
     display:flex;
     align-items:baseline;
@@ -1486,9 +1500,12 @@
           autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Venmo username">
       </label>
       <div class="claim-error" id="profileError"></div>
+      <!-- Shown instead of Save on a phone that hasn't unlocked one of
+           your movies: the profile is read-only there. -->
+      <div class="profile-locked hidden" id="profileLocked" data-copy="friend.profile.locked"></div>
       <div class="claim-actions">
-        <button type="button" class="claim-submit-btn" onclick="saveProfile()">Save</button>
-        <button type="button" onclick="closeProfile()">Cancel</button>
+        <button type="button" class="claim-submit-btn" id="profileSave" onclick="saveProfile()">Save</button>
+        <button type="button" id="profileCancel" onclick="closeProfile()">Cancel</button>
       </div>
     </div>
   </div>
@@ -2994,8 +3011,30 @@ document.getElementById('profileVenmo').addEventListener('input', (e) => {
   if (v !== e.target.value) e.target.value = v;
 });
 
-function openProfile(){
+// Opens straight away with what's known, then re-checks with the server
+// whether this phone may edit -- unlocking a movie since the page loaded
+// can change that.
+async function openProfile(){
   if (!me) return;
+  renderProfileSheet();
+  document.getElementById('profileOverlay').classList.remove('hidden');
+  overlayOpened();
+  await loadMe();
+  if (!document.getElementById('profileOverlay').classList.contains('hidden')) applyProfileEditable();
+}
+
+function applyProfileEditable(){
+  const editable = !!(me && me.canEdit);
+  document.querySelector('#profileOverlay .claim-card').classList.toggle('profile-readonly', !editable);
+  ['profileFirst', 'profileLast', 'profileVenmo', 'profilePhotoInput'].forEach(id => {
+    document.getElementById(id).disabled = !editable;
+  });
+  document.getElementById('profileLocked').classList.toggle('hidden', editable);
+  document.getElementById('profileSave').classList.toggle('hidden', !editable);
+  document.getElementById('profileCancel').textContent = editable ? 'Cancel' : 'Close';
+}
+
+function renderProfileSheet(){
   document.getElementById('profileEmail').textContent = me.email;
   document.getElementById('profileFirst').value = me.firstName;
   document.getElementById('profileLast').value = me.lastName;
@@ -3005,8 +3044,7 @@ function openProfile(){
   document.getElementById('profileError').textContent = '';
   const photo = document.getElementById('profilePhoto');
   if (me.photoUrl) photo.src = me.photoUrl;
-  document.getElementById('profileOverlay').classList.remove('hidden');
-  overlayOpened();
+  applyProfileEditable();
 }
 
 function closeProfile(){
@@ -3031,6 +3069,7 @@ async function saveProfile(){
     });
     if (await handleAuthFailure(res)) return;
     const data = await res.json().catch(() => ({}));
+    if (res.status === 403){ errorEl.textContent = t('friend.profile.locked'); return; }
     if (data.reason === 'bad_venmo'){ errorEl.textContent = t('friend.profile.badVenmo'); return; }
     if (!res.ok){ errorEl.textContent = data.error || t('friend.profile.failed'); return; }
     me = data.person;
@@ -3061,6 +3100,7 @@ document.getElementById('profilePhotoInput').addEventListener('change', async (e
   try{
     const res = await fetch('/api/profile/photo', { method: 'POST', body: form });
     if (await handleAuthFailure(res)) return;
+    if (res.status === 403){ errorEl.textContent = t('friend.profile.locked'); return; }
     if (!res.ok){ errorEl.textContent = t('friend.profile.failed'); return; }
     me = (await res.json()).person;
     renderMe();
