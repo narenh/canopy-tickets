@@ -312,8 +312,23 @@ function photoUrlFor(person) {
 // `onlySeatIds`, when given, limits the seats to those (a movie this
 // device hasn't unlocked shows its viewer their own seats and nobody
 // else's).
+// A friend can give back a seat they reserved while all of these hold:
+// nothing on it is paid, they reserved it in the last 24 hours, and the
+// showtime is still more than 24 hours off. Seats from before
+// reservations were timed (no reservedAt) never qualify.
+const RELEASE_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+function canReleaseSeat(show, raw, viewer, now) {
+  if (!viewer || !raw || raw.personId !== viewer.id) return false;
+  if (raw.paid || raw.concessionsPaid || !raw.reservedAt) return false;
+  if (now - raw.reservedAt > RELEASE_WINDOW_MS) return false;
+  const start = showtimeInstantMs(show.date, show.time);
+  return start !== null && start - now > RELEASE_WINDOW_MS;
+}
+
 function publicShowtimeView(s, viewer, onlySeatIds, lookup) {
   const person = lookup || peopleLookup();
+  const now = Date.now();
   const seats = normalizeSeats(s.seats);
   const blockSeats = {};
   Object.keys(seats).forEach((id) => {
@@ -339,6 +354,8 @@ function publicShowtimeView(s, viewer, onlySeatIds, lookup) {
         // Whose it is, without handing out ids: theirs, a guest someone
         // booked (and who), and the owner's photo for their own seat.
         mine: !!(viewer && raw.personId && raw.personId === viewer.id),
+        // Yours, and still yours to give back (see canReleaseSeat).
+        canRelease: canReleaseSeat(s, raw, viewer, now),
         guest: !!raw.guest,
         via: raw.guest && owner ? owner.shortName : null,
         photoUrl: !raw.guest ? photoUrlFor(owner) : null
@@ -1614,6 +1631,24 @@ app.get('/api/public/concession-menu', (req, res) => {
 // `ticket` and `concessions` are booleans, not amounts. What concessions
 // come to is worked out in the store from what's actually saved on the
 // seat, so a stale page can't settle $40 of food off a $12 view of it.
+// Gives back a seat you reserved (yours or a guest's), while
+// canReleaseSeat allows it. The store re-checks paid and the 24 hours
+// inside its transaction.
+app.post('/api/public/showtimes/:id/seats/:seatId/release', (req, res) => {
+  const show = unlockedShowtime(req, res);
+  if (!show || !ownSeat(req, res, show)) return;
+  const now = Date.now();
+  if (typeof store.unclaimSeat !== 'function' || !canReleaseSeat(show, show.seats[req.params.seatId], req.person, now)) {
+    return res.status(409).json({ error: "that seat can't be released any more", reason: 'not_releasable' });
+  }
+  const result = store.unclaimSeat(req.params.id, req.params.seatId, req.person.id, now - RELEASE_WINDOW_MS);
+  if (!result.ok) {
+    if (result.reason === 'not_found') return res.status(404).json({ error: 'not found' });
+    return res.status(409).json({ error: "that seat can't be released any more", reason: 'not_releasable' });
+  }
+  res.json({ showtime: publicShowtimeView(result.showtime, req.person) });
+});
+
 app.put('/api/public/showtimes/:id/seats/:seatId/paid', async (req, res) => {
   const show = unlockedShowtime(req, res);
   if (!show || !ownSeat(req, res, show)) return;

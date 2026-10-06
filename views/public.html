@@ -311,6 +311,11 @@
   }
   .mine-pay-menu button:hover, .mine-pay-menu a:hover{background:#26262a;}
   .mine-pay-menu a{text-decoration:none;box-sizing:border-box;}
+  .mine-pay.no-pay{justify-content:flex-end;}
+  .mine-pay-menu button.is-danger{color:#e2857a;}
+  .mine-pay-menu button:disabled{opacity:.5;}
+  .mine-pay-confirm{color:#ddd;font-size:14px;line-height:1.4;padding:10px 12px 6px;max-width:240px;}
+  .mine-pay-error{color:#e2857a;font-size:13px;padding:0 12px 6px;max-width:240px;}
   .mine-orders{border-top:1px solid #26262a;margin-top:10px;padding-top:2px;}
   .order-block{padding:10px 0 2px;}
   .order-block + .order-block{border-top:1px solid #222225;margin-top:6px;}
@@ -2560,23 +2565,26 @@ function seatPayable(obj, seat){
 // "Pay $18.99 via Venmo" under the poster while your seat or your guests'
 // can be paid for -- the reserve flow's button, colour and words -- and a
 // ⋯ beside it with "I've already paid" (and Cash App, when Venmo has the
-// main button). Pays the lot in one go. Nothing when there's no handle
-// to pay.
+// main button). Pays the lot in one go. The ⋯ also holds "Release seat"
+// for each seat you can still give back (see canReleaseSeat in
+// server.js) -- on its own, right-aligned, when there's nothing to pay.
 function buildMinePayRow(obj, myIds){
+  if (!me) return null;
+  const seats = obj.seats || {};
   // The admin is the one being paid -- their guests settle up with them
   // directly, so there's nobody for them to send money to.
-  if (!me || me.isAdmin) return null;
-  const seats = obj.seats || {};
-  const owing = myIds
+  const owing = me.isAdmin ? [] : myIds
     .map(id => ({ id, pay: seatPayable(obj, seats[id]) }))
     .filter(x => x.pay.ticket + x.pay.food > 0);
-  if (!owing.length) return null;
   const amount = Math.round(owing.reduce((n, x) => n + x.pay.ticket + x.pay.food, 0) * 100) / 100;
   const note = (obj.title || 'Movie') + ' (' + formatDateShort(obj.date) + ', ' + owing.map(x => x.id).join(', ') + ')' +
     (owing.some(x => x.pay.food > 0) ? ' + concessions' : '');
-  const venmo = buildVenmoLink(amount, note);
-  const cash = buildCashAppLink(amount);
-  if (!venmo && !cash) return null;
+  const venmo = owing.length ? buildVenmoLink(amount, note) : null;
+  const cash = owing.length ? buildCashAppLink(amount) : null;
+  const canPay = !!(venmo || cash);
+  const releasable = myIds.filter(id => seats[id] && seats[id].canRelease);
+  if (!canPay && !releasable.length) return null;
+
   const vars = { amount: formatPrice(amount) };
   const payLink = (href, className, label) => {
     const a = document.createElement('a');
@@ -2586,45 +2594,96 @@ function buildMinePayRow(obj, myIds){
     a.textContent = label;
     return a;
   };
+  const menuButton = (label, onClick, className) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.setAttribute('role', 'menuitem');
+    if (className) b.className = className;
+    b.textContent = label;
+    b.addEventListener('click', onClick);
+    return b;
+  };
 
   const row = document.createElement('div');
-  row.className = 'mine-pay';
-  row.appendChild(venmo
-    ? payLink(venmo, 'mine-pay-btn venmo-btn', t('friend.success.payVenmo', vars))
-    : payLink(cash, 'mine-pay-btn cashapp-btn', t('friend.success.payCashApp', vars)));
+  row.className = 'mine-pay' + (canPay ? '' : ' no-pay');
+  if (canPay){
+    row.appendChild(venmo
+      ? payLink(venmo, 'mine-pay-btn venmo-btn', t('friend.success.payVenmo', vars))
+      : payLink(cash, 'mine-pay-btn cashapp-btn', t('friend.success.payCashApp', vars)));
+  }
 
   const more = document.createElement('button');
   more.type = 'button';
   more.className = 'mine-pay-more';
   more.setAttribute('aria-label', t('friend.mine.payMore'));
   more.setAttribute('aria-haspopup', 'menu');
-  more.textContent = '\u22ef';
+  more.textContent = '⋯';
   row.appendChild(more);
 
   const menu = document.createElement('div');
   menu.className = 'mine-pay-menu hidden';
   menu.setAttribute('role', 'menu');
-  if (venmo && cash){
-    const alt = payLink(cash, '', t('friend.success.payCashApp', vars));
-    alt.setAttribute('role', 'menuitem');
-    alt.addEventListener('click', () => closeMenu());
-    menu.appendChild(alt);
-  }
-  const paid = document.createElement('button');
-  paid.type = 'button';
-  paid.setAttribute('role', 'menuitem');
-  paid.textContent = t('friend.success.alreadyPaid');
-  paid.addEventListener('click', async () => {
-    closeMenu();
-    for (const x of owing){
-      const patch = {};
-      if (x.pay.ticket > 0) patch.ticket = true;
-      if (x.pay.food > 0) patch.concessions = true;
-      await markSeatPaid(obj.id, x.id, patch);
-    }
-  });
-  menu.appendChild(paid);
   row.appendChild(menu);
+
+  // The menu's normal contents; a release swaps them for its confirmation.
+  function fillMenu(){
+    menu.innerHTML = '';
+    if (venmo && cash){
+      const alt = payLink(cash, '', t('friend.success.payCashApp', vars));
+      alt.setAttribute('role', 'menuitem');
+      alt.addEventListener('click', () => closeMenu());
+      menu.appendChild(alt);
+    }
+    if (canPay){
+      menu.appendChild(menuButton(t('friend.success.alreadyPaid'), async () => {
+        closeMenu();
+        for (const x of owing){
+          const patch = {};
+          if (x.pay.ticket > 0) patch.ticket = true;
+          if (x.pay.food > 0) patch.concessions = true;
+          await markSeatPaid(obj.id, x.id, patch);
+        }
+      }));
+    }
+    releasable.forEach(id => {
+      const seat = seats[id];
+      const label = seat.guest
+        ? t('friend.mine.releaseGuest', { seat: id, name: (seat.name || '').split(/\s+/)[0] })
+        : t('friend.mine.release', { seat: id });
+      menu.appendChild(menuButton(label, (e) => { e.stopPropagation(); confirmRelease(id); }, 'is-danger'));
+    });
+  }
+
+  // Giving a seat back can't be undone -- someone else may take it -- so
+  // the menu asks once before doing it.
+  function confirmRelease(id){
+    menu.innerHTML = '';
+    const msg = document.createElement('div');
+    msg.className = 'mine-pay-confirm';
+    msg.textContent = t('friend.mine.releaseConfirm', { seat: id });
+    menu.appendChild(msg);
+    const err = document.createElement('div');
+    err.className = 'mine-pay-error hidden';
+    menu.appendChild(err);
+    const yes = menuButton(t('friend.mine.releaseYes'), async (e) => {
+      e.stopPropagation();
+      yes.disabled = true;
+      try{
+        const res = await fetch('/api/public/showtimes/' + encodeURIComponent(obj.id) +
+          '/seats/' + encodeURIComponent(id) + '/release', { method: 'POST' });
+        if (await handleAuthFailure(res)) return;
+        if (!res.ok) throw new Error('failed');
+        closeMenu();
+        loadList();
+      }catch(e2){
+        yes.disabled = false;
+        err.textContent = t('friend.mine.releaseFailed');
+        err.classList.remove('hidden');
+      }
+    }, 'is-danger');
+    menu.appendChild(yes);
+    menu.appendChild(menuButton(t('friend.mine.releaseNo'), (e) => { e.stopPropagation(); fillMenu(); }));
+  }
 
   const onOutside = (e) => { if (!row.contains(e.target)) closeMenu(); };
   function closeMenu(){
@@ -2633,6 +2692,7 @@ function buildMinePayRow(obj, myIds){
   }
   more.addEventListener('click', () => {
     if (!menu.classList.contains('hidden')){ closeMenu(); return; }
+    fillMenu();
     menu.classList.remove('hidden');
     document.addEventListener('click', onOutside, true);
   });

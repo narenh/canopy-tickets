@@ -124,7 +124,15 @@ const COPY = {
       none: 'No concessions',
       noneFor: 'No concessions for {name}',
       // The ⋯ beside the pay button under the poster.
-      payMore: 'More payment options'
+      payMore: 'More options',
+      // Giving a seat back, from that ⋯ (unpaid, reserved in the last 24
+      // hours, and the showtime more than 24 hours off).
+      release: 'Release seat {seat}',
+      releaseGuest: "Release {name}'s seat ({seat})",
+      releaseConfirm: 'Release seat {seat}? Anyone will be able to reserve it.',
+      releaseYes: 'Release',
+      releaseNo: 'Cancel',
+      releaseFailed: "Couldn't release it. It may be too late now."
     },
 
     // A line of your usual order left the menu (red, top of My showtimes).

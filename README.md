@@ -593,6 +593,22 @@ Cash App's pay links only support pre-filling an amount, not a note —
 Venmo's link includes a note identifying the movie/date/seat, Cash App's
 doesn't, since there's no query param for that on Cash App's side.
 
+On My showtimes, a friend who owes gets that pay button under the poster
+(Venmo, or Cash App if it's the only handle) for their seat and their
+guests' together, with a ⋯ menu holding Cash App (when both are set) and
+"I've already paid". Not shown to the admin, who sees every unpaid seat
+marked instead.
+
+### Releasing a reservation
+
+The same ⋯ menu offers **Release seat** for each seat a friend can still
+give back: unpaid (ticket and food), reserved by them in the last 24
+hours (`seats.reserved_at`, schema v15), and the showtime more than 24
+hours away. It asks once, then the seat goes back to being an open seat
+in the block. Seats reserved before v15, or claimed into an account from
+before profiles, have no reservation time and can't be released this way
+— the admin can still free them from the editor.
+
 ## Link-preview image & logo
 
 The admin's Settings tab has two image uploads:
