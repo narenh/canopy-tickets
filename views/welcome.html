@@ -126,7 +126,7 @@
     padding:10px;
   }
   .photo-pick input{position:absolute;inset:0;opacity:0;cursor:pointer;}
-  .photo-note{font-size:12px;margin-bottom:16px;}
+  .photo-pick{margin-bottom:18px;}
 
   /* The link-preview image fills the screen behind a frosted-glass card.
      cover on a fixed layer fills the height of a portrait phone and crops
@@ -220,13 +220,12 @@
       <span id="photoPrompt" data-copy="welcome.addPhoto"></span>
       <input type="file" id="photoInput" accept="image/*">
     </label>
-    <p class="photo-note" data-copy="welcome.photoNote"></p>
     <div class="name-row">
       <input type="text" id="firstName" placeholder="First name" autocomplete="given-name" maxlength="60">
       <input type="text" id="lastName" placeholder="Last name" autocomplete="family-name" maxlength="60">
     </div>
     <div class="error" id="profileError"></div>
-    <button type="submit" id="profileBtn" disabled>Create profile</button>
+    <button type="submit" id="profileBtn">Sign up</button>
   </form>
 
 <script src="/copy.js"></script>
@@ -328,14 +327,14 @@ function backToEmail(){
 // ---------------- Step 2: name + photo ----------------
 let photoBlob = null;
 
-function updateProfileButton(){
-  const ready = photoBlob &&
-    document.getElementById('firstName').value.trim() &&
-    document.getElementById('lastName').value.trim();
-  document.getElementById('profileBtn').disabled = !ready;
+// Sign up stays tappable; what's missing is said when it's tapped.
+function missingForProfile(){
+  if (!photoBlob) return t('welcome.photoRequired');
+  if (!document.getElementById('firstName').value.trim() || !document.getElementById('lastName').value.trim()){
+    return t('welcome.nameRequired');
+  }
+  return '';
 }
-document.getElementById('firstName').addEventListener('input', updateProfileButton);
-document.getElementById('lastName').addEventListener('input', updateProfileButton);
 
 // Picking a photo opens it for framing (public/photo-crop.js). Nothing
 // leaves the phone until "Create profile", and then only the framed
@@ -360,14 +359,15 @@ document.getElementById('photoInput').addEventListener('change', async (e) => {
   preview.classList.remove('hidden');
   document.getElementById('photoPrompt').classList.add('hidden');
   document.getElementById('photoPick').classList.add('has-photo');
-  updateProfileButton();
+  if (errorEl.textContent === t('welcome.photoRequired')) errorEl.textContent = '';
 });
 
 document.getElementById('profileForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const errorEl = document.getElementById('profileError');
   const btn = document.getElementById('profileBtn');
-  errorEl.textContent = '';
+  errorEl.textContent = missingForProfile();
+  if (errorEl.textContent) return;
   btn.disabled = true;
   const form = new FormData();
   form.append('email', email);
@@ -388,7 +388,7 @@ document.getElementById('profileForm').addEventListener('submit', async (e) => {
   }catch(err){
     errorEl.textContent = t('welcome.unreachable');
   }finally{
-    updateProfileButton();
+    btn.disabled = false;
   }
 });
 </script>

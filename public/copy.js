@@ -35,11 +35,12 @@ const COPY = {
     badEmail: "That doesn't look like an email address.",
     failed: 'Something went wrong. Try again.',
     unreachable: 'Could not reach the server. Try again.',
-    profileHeading: 'Set up your profile',
+    profileHeading: 'Create Profile',
     addPhoto: '+ Add a photo',
-    photoNote: 'A photo of your face, so everyone knows whose seat is whose.',
     cropHint: 'Pinch and drag to fit your face in the circle.',
     photoUnreadable: "Couldn't open that photo. Try another one.",
+    photoRequired: 'A profile picture is required.',
+    nameRequired: 'Enter your first and last name.',
     emailTaken: 'That email already has a profile. Go back and continue with it.'
   },
 
