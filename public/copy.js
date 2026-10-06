@@ -89,16 +89,16 @@ const COPY = {
       empty: "You don't have any seats yet.",
       browse: 'Browse movies',
       locked: 'Unlock this movie on this phone to make changes',
-      going: "Who's going ({count})",
+      going: 'Going ({count})',
       // Your order (or a guest's) on a My showtimes card.
-      add: '🍿 + Add concessions',
-      addFor: '🍿 + Add concessions for {name}',
-      head: '🍿 My concessions',
-      headFor: "🍿 {name}'s concessions",
+      add: '+ Add concessions',
+      addFor: '+ Add concessions for {name}',
+      head: 'Concessions ({count})',
+      headFor: "{name}'s concessions ({count})",
       edit: '+ Add / Edit',
       view: 'View',
-      none: '🍿 No concessions',
-      noneFor: '🍿 No concessions for {name}'
+      none: 'No concessions',
+      noneFor: 'No concessions for {name}'
     },
 
     // The menu under your photo in the header.

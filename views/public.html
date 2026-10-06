@@ -206,9 +206,8 @@
     text-align:left;
   }
   .order-add{font-size:14.5px;padding:2px 0;}
-  .order-edit{font-size:13.5px;margin:6px 0 0 25px;}
-  .order-head{color:#eee;font-weight:700;font-size:14.5px;}
-  .order-items{color:#ccc;font-size:13.5px;line-height:1.5;margin:4px 0 0 25px;}
+  .order-edit{font-size:13.5px;margin-top:6px;}
+  .order-items{color:#e6e6e6;font-weight:500;font-size:14px;line-height:1.55;}
   .order-note{color:var(--muted);}
   .order-none{color:var(--muted);font-size:13.5px;}
   .mine-section-head{
@@ -2268,8 +2267,8 @@ function buildMineCard(item){
 }
 
 // One of your orders on My showtimes. Nothing in it yet: a single
-// "+ Add concessions". Something in it: "My concessions", the items, and
-// "+ Add / Edit". A guest's reads "Alex's concessions". The seat and
+// "+ Add concessions". Something in it: "Concessions (2)", the items, and
+// "+ Add / Edit". A guest's reads "Alex's concessions (1)". The seat and
 // person are already in Who's going above, so nothing here repeats them.
 function buildOrderBlock(obj, seatId, ordersOpen){
   const seat = (obj.seats || {})[seatId] || {};
@@ -2296,9 +2295,10 @@ function buildOrderBlock(obj, seatId, ordersOpen){
     return block;
   }
 
+  // Same look as "Going (3)" above it.
   const head = document.createElement('div');
-  head.className = 'order-head';
-  head.textContent = t(seat.guest ? 'friend.mine.headFor' : 'friend.mine.head', vars);
+  head.className = 'mine-section-head';
+  head.textContent = t(seat.guest ? 'friend.mine.headFor' : 'friend.mine.head', { ...vars, count: lines.length });
   block.appendChild(head);
   const items = document.createElement('div');
   items.className = 'order-items';
