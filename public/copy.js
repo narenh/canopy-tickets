@@ -31,7 +31,7 @@ const COPY = {
 
   // ---------------- WELCOME (friends signing in, at /) ----------------
   welcome: {
-    tagline: 'Enter your email to see your tickets and reserve seats.',
+    tagline: 'Enter your email address to continue.',
     badEmail: "That doesn't look like an email address.",
     failed: 'Something went wrong. Try again.',
     unreachable: 'Could not reach the server. Try again.',

@@ -217,49 +217,52 @@ function buildLogoImgTag() {
   return `<img src="/logo-image?v=${meta.uploadedAt}" alt="Canopy Tickets" class="site-logo">`;
 }
 
-// A `Cache-Control: no-cache` header on the static file itself only helps
-// if the browser actually revalidates it -- and Safari (iOS and desktop
-// alike) has repeatedly been caught serving straight from its cache
-// without so much as a conditional GET, no-cache header or not. The only
-// fix that doesn't depend on trusting Safari's cache behavior is a
-// version-busted URL, same as the logo/OG images already do: change the
-// URL and there's nothing left *to* revalidate, it's just a cache miss.
-// Computed once at startup from the file's mtime, which changes on every
-// deploy (a fresh container gets a freshly-written file), so this never
-// needs a manual bump.
-const SEAT_LAYOUT_JS_VERSION = fs.statSync(path.join(__dirname, 'public', 'seat-layout.js')).mtimeMs;
-
-// Same treatment for the copy file, and for the same reason: editing a
-// line of copy and finding the old one still on screen because a browser
-// held the last copy.js is exactly the bug SEAT_LAYOUT_JS_VERSION exists
-// to prevent.
-const COPY_JS_VERSION = fs.statSync(path.join(__dirname, 'public', 'copy.js')).mtimeMs;
+// The app's own scripts go inside each page rather than being fetched
+// from separate URLs, so a page and its scripts always come from the same
+// copy of the app.
+//
+// Fetching them separately kept going stale. Cloudflare sits in front of
+// the site and gives .js files a 4-hour browser cache whatever this server
+// says (it answers `max-age=14400` to the app's `no-cache`). Versioned
+// URLs mostly got around that, until a deploy: for a few seconds the new
+// container serves pages asking for the new version while the old one is
+// still answering, a phone gets the OLD file under the NEW url, and keeps
+// it for four hours -- which is how a sign-up page came up showing
+// "welcome.tagline" instead of its text. Inlined, there's no second
+// request to land on the wrong container or sit in anyone's cache.
+//
+// Read once at startup (they only change with a deploy). Anything else
+// that loads them (a stale page, a bookmark) still gets the files from
+// /public as before. The vendored Cropper.js is left as a file: its path
+// carries its version, so it can never be the wrong one.
+const INLINE_SCRIPTS = ['copy.js', 'seat-layout.js', 'photo-crop.js'].map((name) => {
+  // `</script` inside the source would end the inline tag early.
+  const source = fs.readFileSync(path.join(__dirname, 'public', name), 'utf8').replace(/<\/script/gi, '<\\/script');
+  return { tag: `<script src="/${name}"></script>`, inline: `<script>/* ${name} */\n${source}\n</script>` };
+});
 
 // Sends a static HTML file with its `<!-- OG_META -->` (in <head>) and
 // `<!-- LOGO_IMG -->` (in <body>, wherever the page wants the logo to
-// appear) placeholders replaced with the real thing, and its
-// `seat-layout.js` reference cache-busted (see SEAT_LAYOUT_JS_VERSION
-// above). The OG tags in particular have to be in the initial server
-// response, not injected by client-side JS -- link-preview crawlers don't
-// run JavaScript.
+// appear) placeholders replaced with the real thing, and the app's own
+// scripts inlined (see INLINE_SCRIPTS above). The OG tags in particular
+// have to be in the initial server response, not injected by client-side
+// JS -- link-preview crawlers don't run JavaScript.
 //
 // The page itself is sent `no-store`: it's rendered fresh server-side on
-// every request anyway (session-gated, never the same for two visitors),
-// so there's no reason to let a browser cache it -- and caching it is
-// exactly what let an old page keep pointing at a stale seat-layout.js
-// URL in the first place.
+// every request anyway (session-gated, never the same for two visitors).
+// (Cloudflare doesn't cache HTML, so this one is honored.)
 function renderHtmlPage(res, req, filePath) {
-  const html = fs.readFileSync(filePath, 'utf8');
+  let html = fs.readFileSync(filePath, 'utf8')
+    .replace('<!-- OG_META -->', buildOgTags(req))
+    .replace('<!-- LOGO_IMG -->', buildLogoImgTag())
+    .replace('__OG_IMAGE_URL__', ogImageUrl());
+  INLINE_SCRIPTS.forEach(({ tag, inline }) => {
+    // A function, so `$` in a script isn't read as a replacement pattern.
+    html = html.replace(tag, () => inline);
+  });
   res.set('Content-Type', 'text/html; charset=utf-8');
   res.set('Cache-Control', 'no-store');
-  res.send(
-    html
-      .replace('<!-- OG_META -->', buildOgTags(req))
-      .replace('<!-- LOGO_IMG -->', buildLogoImgTag())
-      .replace('__OG_IMAGE_URL__', ogImageUrl())
-      .replace('src="/seat-layout.js"', `src="/seat-layout.js?v=${SEAT_LAYOUT_JS_VERSION}"`)
-      .replace('src="/copy.js"', `src="/copy.js?v=${COPY_JS_VERSION}"`)
-  );
+  res.send(html);
 }
 
 // A poster belongs to a movie (movies.poster_key, see lib/sqliteStore.js),
