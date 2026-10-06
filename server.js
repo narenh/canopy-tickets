@@ -6,10 +6,11 @@ const multer = require('multer');
 const store = require('./lib/store');
 const { createImageStore } = require('./lib/uploadedImage');
 const posterStore = require('./lib/posterStore');
-const sharedPasswordStore = require('./lib/sharedPassword');
 const concessionMenuStore = require('./lib/concessionMenu');
 const { createTextSettingStore } = require('./lib/textSetting');
 const { createPasswordAuth } = require('./lib/auth');
+const { createDeviceAuth } = require('./lib/deviceAuth');
+const photoStore = require('./lib/photoStore');
 const { normalizeSeats, isHostSeat, CONCESSION_TAX_RATE } = require('./lib/seats');
 
 const ogImageStore = createImageStore('og');
@@ -45,17 +46,11 @@ function requireEnvPassword(envVar, label) {
 
 const ADMIN_PASSWORD = requireEnvPassword('ADMIN_PASSWORD', 'admin');
 
-// Unlike ADMIN_PASSWORD, the friend/shared password is NOT an env var --
-// it's set from the admin's Settings tab and
-// persisted via sharedPasswordStore, so it can be rotated without a
-// redeploy (e.g. a fresh password per movie). If it's never been set,
-// friend login is simply off: the login check below only matches against
-// it when sharedPasswordStore.get() returns something truthy.
-if (!sharedPasswordStore.get()) {
-  console.warn(
-    '[canopy-tickets] No friend/shared password set yet -- friend login is off until one is set from the admin editor.'
-  );
-}
+// There's no friend password any more: each movie has its own (set on
+// the movie's page in the admin), and friends sign in by email. The old
+// friend password is only read once, to give the movies that existed then
+// a password friends already know -- see seedMovieAccess in
+// lib/sqliteStore.js.
 
 // This MUST be the same value on every process that ever serves this app
 // -- a random-per-process fallback (what this used to do) is actively
@@ -86,7 +81,10 @@ if (!process.env.SESSION_SECRET) {
 }
 
 const adminAuth = createPasswordAuth('canopy_admin', SESSION_SECRET);
+// The old friend-password cookie. Nothing issues it now; a browser that
+// still has one gets the movies of that era unlocked, once (attachDevice).
 const sharedAuth = createPasswordAuth('canopy_shared', SESSION_SECRET);
+const deviceAuth = createDeviceAuth(SESSION_SECRET);
 
 app.disable('x-powered-by');
 app.use(express.json());
@@ -282,14 +280,38 @@ function posterUrlFor(showtime) {
   return showtime.title ? posterUrlForKey(posterStore.keyFor(showtime.title)) : null;
 }
 
+// Looks people up at most once per request -- a showtime's seats name the
+// same few people over and over.
+function peopleLookup() {
+  const cache = new Map();
+  return (id) => {
+    if (!id) return null;
+    if (!cache.has(id)) cache.set(id, store.getPerson(id));
+    return cache.get(id);
+  };
+}
+
+function photoUrlFor(person) {
+  return person && person.photoAt ? `/photo/${person.id}?v=${person.photoAt}` : null;
+}
+
 // Trims a showtime down to what a friend on the public/shared side should
 // see: no full 377-seat auditorium map, just the block of seats the owner
 // actually bought (each either claimed by a name or still open).
-function publicShowtimeView(s) {
+//
+// `viewer` is the signed-in person, so their own seats can say so.
+// `onlySeatIds`, when given, limits the seats to those (a movie this
+// device hasn't unlocked shows its viewer their own seats and nobody
+// else's).
+function publicShowtimeView(s, viewer, onlySeatIds, lookup) {
+  const person = lookup || peopleLookup();
   const seats = normalizeSeats(s.seats);
   const blockSeats = {};
   Object.keys(seats).forEach((id) => {
+    if (onlySeatIds && !onlySeatIds.has(id)) return;
     if (seats[id].status === 'assigned') {
+      const raw = (s.seats && s.seats[id]) || {};
+      const owner = person(raw.personId);
       // Carts ride along with the seat list rather than sitting behind
       // their own endpoint: the reservation page shows every reserved
       // seat's order inline on the list, so a separate fetch per seat
@@ -304,12 +326,19 @@ function publicShowtimeView(s) {
         // not the concessions -- because they're the one paying for the
         // lot. `paid` alone only covers the ticket.
         host: isHostSeat(seats[id].name),
-        concessions: seats[id].concessions
+        concessions: seats[id].concessions,
+        // Whose it is, without handing out ids: theirs, a guest someone
+        // booked (and who), and the owner's photo for their own seat.
+        mine: !!(viewer && raw.personId && raw.personId === viewer.id),
+        guest: !!raw.guest,
+        via: raw.guest && owner ? owner.shortName : null,
+        photoUrl: !raw.guest ? photoUrlFor(owner) : null
       };
     }
   });
   return {
     id: s.id,
+    movieId: s.movieId,
     title: s.title,
     theater: s.theater,
     date: s.date,
@@ -326,27 +355,11 @@ function publicShowtimeView(s) {
   };
 }
 
-// ---------------- Auth (two doors, one password each) ----------------
+// ---------------- Admin auth ----------------
 //
-// Friends sign in at / and the host signs in at /admin, and each door only
-// takes its own password: typing ADMIN_PASSWORD into the friend login is
-// just a wrong password. It used to be one login that routed you by which
-// password you typed, which meant the editor sat behind the same box every
-// friend was handed -- one lucky guess or a shoulder-surfed password away.
-// The two sessions are fully separate cookies; neither grants the other.
-
-app.post('/api/login', (req, res) => {
-  const { password } = req.body || {};
-  if (typeof password !== 'string' || password.length === 0) {
-    return res.status(400).json({ error: 'password required' });
-  }
-  const currentSharedPassword = sharedPasswordStore.get();
-  if (currentSharedPassword && checkPassword(password, currentSharedPassword)) {
-    sharedAuth.issueSessionCookie(res);
-    return res.json({ ok: true, role: 'shared' });
-  }
-  res.status(401).json({ error: 'invalid password' });
-});
+// The host signs in at /admin with ADMIN_PASSWORD. Friends don't use a
+// password to get in at all (see "Friends" below), so there's nothing a
+// friend could type at / that would open the editor.
 
 app.post('/api/admin/login', (req, res) => {
   const { password } = req.body || {};
@@ -366,28 +379,8 @@ app.post('/api/logout', (req, res) => {
   res.json({ ok: true });
 });
 
-// Both flags rather than one role: someone can hold both cookies, and the
-// login page needs to know whether the session it would redirect to is
-// the one for the door it's standing at.
 app.get('/api/session', (req, res) => {
-  res.json({ admin: adminAuth.isAuthed(req), shared: sharedAuth.isAuthed(req) });
-});
-
-// ---------------- Friend password (admin auth required) ----------------
-//
-// Returns/sets the plaintext password, deliberately -- unlike
-// ADMIN_PASSWORD, this one exists to be read back and handed to friends
-// (texted, etc.), not kept secret from the admin viewing their own editor.
-
-app.get('/api/shared-password', adminAuth.requireAuth('/admin'), (req, res) => {
-  res.json({ password: sharedPasswordStore.get() });
-});
-
-app.post('/api/shared-password', adminAuth.requireAuth('/admin'), (req, res) => {
-  const { password } = req.body || {};
-  const trimmed = typeof password === 'string' ? password.trim().slice(0, 200) : '';
-  const saved = sharedPasswordStore.set(trimmed || null);
-  res.json({ ok: true, password: saved });
+  res.json({ admin: adminAuth.isAuthed(req) });
 });
 
 // ---------------- Payment handles (admin auth required) ----------------
@@ -539,10 +532,46 @@ app.post('/api/movies', (req, res) => {
   res.status(result.existed ? 200 : 201).json({ movie: movieView(result.movie), existed: result.existed });
 });
 
+// A title or a password, whichever is sent. A movie's password is shown
+// back in plain text on purpose: it exists to be handed to friends.
 app.patch('/api/movies/:id', (req, res) => {
-  const result = store.renameMovie(req.params.id, (req.body || {}).title);
+  const body = req.body || {};
+  let movie = null;
+  if (Object.prototype.hasOwnProperty.call(body, 'title')) {
+    const result = store.renameMovie(req.params.id, body.title);
+    if (!result.ok) return sendResult(res, result);
+    movie = result.movie;
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'password')) {
+    movie = store.setMoviePassword(req.params.id, body.password);
+    if (!movie) return res.status(404).json({ error: 'not found' });
+  }
+  if (!movie) return res.status(400).json({ error: 'nothing to change' });
+  res.json({ movie: movieView(movie) });
+});
+
+// ---------------- People (admin) ----------------
+
+app.use('/api/people', adminAuth.requireAuth('/admin'), requireSqlite);
+
+app.get('/api/people', (req, res) => {
+  res.json({ people: store.listPeople().map((p) => ({ ...p, photoUrl: photoUrlFor(p) })) });
+});
+
+app.patch('/api/people/:id', (req, res) => {
+  const names = cleanNames(req.body || {});
+  if (names.error) return res.status(400).json({ error: names.error });
+  const result = store.renamePerson(req.params.id, names.firstName, names.lastName);
   if (!result.ok) return sendResult(res, result);
-  res.json({ movie: movieView(result.movie) });
+  res.json({ person: { ...result.person, photoUrl: photoUrlFor(result.person) } });
+});
+
+// Their seats stay reserved under the names on them; they just stop
+// belonging to anyone. For a typo'd duplicate, mostly.
+app.delete('/api/people/:id', (req, res) => {
+  if (!store.deletePerson(req.params.id)) return res.status(404).json({ error: 'not found' });
+  try { photoStore.remove(req.params.id); } catch (e) {}
+  res.json({ ok: true });
 });
 
 app.delete('/api/movies/:id', (req, res) => {
@@ -642,9 +671,181 @@ app.delete('/api/showtimes/:id', async (req, res) => {
   res.json({ ok: true });
 });
 
-// ---------------- Public/shared API (shared auth required) ----------------
+// ---------------- Friends: devices, sign-in, profiles ----------------
+//
+// No password at the door. A friend signs in with their email, and a new
+// email sets up a profile (first and last name and a photo, all
+// required). That is an honor system -- anyone who knows your email can
+// sign in as you -- so the account carries nothing worth taking: movie
+// unlocks belong to the BROWSER (devices / device_unlocks), and anything
+// that changes something needs the movie unlocked on the browser doing
+// it. Someone with only your email can see which showtimes you're in, and
+// that's all.
 
-app.use('/api/public', sharedAuth.requireAuth('/'));
+// Too many tries at something, per key, per window. In memory: a restart
+// forgives everyone, which is fine at this scale.
+function attemptLimiter(max, windowMs) {
+  const hits = new Map();
+  return {
+    blocked(key) {
+      const h = hits.get(key);
+      return !!h && Date.now() < h.reset && h.n >= max;
+    },
+    fail(key) {
+      const now = Date.now();
+      let h = hits.get(key);
+      if (!h || now >= h.reset) { h = { n: 0, reset: now + windowMs }; hits.set(key, h); }
+      h.n++;
+      if (hits.size > 10000) hits.forEach((v, k) => { if (now >= v.reset) hits.delete(k); });
+    }
+  };
+}
+const unlockLimiter = attemptLimiter(8, 15 * 60 * 1000);
+const unlockIpLimiter = attemptLimiter(40, 15 * 60 * 1000);
+
+// Finds this browser's device (from its cookie), making one if `create`
+// is set. Puts req.device, req.person and req.unlocked (movie ids) on the
+// request. A browser still holding the old friend-password cookie gets
+// the movies of that era unlocked here, once, and the old cookie cleared.
+function attachDevice(create) {
+  return (req, res, next) => {
+    req.unlocked = new Set();
+    req.person = null;
+    if (store.kind !== 'sqlite') return next();
+    const legacy = sharedAuth.isAuthed(req);
+    const cookie = deviceAuth.read(req);
+    let device = cookie ? store.getDevice(cookie.id) : null;
+    if (!device && (create || legacy)) device = store.createDevice();
+    if (!device) return next();
+    if (!cookie || cookie.id !== device.id || deviceAuth.needsRenewal(cookie)) {
+      deviceAuth.issue(res, device.id);
+      store.touchDevice(device.id);
+    }
+    if (legacy) {
+      store.grantLegacyUnlocks(device.id);
+      sharedAuth.clearSessionCookie(res);
+    }
+    req.device = device;
+    req.person = device.person_id ? store.getPerson(device.person_id) : null;
+    req.unlocked = store.unlockedMovieIds(device.id);
+    next();
+  };
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+function cleanEmail(raw) {
+  const email = String(raw || '').trim().toLowerCase().slice(0, 200);
+  return EMAIL_RE.test(email) ? email : null;
+}
+
+function cleanNames(body) {
+  const firstName = String(body.firstName || '').trim().replace(/\s+/g, ' ').slice(0, 60);
+  const lastName = String(body.lastName || '').trim().replace(/\s+/g, ' ').slice(0, 60);
+  if (!firstName || !lastName) return { error: 'first and last name are both required' };
+  return { firstName, lastName };
+}
+
+function meView(req) {
+  return {
+    person: req.person ? { ...req.person, photoUrl: photoUrlFor(req.person) } : null,
+    unlockedMovieIds: Array.from(req.unlocked)
+  };
+}
+
+// The cropped photo the welcome page makes is a few dozen KB; this is
+// only a ceiling.
+const photoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 3 * 1024 * 1024 },
+  fileFilter(req, file, cb) {
+    cb(null, ['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype));
+  }
+});
+
+// Changing your own profile needs this browser to have unlocked a movie
+// you have a seat in -- otherwise knowing your email would be enough to
+// rename you. Someone with no seats yet has nothing to protect.
+function canEditProfile(req) {
+  const mine = store.seatsOf(req.person.id);
+  return !mine.length || mine.some((m) => req.unlocked.has(m.showtime.movieId));
+}
+
+app.get('/api/me', attachDevice(false), (req, res) => {
+  res.json(meView(req));
+});
+
+// A known email signs this browser in. An unknown one is told to set up
+// a profile (and nothing is created until it has been).
+app.post('/api/signin', attachDevice(true), (req, res) => {
+  if (store.kind !== 'sqlite') return res.status(503).json({ error: 'unavailable' });
+  const email = cleanEmail((req.body || {}).email);
+  if (!email) return res.status(400).json({ error: 'enter a valid email' });
+  const person = store.getPersonByEmail(email);
+  if (!person) return res.json({ needsProfile: true, email });
+  store.setDevicePerson(req.device.id, person.id);
+  req.person = person;
+  res.json(meView(req));
+});
+
+app.post('/api/profile', attachDevice(true), photoUpload.single('photo'), (req, res) => {
+  if (store.kind !== 'sqlite') return res.status(503).json({ error: 'unavailable' });
+  const email = cleanEmail((req.body || {}).email);
+  if (!email) return res.status(400).json({ error: 'enter a valid email' });
+  const names = cleanNames(req.body || {});
+  if (names.error) return res.status(400).json({ error: names.error });
+  if (!req.file) return res.status(400).json({ error: 'a photo is required' });
+  const result = store.createPerson({ email, ...names });
+  if (!result.ok) return res.status(409).json({ error: 'that email already has a profile', reason: 'conflict' });
+  photoStore.save(result.person.id, req.file.buffer);
+  const person = store.setPersonPhoto(result.person.id, Date.now());
+  store.setDevicePerson(req.device.id, person.id);
+  req.person = person;
+  res.status(201).json(meView(req));
+});
+
+app.patch('/api/profile', attachDevice(false), (req, res) => {
+  if (!req.person) return res.status(401).json({ error: 'unauthorized' });
+  if (!canEditProfile(req)) return res.status(403).json({ error: 'unlock one of your movies on this device first', reason: 'locked' });
+  const names = cleanNames(req.body || {});
+  if (names.error) return res.status(400).json({ error: names.error });
+  req.person = store.renamePerson(req.person.id, names.firstName, names.lastName).person;
+  res.json(meView(req));
+});
+
+app.post('/api/profile/photo', attachDevice(false), photoUpload.single('photo'), (req, res) => {
+  if (!req.person) return res.status(401).json({ error: 'unauthorized' });
+  if (!canEditProfile(req)) return res.status(403).json({ error: 'unlock one of your movies on this device first', reason: 'locked' });
+  if (!req.file) return res.status(400).json({ error: 'choose a photo' });
+  photoStore.save(req.person.id, req.file.buffer);
+  req.person = store.setPersonPhoto(req.person.id, Date.now());
+  res.json(meView(req));
+});
+
+// Signs the person out of this browser. Its unlocks stay -- they're the
+// browser's.
+app.post('/api/signout', attachDevice(false), (req, res) => {
+  if (req.device) store.setDevicePerson(req.device.id, null);
+  res.json({ ok: true });
+});
+
+// Photos are for signed-in friends and the host, not the open web.
+app.get('/photo/:personId', attachDevice(false), (req, res) => {
+  if (!req.person && !adminAuth.isAuthed(req)) return res.status(404).end();
+  let file = null;
+  try { file = photoStore.pathFor(req.params.personId); } catch (e) {}
+  if (!file) return res.status(404).end();
+  res.set('Content-Type', 'image/jpeg');
+  res.set('Cache-Control', 'private, max-age=86400');
+  res.sendFile(file);
+});
+
+// ---------------- Public API (signed-in friends) ----------------
+
+app.use('/api/public', attachDevice(false), (req, res, next) => {
+  if (store.kind !== 'sqlite') return res.status(503).json({ error: 'unavailable' });
+  if (!req.person) return res.status(401).json({ error: 'unauthorized' });
+  next();
+});
 
 app.get('/api/public/config', (req, res) => {
   res.json({
@@ -654,25 +855,114 @@ app.get('/api/public/config', (req, res) => {
   });
 });
 
+app.get('/api/public/me', (req, res) => res.json(meView(req)));
+
+// Every movie with something scheduled, locked or not -- a locked one is
+// its poster and title and nothing else.
+app.get('/api/public/movies', (req, res) => {
+  const movies = store.listMovies()
+    .filter((m) => m.showtimeCount > 0)
+    .map((m) => ({
+      id: m.id,
+      title: m.title,
+      posterUrl: posterUrlForKey(m.posterKey),
+      unlocked: req.unlocked.has(m.id),
+      showtimeCount: m.showtimeCount,
+      dates: m.dates
+    }));
+  res.json({ movies });
+});
+
+app.post('/api/public/movies/:id/unlock', (req, res) => {
+  const movie = store.getMovie(req.params.id);
+  if (!movie) return res.status(404).json({ error: 'not found' });
+  if (req.unlocked.has(movie.id)) return res.json(meView(req));
+  const key = `${req.device.id}:${movie.id}`;
+  if (unlockLimiter.blocked(key) || unlockIpLimiter.blocked(req.ip)) {
+    return res.status(429).json({ error: 'too many tries -- wait a few minutes', reason: 'rate_limited' });
+  }
+  const { password } = req.body || {};
+  if (!movie.password || !checkPassword(String(password || ''), movie.password)) {
+    unlockLimiter.fail(key);
+    unlockIpLimiter.fail(req.ip);
+    // 403, not 401: the page reads a 401 as "you've been signed out".
+    return res.status(403).json({ error: 'wrong password', reason: 'wrong_password' });
+  }
+  store.unlockMovie(req.device.id, movie.id);
+  req.unlocked.add(movie.id);
+  res.json(meView(req));
+});
+
+// Showtimes of the movies this browser has unlocked.
 app.get('/api/public/showtimes', (req, res) => {
-  const items = store.listShowtimes().sort(byShowtime).map(publicShowtimeView);
+  const lookup = peopleLookup();
+  const items = store.listShowtimes()
+    .filter((s) => req.unlocked.has(s.movieId))
+    .sort(byShowtime)
+    .map((s) => publicShowtimeView(s, req.person, null, lookup));
   res.json({ showtimes: items });
 });
 
-app.post('/api/public/showtimes/:id/claim', async (req, res) => {
-  const { seatId, name } = req.body || {};
+// The signed-in person's seats, theirs and their guests', in every movie
+// -- read-only where this browser hasn't unlocked the movie, and then
+// only their own seats are included.
+app.get('/api/public/mine', (req, res) => {
+  const lookup = peopleLookup();
+  const items = store.seatsOf(req.person.id).map(({ showtime, seatIds }) => {
+    const unlocked = req.unlocked.has(showtime.movieId);
+    return {
+      unlocked,
+      seatIds,
+      showtime: publicShowtimeView(showtime, req.person, unlocked ? null : new Set(seatIds), lookup)
+    };
+  }).sort((a, b) => byShowtime(a.showtime, b.showtime));
+  res.json({ items });
+});
+
+// Anything that changes a showtime needs its movie unlocked here. Sends
+// the refusal itself and returns null when it doesn't.
+function unlockedShowtime(req, res) {
+  const show = store.getShowtime(req.params.id);
+  if (!show) { res.status(404).json({ error: 'not found' }); return null; }
+  if (!req.unlocked.has(show.movieId)) {
+    res.status(403).json({ error: 'unlock this movie first', reason: 'locked' });
+    return null;
+  }
+  return show;
+}
+
+// Reserves an open seat for the signed-in person, or -- with guestName --
+// for someone they're bringing, which stays theirs to look after.
+app.post('/api/public/showtimes/:id/claim', (req, res) => {
+  if (!unlockedShowtime(req, res)) return;
+  const { seatId, guestName } = req.body || {};
   if (typeof seatId !== 'string' || !seatId) {
     return res.status(400).json({ error: 'seatId required' });
   }
-  const trimmedName = typeof name === 'string' ? name.trim().slice(0, 80) : '';
-  if (!trimmedName) return res.status(400).json({ error: 'name required' });
+  const guest = typeof guestName === 'string' ? guestName.trim().slice(0, 80) : '';
+  const name = guest || req.person.shortName;
 
-  const result = await store.claimSeat(req.params.id, seatId, trimmedName);
+  const result = store.claimSeat(req.params.id, seatId, name, { personId: req.person.id, guest: !!guest });
   if (!result.ok) {
     if (result.reason === 'not_found') return res.status(404).json({ error: 'not found' });
     return res.status(409).json({ error: 'that seat is no longer available' });
   }
-  res.json({ showtime: publicShowtimeView(result.showtime) });
+  res.json({ showtime: publicShowtimeView(result.showtime, req.person) });
+});
+
+// Seats reserved before profiles existed, in movies unlocked here, for
+// "are these yours?".
+app.get('/api/public/claimable', (req, res) => {
+  res.json({ seats: store.claimableSeats(req.unlocked) });
+});
+
+app.post('/api/public/claim-existing', (req, res) => {
+  const { seats } = req.body || {};
+  if (!Array.isArray(seats)) return res.status(400).json({ error: 'seats must be an array' });
+  const items = seats.slice(0, 50).filter((x) => x && typeof x.showtimeId === 'string' && typeof x.seatId === 'string');
+  const result = store.claimExistingSeats(req.person.id, items, req.unlocked);
+  if (!result.ok) return sendResult(res, result);
+  res.json({ claimed: result.claimed });
 });
 
 // ---------------- Calendar invite ----------------
@@ -883,6 +1173,7 @@ app.get('/api/public/concession-menu', (req, res) => {
 // come to is worked out in the store from what's actually saved on the
 // seat, so a stale page can't settle $40 of food off a $12 view of it.
 app.put('/api/public/showtimes/:id/seats/:seatId/paid', async (req, res) => {
+  if (!unlockedShowtime(req, res)) return;
   const body = req.body || {};
   const patch = {};
   if (typeof body.ticket === 'boolean') patch.ticket = body.ticket;
@@ -896,10 +1187,11 @@ app.put('/api/public/showtimes/:id/seats/:seatId/paid', async (req, res) => {
     if (result.reason === 'not_found') return res.status(404).json({ error: 'not found' });
     return res.status(409).json({ error: 'that seat is not reserved yet' });
   }
-  res.json({ showtime: publicShowtimeView(result.showtime) });
+  res.json({ showtime: publicShowtimeView(result.showtime, req.person) });
 });
 
 app.put('/api/public/showtimes/:id/seats/:seatId/concessions', async (req, res) => {
+  if (!unlockedShowtime(req, res)) return;
   const { items } = req.body || {};
   if (items !== undefined && !Array.isArray(items)) {
     return res.status(400).json({ error: 'items must be an array' });
@@ -913,7 +1205,7 @@ app.put('/api/public/showtimes/:id/seats/:seatId/concessions', async (req, res) 
     }
     return res.status(409).json({ error: 'that seat is not reserved yet' });
   }
-  res.json({ showtime: publicShowtimeView(result.showtime) });
+  res.json({ showtime: publicShowtimeView(result.showtime, req.person) });
 });
 
 // ---------------- AMC API test (admin auth required, TEMPORARY) ----------------
@@ -1013,21 +1305,21 @@ app.get('/api/amc-test', adminAuth.requireAuth('/admin'), async (req, res) => {
 
 // ---------------- Pages ----------------
 //
-// / is the friend side: the reservation page if shared-authed, otherwise
-// the login form. /admin is the host's editor, behind the same login form
-// pointed at the admin password instead (login.html reads which door it's
-// on from the URL). An admin cookie alone doesn't open / -- see Auth above.
+// / is the friend side: the reservation page for a browser someone's
+// signed in on, otherwise the welcome page (email, and a profile for a
+// new one). /admin is the host's editor behind login.html and the admin
+// password.
 //
-// admin.html and public.html live outside /public so they can never be
-// fetched directly, bypassing the checks below.
-app.get('/', (req, res) => {
-  if (sharedAuth.isAuthed(req)) {
+// admin.html, public.html and welcome.html live outside /public so they
+// can never be fetched directly, bypassing the checks below.
+app.get('/', attachDevice(false), (req, res) => {
+  if (req.person) {
     return renderHtmlPage(res, req, path.join(__dirname, 'views', 'public.html'));
   }
-  // The unauthenticated case is the one that actually matters for link
-  // previews: a crawler hitting the shared URL never has a session
-  // cookie, so this is the response it sees.
-  renderHtmlPage(res, req, path.join(__dirname, 'public', 'login.html'));
+  // The signed-out case is the one that actually matters for link
+  // previews: a crawler hitting the shared URL never has a cookie, so
+  // this is the response it sees.
+  renderHtmlPage(res, req, path.join(__dirname, 'views', 'welcome.html'));
 });
 
 app.get('/admin', (req, res) => {

@@ -2,11 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<!-- viewport-fit=cover lets the page draw under the notch/status bar and
-     the home indicator instead of iOS letterboxing it -- what lets the
-     backdrop below run edge to edge. Nothing else here sits near an edge
-     (the form is centered), so there's nothing to pad back in. -->
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Canopy Tickets</title>
 <!-- OG_META -->
 <style>
@@ -81,76 +77,6 @@
     font-weight:700;
     cursor:pointer;
   }
-  /* Friend login only (see the script below): the link-preview image
-     fills the screen behind a frosted-glass form. cover on a fixed layer
-     fills the height of a portrait phone and crops the 16:9 image's
-     sides; the dim keeps the form readable over a busy frame. */
-  /* 100lvh rather than bottom:0: the large viewport is the height with
-     Safari's toolbars collapsed, so the image still reaches the bottom
-     edge behind a translucent toolbar instead of stopping above it. */
-  /* The page colour moves from body to html here, so the script below
-     can set it without body painting a solid box over the backdrop
-     (which sits at z-index -1, behind body's own background). */
-  html.has-backdrop{background:var(--bg);}
-  html.has-backdrop body{background:transparent;}
-  body.has-backdrop::before{
-    content:"";
-    position:fixed;
-    top:0;
-    left:0;
-    right:0;
-    height:100lvh;
-    z-index:-1;
-    background:var(--backdrop) center / cover no-repeat, var(--bg);
-  }
-  body.has-backdrop::after{
-    content:"";
-    position:fixed;
-    top:0;
-    left:0;
-    right:0;
-    height:100lvh;
-    z-index:-1;
-    background:rgba(0,0,0,0.25);
-  }
-  /* iOS Safari 26 paints the strips behind its status bar and toolbar a
-     single solid colour it picks from the page -- a fixed bar touching
-     that edge if there is one, the page background if not -- and won't
-     show the image there. These two bars give it a colour to pick: each
-     is the average colour of the image's edge (set by the script below)
-     and fades into the image, so the strip reads as a continuation of
-     it rather than a band. */
-  .edge-tint{
-    position:fixed;
-    left:0;
-    right:0;
-    height:40px;
-    z-index:0;
-    pointer-events:none;
-    background-color:transparent;
-  }
-  .edge-tint.top{
-    top:0;
-    -webkit-mask-image:linear-gradient(to bottom, #000, transparent);
-    mask-image:linear-gradient(to bottom, #000, transparent);
-  }
-  .edge-tint.bottom{
-    bottom:0;
-    -webkit-mask-image:linear-gradient(to top, #000, transparent);
-    mask-image:linear-gradient(to top, #000, transparent);
-  }
-  body.has-backdrop form{
-    background:rgba(21,21,23,0.45);
-    border-color:rgba(255,255,255,0.14);
-    -webkit-backdrop-filter:blur(20px) saturate(140%);
-    backdrop-filter:blur(20px) saturate(140%);
-    box-shadow:0 10px 40px rgba(0,0,0,0.35);
-  }
-  body.has-backdrop p{color:#d0d0d0;}
-  body.has-backdrop input{
-    background:rgba(0,0,0,0.35);
-    border-color:rgba(255,255,255,0.18);
-  }
   .error{
     color:#e2857a;
     font-size:13px;
@@ -159,13 +85,11 @@
   }
 </style>
 </head>
-<body data-backdrop="__OG_IMAGE_URL__">
-  <div class="edge-tint top" id="edgeTop" aria-hidden="true"></div>
-  <div class="edge-tint bottom" id="edgeBottom" aria-hidden="true"></div>
+<body>
   <form id="loginForm">
     <!-- LOGO_IMG -->
     <h1>Canopy Tickets</h1>
-    <p data-copy="login.tagline"></p>
+    <p data-copy="login.adminTagline"></p>
     <div class="error" id="errorMsg"></div>
     <input type="password" id="password" placeholder="Password" autofocus autocomplete="current-password">
     <button type="submit">Enter</button>
@@ -173,12 +97,9 @@
 
 <script src="/copy.js"></script>
 <script>
-// One form, two doors: / takes the friend password and /admin takes the
-// admin one. Each door only accepts its own (see server.js > Auth), so
-// this just has to post to the right endpoint and come back to the same
-// page once signed in.
-const IS_ADMIN = /^\/admin(\/|$)/.test(window.location.pathname);
-const HOME = IS_ADMIN ? '/admin' : '/';
+// The host's door, at /admin. (Friends don't have a password; they sign
+// in by email at / -- see views/welcome.html.)
+const HOME = '/admin';
 
 // The login form is served at the page it guards, so getting in is a
 // reload of this same URL -- which keeps its hash, so a link to one
@@ -188,53 +109,6 @@ function goHome(){
   if (window.location.pathname === HOME) window.location.reload();
   else window.location.href = HOME;
 }
-if (IS_ADMIN) document.querySelector('[data-copy="login.tagline"]').setAttribute('data-copy', 'login.adminTagline');
-
-// The friend door gets the link-preview image as a backdrop, when one
-// has been uploaded; the admin door stays plain.
-const BACKDROP = document.body.getAttribute('data-backdrop');
-if (!IS_ADMIN && BACKDROP && BACKDROP.charAt(0) === '/'){
-  document.body.style.setProperty('--backdrop', 'url("' + BACKDROP + '")');
-  document.body.classList.add('has-backdrop');
-  document.documentElement.classList.add('has-backdrop');
-  tintEdgesFrom(BACKDROP);
-}
-
-// Works out the colour along the top and bottom edges of the backdrop as
-// it's actually cropped on this screen (cover, centered), and hands each
-// to its .edge-tint bar -- and the bottom one to the page background too,
-// for a Safari that ignores the bars and only reads that. Scaled down to
-// a few dozen pixels first: an average doesn't need the full 4K image.
-function tintEdgesFrom(url){
-  const img = new Image();
-  img.onload = () => {
-    try{
-      const vw = window.innerWidth, vh = window.innerHeight;
-      const cw = 48, ch = Math.max(2, Math.round(cw * vh / vw));
-      const scale = Math.max(cw / img.naturalWidth, ch / img.naturalHeight);
-      const dw = img.naturalWidth * scale, dh = img.naturalHeight * scale;
-      const canvas = document.createElement('canvas');
-      canvas.width = cw;
-      canvas.height = ch;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, (cw - dw) / 2, (ch - dh) / 2, dw, dh);
-      // 0.75: the backdrop sits under a 25% black dim (body::after).
-      const edge = (y) => {
-        const d = ctx.getImageData(0, y, cw, 1).data;
-        const sum = [0, 0, 0];
-        for (let i = 0; i < d.length; i += 4){ sum[0] += d[i]; sum[1] += d[i + 1]; sum[2] += d[i + 2]; }
-        return 'rgb(' + sum.map(v => Math.round(v / cw * 0.75)).join(',') + ')';
-      };
-      const top = edge(0), bottom = edge(ch - 1);
-      document.getElementById('edgeTop').style.backgroundColor = top;
-      document.getElementById('edgeBottom').style.backgroundColor = bottom;
-      document.documentElement.style.backgroundColor = bottom;
-    }catch(e){
-      // Leave the default dark strips.
-    }
-  };
-  img.src = url;
-}
 
 applyCopy();
 
@@ -242,7 +116,7 @@ applyCopy();
   try{
     const res = await fetch('/api/session');
     const data = await res.json();
-    if (!data || !(IS_ADMIN ? data.admin : data.shared)) return;
+    if (!data || !data.admin) return;
     // Guard against bouncing back and forth with this page forever if two
     // requests in the same flow ever land on processes that disagree
     // about session validity (e.g. mid-redeploy).
@@ -260,7 +134,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
   errorEl.textContent = '';
   const password = document.getElementById('password').value;
   try{
-    const res = await fetch(IS_ADMIN ? '/api/admin/login' : '/api/login', {
+    const res = await fetch('/api/admin/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password })

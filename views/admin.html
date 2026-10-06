@@ -183,6 +183,56 @@
   }
   .link-btn input{position:absolute;inset:0;width:100%;opacity:0;cursor:pointer;}
   .movie-sub-status{color:var(--muted);font-size:12px;}
+  .movie-password{
+    margin-top:12px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    flex-wrap:wrap;
+  }
+  .movie-password label{color:#ccc;font-size:14px;}
+  .movie-password input{
+    flex:1 1 160px;
+    min-width:0;
+    max-width:260px;
+    background:#0f0f10;
+    color:#fff;
+    border:1px solid #3a3a3a;
+    border-radius:10px;
+    padding:8px 10px;
+    font-size:16px;
+  }
+  .movie-password input:placeholder-shown{border-color:#7a2a2f;}
+  .movie-password-note{color:var(--muted);font-size:11.5px;margin-top:6px;}
+  .tile-warn{color:#e2857a;font-size:12px;margin-top:2px;}
+  .people-list{padding:14px 20px 20px;display:flex;flex-direction:column;gap:10px;}
+  .person-row{
+    display:flex;
+    align-items:flex-start;
+    gap:12px;
+    background:#151517;
+    border:1px solid #2a2a2a;
+    border-radius:14px;
+    padding:12px;
+  }
+  .person-photo{width:44px;height:44px;border-radius:50%;object-fit:cover;background:#2a2a2a;flex:0 0 auto;}
+  .person-main{flex:1;min-width:0;}
+  .person-name{font-weight:700;font-size:15px;}
+  .person-meta{color:var(--muted);font-size:12.5px;margin-top:2px;overflow-wrap:anywhere;}
+  .person-edit{margin-top:10px;}
+  .person-edit-row{display:flex;gap:8px;margin-bottom:8px;}
+  .person-edit-row input{
+    flex:1;
+    min-width:0;
+    background:#0f0f10;
+    color:#fff;
+    border:1px solid #3a3a3a;
+    border-radius:10px;
+    padding:8px 10px;
+    font-size:16px;
+  }
+  .person-edit-actions{display:flex;gap:8px;flex-wrap:wrap;}
+  .pe-open{flex:0 0 auto;}
   /* Only takes room when it has something to say (a rename's result). */
   #movieTitleStatus{min-height:0;margin-top:4px;}
   #movieTitleStatus:empty{display:none;}
@@ -1027,6 +1077,7 @@
     <nav class="tabs">
       <a href="#/movies" data-tab="movies">Movies</a>
       <a href="#/menu" data-tab="menu">Food &amp; Drink</a>
+      <a href="#/people" data-tab="people">People</a>
       <a href="#/settings" data-tab="settings">Settings</a>
     </nav>
   </div>
@@ -1070,6 +1121,14 @@
         <span class="movie-sub-status" id="moviePosterStatus"></span>
       </div>
       <div class="og-status" id="movieTitleStatus"></div>
+      <!-- What friends type to unlock this movie, once per phone. Saves as
+           you type. Shown in plain text on purpose: it's for handing out. -->
+      <div class="movie-password">
+        <label for="moviePassword">Password</label>
+        <input type="text" id="moviePassword" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="200">
+        <span class="movie-sub-status" id="moviePasswordStatus"></span>
+      </div>
+      <div class="movie-password-note" data-copy="admin.movies.passwordNote"></div>
     </div>
     <div class="new-btn-wrap">
       <button class="new-btn" onclick="addShowtime()">+ Add showtime</button>
@@ -1184,17 +1243,15 @@
     </div>
   </div>
 
+  <!-- ===================== PEOPLE ===================== -->
+  <!-- Everyone who's set up a profile. Fix a name, or delete a profile
+       made with a typo'd email (their seats stay, under the same names). -->
+  <div id="peopleView" class="view hidden">
+    <div class="people-list" id="peopleList"><div class="loading-state">Loading...</div></div>
+  </div>
+
   <!-- ===================== SETTINGS ===================== -->
   <div id="settingsView" class="view hidden">
-    <div class="og-section">
-      <h3>Friend Password</h3>
-      <p data-copy="admin.passwordBlurb"></p>
-      <div class="og-controls">
-        <input type="text" id="sharedPasswordInput" placeholder="No password set -- friend login is off">
-        <button type="button" onclick="saveSharedPassword()">Save</button>
-      </div>
-      <div class="og-status" id="sharedPasswordStatus"></div>
-    </div>
     <div class="og-section">
       <h3>Payment Handles</h3>
       <p data-copy="admin.payBlurb"></p>
@@ -1438,7 +1495,7 @@ async function logout(){
 // The screen is named in the URL hash -- #/movies, #/movie/<id>,
 // #/showtime/<id>, #/menu, #/settings -- so the browser's back button and
 // a phone's back swipe go up a level, and a reload stays put.
-const VIEWS = ['moviesView', 'movieView', 'editorView', 'menuView', 'settingsView'];
+const VIEWS = ['moviesView', 'movieView', 'editorView', 'menuView', 'peopleView', 'settingsView'];
 
 function parseRoute(){
   const parts = (location.hash || '').replace(/^#\/?/, '').split('/');
@@ -1480,21 +1537,23 @@ async function route(){
   else if (r.name === 'showtime' && r.id) view = 'editorView';
   else if (r.name === 'menu') view = 'menuView';
   else if (r.name === 'settings') view = 'settingsView';
+  else if (r.name === 'people') view = 'peopleView';
 
   if (view !== 'editorView'){
     currentId = null;
     renderSavePill();
   }
   VIEWS.forEach(v => document.getElementById(v).classList.toggle('hidden', v !== view));
-  const topLevel = ['moviesView', 'menuView', 'settingsView'].includes(view);
+  const topLevel = ['moviesView', 'menuView', 'peopleView', 'settingsView'].includes(view);
   document.getElementById('topbar').classList.toggle('hidden', !topLevel);
-  document.querySelectorAll('.tabs a').forEach(a =>
-    a.classList.toggle('active', a.dataset.tab === r.name || (r.name !== 'menu' && r.name !== 'settings' && a.dataset.tab === 'movies')));
+  const tab = ['menu', 'people', 'settings'].includes(r.name) ? r.name : 'movies';
+  document.querySelectorAll('.tabs a').forEach(a => a.classList.toggle('active', a.dataset.tab === tab));
   window.scrollTo(0, 0);
 
   if (view === 'moviesView'){ parentHash = '#/movies'; await loadMovies(); }
   else if (view === 'movieView'){ parentHash = '#/movies'; await openMovie(r.id); }
   else if (view === 'editorView'){ await openShowtime(r.id); }
+  else if (view === 'peopleView'){ parentHash = '#/movies'; await loadPeople(); }
   else parentHash = '#/movies';
 }
 
@@ -1601,6 +1660,13 @@ function buildMovieTile(m, isPast){
     sub.textContent = count + ' · ' + when;
   }
   tile.appendChild(sub);
+  // Nobody can unlock a movie without one.
+  if (!m.password && !isPast){
+    const warn = document.createElement('div');
+    warn.className = 'tile-warn';
+    warn.textContent = t('admin.movies.noPassword');
+    tile.appendChild(warn);
+  }
   return tile;
 }
 
@@ -1664,6 +1730,9 @@ function renderMovie(){
   document.getElementById('movieTitleStatus').textContent = '';
   document.getElementById('moviePosterStatus').textContent = '';
   document.getElementById('moviePosterLabel').textContent = m.posterUrl ? 'Change poster' : 'Add poster';
+  document.getElementById('moviePassword').value = m.password || '';
+  document.getElementById('moviePassword').placeholder = t('admin.movies.passwordNone');
+  document.getElementById('moviePasswordStatus').textContent = '';
 
   const showtimes = m.showtimes || [];
   document.getElementById('movieShowtimeCount').textContent = showtimes.length
@@ -1728,6 +1797,115 @@ document.getElementById('movieTitle').addEventListener('change', renameMovie);
 document.getElementById('movieTitle').addEventListener('keydown', (e) => {
   if (e.key === 'Enter'){ e.preventDefault(); e.target.blur(); }
 });
+
+// The movie's password saves as you type, like a showtime's fields.
+// Changing it doesn't re-lock phones that already unlocked the movie.
+let passwordTimer = null;
+async function saveMoviePassword(){
+  clearTimeout(passwordTimer);
+  if (!currentMovie) return;
+  const input = document.getElementById('moviePassword');
+  const statusEl = document.getElementById('moviePasswordStatus');
+  const password = input.value.trim();
+  if (password === (currentMovie.password || '')){
+    if (statusEl.textContent === t('admin.status.saving')) statusEl.textContent = '';
+    return;
+  }
+  statusEl.textContent = t('admin.status.saving');
+  try{
+    const res = await fetch('/api/movies/' + encodeURIComponent(currentMovie.id), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password })
+    });
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok){ statusEl.textContent = t('admin.status.saveFailed'); return; }
+    currentMovie.password = (await res.json()).movie.password;
+    statusEl.textContent = t('admin.status.saved');
+    setTimeout(() => { if (statusEl.textContent === t('admin.status.saved')) statusEl.textContent = ''; }, 1500);
+  }catch(e){
+    statusEl.textContent = t('admin.status.saveFailed');
+  }
+}
+document.getElementById('moviePassword').addEventListener('input', () => {
+  clearTimeout(passwordTimer);
+  document.getElementById('moviePasswordStatus').textContent = t('admin.status.saving');
+  passwordTimer = setTimeout(saveMoviePassword, 700);
+});
+document.getElementById('moviePassword').addEventListener('blur', saveMoviePassword);
+
+// ---------------- PEOPLE ----------------
+async function loadPeople(){
+  const list = document.getElementById('peopleList');
+  try{
+    const res = await fetch('/api/people');
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok) throw new Error('failed');
+    const people = (await res.json()).people || [];
+    list.innerHTML = '';
+    if (!people.length){
+      list.innerHTML = '<div class="empty-state">' + escapeHtml(t('admin.people.none')) + '</div>';
+      return;
+    }
+    people.forEach(p => list.appendChild(buildPersonRow(p)));
+  }catch(e){
+    list.innerHTML = '<div class="empty-state">' + escapeHtml(t('admin.people.loadFailed')) + '</div>';
+  }
+}
+
+// One person: photo, full name (and what friends see), email, how many
+// seats. Edit opens the name fields in place.
+function buildPersonRow(p){
+  const row = document.createElement('div');
+  row.className = 'person-row';
+  const photo = p.photoUrl ? '<img class="person-photo" src="' + escapeHtml(p.photoUrl) + '" alt="">' : '<div class="person-photo"></div>';
+  row.innerHTML = photo +
+    '<div class="person-main"><div class="person-name"></div><div class="person-meta"></div>' +
+    '<div class="person-edit hidden"><div class="person-edit-row">' +
+    '<input type="text" class="pe-first" maxlength="60" placeholder="First name">' +
+    '<input type="text" class="pe-last" maxlength="60" placeholder="Last name"></div>' +
+    '<div class="person-edit-actions"><button type="button" class="pe-save">Save</button>' +
+    '<button type="button" class="pe-cancel">Cancel</button>' +
+    '<button type="button" class="delete-btn pe-delete">Delete</button></div>' +
+    '<div class="og-status pe-status"></div></div></div>' +
+    '<button type="button" class="pe-open">Edit</button>';
+  row.querySelector('.person-name').textContent = p.firstName + ' ' + p.lastName;
+  row.querySelector('.person-meta').textContent = t('admin.people.shownAs', { name: p.shortName }) + ' · ' + p.email + ' · ' +
+    t(p.seatCount === 1 ? 'admin.people.seatsOne' : 'admin.people.seatsMany', { count: p.seatCount });
+  const edit = row.querySelector('.person-edit');
+  row.querySelector('.pe-first').value = p.firstName;
+  row.querySelector('.pe-last').value = p.lastName;
+  row.querySelector('.pe-open').addEventListener('click', () => edit.classList.toggle('hidden'));
+  row.querySelector('.pe-cancel').addEventListener('click', () => edit.classList.add('hidden'));
+  row.querySelector('.pe-save').addEventListener('click', async () => {
+    const statusEl = row.querySelector('.pe-status');
+    statusEl.textContent = t('admin.status.saving');
+    try{
+      const res = await fetch('/api/people/' + encodeURIComponent(p.id), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ firstName: row.querySelector('.pe-first').value, lastName: row.querySelector('.pe-last').value })
+      });
+      if (await handleAuthFailure(res)) return;
+      if (!res.ok){ statusEl.textContent = t('admin.status.saveFailed'); return; }
+      loadPeople();
+    }catch(e){
+      statusEl.textContent = t('admin.status.saveFailed');
+    }
+  });
+  row.querySelector('.pe-delete').addEventListener('click', async () => {
+    if (!confirm(t('admin.people.deleteConfirm', { name: p.firstName + ' ' + p.lastName, email: p.email }))) return;
+    try{
+      const res = await fetch('/api/people/' + encodeURIComponent(p.id), { method: 'DELETE' });
+      if (await handleAuthFailure(res)) return;
+      if (!res.ok) throw new Error('failed');
+      loadPeople();
+    }catch(e){
+      alert(t('admin.deleteFailed'));
+    }
+  });
+  return row;
+}
 
 // Uploads as soon as a file is picked -- there's nothing else to confirm.
 async function uploadMoviePoster(){
@@ -2607,42 +2785,6 @@ function uploadOgImage(){ return uploadImage('/api/og-image', 'ogFileInput', 'og
 function loadLogoPreview(){ return loadImagePreview('/api/logo-image', 'logoPreview'); }
 function uploadLogo(){ return uploadImage('/api/logo-image', 'logoFileInput', 'logoStatus', loadLogoPreview); }
 
-// ---------------- FRIEND PASSWORD ----------------
-async function loadSharedPassword(){
-  try{
-    const res = await fetch('/api/shared-password');
-    if (await handleAuthFailure(res)) return;
-    if (!res.ok) return;
-    const data = await res.json();
-    document.getElementById('sharedPasswordInput').value = data.password || '';
-  }catch(e){
-    // Non-fatal -- the field just starts blank if this fails.
-  }
-}
-
-async function saveSharedPassword(){
-  const input = document.getElementById('sharedPasswordInput');
-  const statusEl = document.getElementById('sharedPasswordStatus');
-  statusEl.textContent = t('admin.status.saving');
-  try{
-    const res = await fetch('/api/shared-password', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: input.value })
-    });
-    if (await handleAuthFailure(res)) return;
-    if (!res.ok){
-      statusEl.textContent = t('admin.status.saveFailed');
-      return;
-    }
-    const data = await res.json();
-    statusEl.textContent = t(data.password ? 'admin.status.saved' : 'admin.status.friendLoginOff');
-    setTimeout(() => { if (statusEl.textContent === t('admin.status.saved')) statusEl.textContent = ''; }, 1500);
-  }catch(e){
-    statusEl.textContent = t('admin.status.saveFailed');
-  }
-}
-
 // ---------------- PAYMENT HANDLES ----------------
 // ---------------- CONCESSIONS MENU ----------------
 //
@@ -3079,7 +3221,6 @@ populateScreenOptions();
 syncFormatOptions();
 route();
 loadInfoSuggestions();
-loadSharedPassword();
 loadOgPreview();
 loadLogoPreview();
 loadPaymentHandles();

@@ -21,20 +21,32 @@
 //   * Anything only a developer sees (thrown errors, console output).
 const COPY = {
 
-  // ---------------- LOGIN ----------------
+  // ---------------- LOGIN (the host's, at /admin) ----------------
   login: {
-    tagline: 'Enter the password to access seat reservations.',
-    // The same form at /admin.
     adminTagline: 'Enter the admin password to manage showtimes.',
     wrongPassword: 'Wrong password.',
     failed: 'Something went wrong. Try again.',
     unreachable: 'Could not reach the server. Try again.'
   },
 
+  // ---------------- WELCOME (friends signing in, at /) ----------------
+  welcome: {
+    tagline: 'Enter your email to see your tickets and reserve seats.',
+    badEmail: "That doesn't look like an email address.",
+    failed: 'Something went wrong. Try again.',
+    unreachable: 'Could not reach the server. Try again.',
+    profileHeading: 'Set up your profile',
+    addPhoto: '+ Add a photo',
+    photoNote: 'A photo of your face, so everyone knows whose seat is whose.',
+    cropHint: 'Pinch and drag to fit your face in the circle.',
+    photoUnreadable: "Couldn't open that photo. Try another one.",
+    emailTaken: 'That email already has a profile. Go back and continue with it.'
+  },
+
   // ---------------- RESERVATION PAGE (what friends see) ----------------
   friend: {
-    // Under "Upcoming Movies" on the landing grid.
-    intro: 'Tap a movie to see its showtimes.',
+    // Above the All movies grid.
+    intro: 'Tap a movie to see its showtimes. Locked ones need their password once on this phone.',
 
     // One film's showtimes, after tapping its poster.
     film: {
@@ -57,7 +69,43 @@ const COPY = {
       // Shown under a reserved seat's name on the list.
       concessionsOne: '🍿 {count} item',
       concessionsMany: '🍿 {count} items',
-      noConcessions: 'No concessions'
+      noConcessions: 'No concessions',
+      // A guest's seat: who brought them.
+      via: 'via {name}',
+      you: 'you'
+    },
+
+    // Unlocking a movie, over its poster on the All movies tab.
+    unlock: {
+      placeholder: 'Password',
+      button: 'Unlock',
+      cancel: 'Cancel',
+      wrong: 'Wrong password',
+      tooMany: 'Too many tries. Wait a few minutes.',
+      failed: "Couldn't reach the server."
+    },
+
+    mine: {
+      empty: "You don't have any seats yet.",
+      browse: 'Browse movies',
+      locked: 'Unlock this movie on this phone to make changes'
+    },
+
+    profile: {
+      heading: 'Your profile',
+      claimEarlier: 'Claim seats reserved before profiles',
+      locked: 'Unlock one of your movies on this phone first.',
+      failed: "Couldn't save. Try again."
+    },
+
+    // Seats reserved before profiles existed.
+    existing: {
+      heading: 'Are any of these yours?',
+      hint: 'Seats reserved before profiles. Tick yours and they join your showtimes.',
+      submit: 'These are mine',
+      skip: 'Not now',
+      none: 'No unclaimed seats in the movies unlocked on this phone.',
+      failed: "Couldn't save. Try again."
     },
 
     seatMap: {
@@ -71,8 +119,10 @@ const COPY = {
 
     claim: {
       title: 'Reserve seat {seat}',
-      hint: "Your name will be shown next to this seat so the host knows it's yours.",
-      noName: 'Enter your name first.',
+      hint: 'Your name and photo show on the seat, so everyone knows whose it is.',
+      forMe: 'For me ({name})',
+      forGuest: 'For someone else',
+      noName: "Enter their name first.",
       taken: 'Sorry, someone just claimed that seat. Pick another.',
       failed: 'Could not claim that seat. Try again.',
       unreachable: 'Could not reach the server. Try again.'
@@ -150,7 +200,19 @@ const COPY = {
       showtimesMany: '{count} showtimes',
       next: 'Next: {when}',
       last: 'Last: {when}',
-      deleteConfirm: 'Delete "{title}"? It has no showtimes.'
+      deleteConfirm: 'Delete "{title}"? It has no showtimes.',
+      noPassword: 'No password yet',
+      passwordNone: "None yet -- friends can't unlock this",
+      passwordNote: "Friends type it once per phone. Changing it doesn't lock out phones that already unlocked."
+    },
+
+    people: {
+      none: 'Nobody has set up a profile yet.',
+      loadFailed: 'Could not load people. Try again.',
+      shownAs: 'shown as {name}',
+      seatsOne: '{count} seat',
+      seatsMany: '{count} seats',
+      deleteConfirm: 'Delete {name} ({email})? Their seats stay reserved under the same names; they just stop being linked to a profile.'
     },
 
     // The pill at the bottom of a showtime while it saves.
@@ -230,11 +292,9 @@ const COPY = {
       uploading: 'Uploading...',
       uploaded: 'Uploaded.',
       uploadFailed: 'Upload failed. Try again.',
-      chooseImage: 'Choose an image first.',
-      friendLoginOff: 'Friend login turned off.'
+      chooseImage: 'Choose an image first.'
     },
 
-    passwordBlurb: 'What friends enter at login to reach the reservation page. Change it any time -- e.g. a fresh password per movie. Leave it blank and save to turn off friend access entirely.',
     payBlurb: "Shown as pay buttons to friends right after they claim a seat. Fill in either, both, or neither -- a button only shows up for the one(s) you've set.",
     ogBlurb: "Shown when this site's link is shared in iMessage, Facebook, Instagram, etc.",
     logoBlurb: 'Shown on the login screen and at the top of this and the reservation page. PNG with a transparent background works best.',

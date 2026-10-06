@@ -62,23 +62,97 @@
     height:auto;
     margin:0 0 10px;
   }
+  .list-header{align-items:center;}
   .list-header h1{
-    font-size:26px;
-    margin:0 0 4px;
-  }
-  .list-header p{
+    font-size:24px;
     margin:0;
+  }
+  /* A logo already says the name. */
+  .site-logo ~ h1{display:none;}
+  .list-head-brand .site-logo{margin:0;}
+  .avatar{
+    display:block;
+    border-radius:50%;
+    object-fit:cover;
+    background:#2a2a2a;
+  }
+  .me-btn{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    background:none;
+    border:none;
+    color:#ddd;
+    font:inherit;
+    font-size:14px;
+    padding:2px;
+    cursor:pointer;
+  }
+  .me-btn .avatar{width:36px;height:36px;border:2px solid var(--gold);}
+  .tabs{
+    display:flex;
+    gap:4px;
+    padding:0 10px;
+    border-bottom:1px solid #2a2a2a;
+  }
+  .tabs button{
+    background:none;
+    border:none;
+    border-bottom:2px solid transparent;
+    color:var(--muted);
+    font:inherit;
+    font-size:15px;
+    font-weight:600;
+    padding:12px 10px;
+    margin-bottom:-1px;
+    cursor:pointer;
+  }
+  .tabs button.active{color:#fff;border-bottom-color:var(--gold);}
+  .tab-intro{
+    margin:14px 20px 0;
     color:var(--muted);
     font-size:14px;
   }
-  .logout-link{
-    color:var(--muted);
-    font-size:12px;
+  .mine-empty{text-align:center;padding:40px 20px;color:var(--muted);font-size:14px;}
+  .mine-empty button{
+    margin-top:14px;
+    background:var(--gold);
+    color:#241c07;
+    border:none;
+    border-radius:20px;
+    padding:10px 18px;
+    font-weight:700;
+    font-size:14px;
     cursor:pointer;
-    text-decoration:underline;
-    white-space:nowrap;
-    margin-top:4px;
   }
+  /* A movie this browser hasn't unlocked: its seats are shown, but the
+     only thing to do is unlock it. */
+  .locked-note{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    width:100%;
+    margin-top:10px;
+    background:#1b1710;
+    border:1px solid #4a3d1c;
+    border-radius:10px;
+    color:#f0dda9;
+    font:inherit;
+    font-size:13px;
+    padding:9px 12px;
+    text-align:left;
+    cursor:pointer;
+  }
+  .mine-seat{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-size:13px;
+    color:#ddd;
+    padding:4px 0;
+  }
+  .mine-seat .seat-id{color:var(--muted);font-weight:700;min-width:30px;}
+  .mine-seat b{color:var(--gold);}
   .cards{
     /* 10, not 20, at the sides. Paired with the card's own 10 below it
        this puts a card's contents at 20px -- the same left edge as the
@@ -243,6 +317,61 @@
     cursor:pointer;
   }
   .film-tile:focus-visible{outline:2px solid var(--gold);outline-offset:3px;border-radius:10px;}
+  /* Locked: a padlock on the poster. Tapping it blurs the poster and puts
+     the password field over it. */
+  .film-poster{position:relative;}
+  .lock-badge{
+    position:absolute;
+    top:8px;
+    right:8px;
+    width:30px;
+    height:30px;
+    border-radius:50%;
+    background:rgba(0,0,0,.65);
+    border:1px solid rgba(255,255,255,.25);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .film-tile.is-unlocking .film-poster img,
+  .film-tile.is-unlocking .film-poster .film-poster-fallback{filter:blur(10px) brightness(.55);transform:scale(1.08);}
+  .film-tile.is-unlocking .lock-badge{display:none;}
+  .unlock-form{
+    position:absolute;
+    inset:0;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    gap:8px;
+    padding:10px;
+  }
+  .unlock-form input{
+    width:100%;
+    background:rgba(0,0,0,.55);
+    color:#fff;
+    border:1px solid rgba(255,255,255,.3);
+    border-radius:10px;
+    padding:10px;
+    font-size:16px;
+  }
+  .unlock-form button{
+    background:var(--gold);
+    color:#241c07;
+    border:none;
+    border-radius:10px;
+    padding:9px;
+    font-size:14px;
+    font-weight:700;
+    cursor:pointer;
+  }
+  .unlock-form .unlock-cancel{background:none;color:#ddd;font-weight:600;font-size:13px;padding:2px;}
+  .unlock-error{color:#ffb3ad;font-size:12px;text-align:center;min-height:15px;text-shadow:0 1px 2px #000;}
+  .film-tile.shake{animation:shake .35s;}
+  @keyframes shake{
+    0%,100%{transform:translateX(0);}
+    25%{transform:translateX(-6px);}
+    75%{transform:translateX(6px);}
+  }
   .film-poster{
     aspect-ratio:2 / 3;
     border-radius:10px;
@@ -496,6 +625,21 @@
     flex-direction:column;
     gap:8px;
   }
+  .claim-for{display:flex;flex-direction:column;gap:8px;margin-bottom:12px;}
+  .claim-for-opt{display:flex;align-items:center;gap:10px;font-size:15px;cursor:pointer;}
+  .claim-for-opt input{width:18px;height:18px;margin:0;accent-color:var(--gold);}
+  .name-row{display:flex;gap:8px;}
+  .name-row input{min-width:0;}
+  .profile-top{display:flex;align-items:center;gap:14px;margin-bottom:14px;}
+  .profile-photo{position:relative;flex:0 0 auto;cursor:pointer;}
+  .profile-photo .avatar{width:72px;height:72px;border:2px solid var(--gold);}
+  .profile-photo input{position:absolute;inset:0;opacity:0;cursor:pointer;}
+  .profile-email{margin:0;overflow-wrap:anywhere;}
+  .existing-card{max-height:85vh;display:flex;flex-direction:column;}
+  .existing-list{overflow-y:auto;margin-bottom:12px;flex:1;min-height:0;}
+  .existing-name{font-weight:700;color:var(--gold);font-size:14px;margin:10px 0 4px;}
+  .existing-seat{display:flex;align-items:center;gap:10px;font-size:13px;color:#ddd;padding:5px 0;cursor:pointer;}
+  .existing-seat input{width:18px;height:18px;margin:0;accent-color:var(--gold);flex:0 0 auto;}
   .claim-actions button, .claim-actions a{
     width:100%;
     padding:10px;
@@ -588,6 +732,11 @@
     cursor:pointer;
   }
   button.seat-line:hover{border-color:#3a3a3a;}
+  /* Your own seat stands out in a list of everyone's. */
+  button.seat-line.is-mine{border-color:#5a4a22;background:#17140d;}
+  .seat-line .avatar, .mine-seat .avatar{width:22px;height:22px;flex:0 0 auto;}
+  .seat-line-who{display:flex;align-items:center;gap:7px;flex-wrap:wrap;}
+  .seat-line-who .via, .mine-seat .via{color:var(--muted);font-size:11.5px;}
   .seat-line-main{flex:1;min-width:0;}
   .seat-line-who{margin-bottom:2px;}
   .concession-summary{
@@ -1088,18 +1237,36 @@
 </head>
 <body>
 
-  <!-- ===================== MOVIE GRID (landing) ===================== -->
+  <!-- ===================== LANDING: MY SHOWTIMES / ALL MOVIES ===================== -->
   <div id="listView">
     <div class="list-header">
-      <div>
+      <div class="list-head-brand">
         <!-- LOGO_IMG -->
-        <h1>Upcoming Movies</h1>
-        <p data-copy="friend.intro"></p>
+        <h1>Canopy Tickets</h1>
       </div>
-      <div class="logout-link" onclick="logout()">Log out</div>
+      <!-- Who's signed in; opens the profile sheet (name, photo, sign out). -->
+      <button type="button" class="me-btn" id="meBtn" onclick="openProfile()" aria-label="Your profile">
+        <span class="me-name" id="meName"></span>
+        <img class="avatar" id="meAvatar" alt="">
+      </button>
     </div>
-    <div class="film-grid" id="filmGrid">
-      <div class="loading-state">Loading...</div>
+    <nav class="tabs" role="tablist">
+      <button type="button" role="tab" data-tab="mine" onclick="setTab('mine')">My showtimes</button>
+      <button type="button" role="tab" data-tab="all" onclick="setTab('all')">All movies</button>
+    </nav>
+
+    <!-- Your seats and the guests you booked, in every movie. Read-only
+         for a movie this browser hasn't unlocked. -->
+    <div id="mineTab" class="hidden">
+      <div class="cards" id="mineCards"><div class="loading-state">Loading...</div></div>
+    </div>
+
+    <!-- Every movie. A locked one asks for its password over its poster. -->
+    <div id="allTab" class="hidden">
+      <p class="tab-intro" data-copy="friend.intro"></p>
+      <div class="film-grid" id="filmGrid">
+        <div class="loading-state">Loading...</div>
+      </div>
     </div>
   </div>
 
@@ -1140,11 +1307,60 @@
     <div class="claim-card">
       <div class="claim-title" id="claimTitle">Claim seat</div>
       <div class="claim-sub" data-copy="friend.claim.hint"></div>
+      <!-- Your own seat, or one for someone you're bringing. A guest's seat
+           is still yours to look after (it shows as "Alex (via you)"). -->
+      <div class="claim-for">
+        <label class="claim-for-opt"><input type="radio" name="claimFor" value="me" checked> <span id="claimForMe"></span></label>
+        <label class="claim-for-opt"><input type="radio" name="claimFor" value="guest"> <span data-copy="friend.claim.forGuest"></span></label>
+      </div>
+      <input type="text" id="claimGuestName" class="hidden" placeholder="Their name" autocomplete="off" maxlength="80">
       <div class="claim-error" id="claimError"></div>
-      <input type="text" id="claimName" placeholder="Your name" autocomplete="name">
       <div class="claim-actions">
         <button type="button" class="claim-submit-btn" onclick="submitClaim()">Reserve</button>
         <button type="button" onclick="closeClaimOverlay()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== PROFILE ===================== -->
+  <div class="claim-overlay hidden" id="profileOverlay">
+    <div class="claim-card">
+      <div class="claim-title" data-copy="friend.profile.heading"></div>
+      <div class="profile-top">
+        <!-- Tap to pick and frame a new photo; saves straight away. -->
+        <label class="profile-photo" title="Change photo">
+          <img class="avatar" id="profilePhoto" alt="">
+          <input type="file" id="profilePhotoInput" accept="image/*">
+        </label>
+        <div class="claim-sub profile-email" id="profileEmail"></div>
+      </div>
+      <div class="name-row">
+        <input type="text" id="profileFirst" placeholder="First name" autocomplete="given-name" maxlength="60">
+        <input type="text" id="profileLast" placeholder="Last name" autocomplete="family-name" maxlength="60">
+      </div>
+      <div class="claim-error" id="profileError"></div>
+      <div class="claim-actions">
+        <button type="button" class="claim-submit-btn" onclick="saveProfile()">Save</button>
+        <button type="button" onclick="closeProfile(); openExisting(true)" data-copy="friend.profile.claimEarlier"></button>
+        <button type="button" onclick="signOut()">Sign out</button>
+        <button type="button" onclick="closeProfile()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== "ARE THESE YOURS?" ===================== -->
+  <!-- Seats reserved before profiles existed have a name on them and no
+       owner. Shown once after setting up a profile (and from the profile
+       sheet) so they can join your showtimes. -->
+  <div class="claim-overlay hidden" id="existingOverlay">
+    <div class="claim-card existing-card">
+      <div class="claim-title" data-copy="friend.existing.heading"></div>
+      <div class="claim-sub" data-copy="friend.existing.hint"></div>
+      <div class="existing-list" id="existingList"></div>
+      <div class="claim-error" id="existingError"></div>
+      <div class="claim-actions">
+        <button type="button" class="claim-submit-btn" id="existingSubmit" onclick="submitExisting()" data-copy="friend.existing.submit"></button>
+        <button type="button" onclick="closeExisting()" data-copy="friend.existing.skip"></button>
       </div>
     </div>
   </div>
@@ -1231,6 +1447,9 @@
 
 <script src="/copy.js"></script>
 <script src="/seat-layout.js"></script>
+<!-- For changing your profile photo (the profile sheet). -->
+<script src="/vendor/cropperjs-1.6.3/cropper.min.js"></script>
+<script src="/photo-crop.js"></script>
 <script>
 
 // Fills the [data-copy] elements in the markup above from public/copy.js.
@@ -1249,7 +1468,11 @@ const WHEELCHAIR_ICON_SVG =
   '<path d="M16.98 14.804A1 1 0 0 0 16 14h-4.133l-.429-3H16V9h-4.847l-.163-1.142A1 1 0 0 0 10 7H9a1.003 1.003 0 0 0-.99 1.142l.877 6.142A2.009 2.009 0 0 0 10.867 16h4.313l.839 4.196c.094.467.504.804.981.804h3v-2h-2.181l-.839-4.196z"/>' +
   '<path d="M12.51 17.5c-.739 1.476-2.25 2.5-4.01 2.5A4.505 4.505 0 0 1 4 15.5a4.503 4.503 0 0 1 2.817-4.167l-.289-2.025C3.905 10.145 2 12.604 2 15.5 2 19.084 4.916 22 8.5 22a6.497 6.497 0 0 0 5.545-3.126l-.274-1.374H12.51z"/></svg>';
 
-let allShowtimes = [];     // last-loaded list from /api/public/showtimes
+let me = null;             // the signed-in person, from /api/public/me
+let allMovies = [];        // every movie with something scheduled, locked or not
+let mineItems = [];        // your seats: [{ showtime, seatIds, unlocked }]
+let currentTab = null;     // 'mine' | 'all'
+let allShowtimes = [];     // showtimes of the movies unlocked here (/api/public/showtimes)
 let currentFilmTitle = null; // the film whose showtimes are open, if any
 let currentShowtimeId = null;
 let claimingSeatId = null;
@@ -1284,8 +1507,10 @@ function handleAuthFailure(res){
   return true;
 }
 
-async function logout(){
-  try{ await fetch('/api/logout', { method: 'POST' }); }catch(e){}
+// Signs this browser out of the profile. Its unlocked movies stay --
+// they belong to the browser, not the person.
+async function signOut(){
+  try{ await fetch('/api/signout', { method: 'POST' }); }catch(e){}
   window.location.href = '/';
 }
 
@@ -1482,7 +1707,7 @@ function isShowingState(state){
 // open one straight after closing the last), which is why closing checks
 // a tick later whether another sheet took over before stepping back.
 function anyOverlayOpen(){
-  return ['claimOverlay', 'successOverlay', 'cartOverlay'].some(id =>
+  return ['claimOverlay', 'successOverlay', 'cartOverlay', 'profileOverlay', 'existingOverlay'].some(id =>
     !document.getElementById(id).classList.contains('hidden'));
 }
 function overlayOpened(){
@@ -1520,6 +1745,8 @@ function closeAllOverlays(){
   if (!document.getElementById('claimOverlay').classList.contains('hidden')) closeClaimOverlay();
   if (!document.getElementById('successOverlay').classList.contains('hidden')) closeSuccessOverlay();
   if (!document.getElementById('cartOverlay').classList.contains('hidden')) closeCartOverlay();
+  if (!document.getElementById('profileOverlay').classList.contains('hidden')) closeProfile();
+  if (!document.getElementById('existingOverlay').classList.contains('hidden')) closeExisting();
 }
 
 // Today's date as the calendar on the wall has it, NOT as UTC has it.
@@ -1548,18 +1775,23 @@ function isPastShowtime(obj){
 }
 
 // ---------------- LIST VIEWS ----------------
+// Movies (with which are unlocked here), the unlocked movies' showtimes,
+// and your own seats, all at once.
 async function loadList(){
-  // Only the grid gets a loading placeholder: the film view is already
-  // showing this same data from the last load, and blanking it would make
-  // every trip back from a seat map flash.
   const grid = document.getElementById('filmGrid');
-  if (!allShowtimes.length) grid.innerHTML = '<div class="loading-state">Loading...</div>';
+  if (!allMovies.length) grid.innerHTML = '<div class="loading-state">Loading...</div>';
   try{
-    const res = await fetch('/api/public/showtimes');
-    if (await handleAuthFailure(res)) return;
-    if (!res.ok) throw new Error('failed to load');
-    const data = await res.json();
-    allShowtimes = (data.showtimes || []).filter(obj => !isPastShowtime(obj));
+    const [moviesRes, showtimesRes, mineRes] = await Promise.all([
+      fetch('/api/public/movies'), fetch('/api/public/showtimes'), fetch('/api/public/mine')
+    ]);
+    for (const res of [moviesRes, showtimesRes, mineRes]){
+      if (await handleAuthFailure(res)) return;
+      if (!res.ok) throw new Error('failed to load');
+    }
+    allMovies = (await moviesRes.json()).movies || [];
+    allShowtimes = ((await showtimesRes.json()).showtimes || []).filter(obj => !isPastShowtime(obj));
+    mineItems = ((await mineRes.json()).items || []).filter(item => !isPastShowtime(item.showtime));
+    if (!currentTab) setTab(savedTab() || (mineItems.length ? 'mine' : 'all'));
     renderCards();
     // The film that was open has nothing upcoming left (its last showing
     // was yesterday, or the host deleted it) -- nothing to show there.
@@ -1571,6 +1803,39 @@ async function loadList(){
   }catch(e){
     grid.innerHTML = '<div class="empty-state">' + escapeHtml(t('friend.list.loadFailed')) + '</div>';
   }
+}
+
+async function loadMe(){
+  try{
+    const res = await fetch('/api/public/me');
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok) return;
+    me = (await res.json()).person;
+    renderMe();
+  }catch(e){}
+}
+
+function renderMe(){
+  if (!me) return;
+  document.getElementById('meName').textContent = me.firstName;
+  const avatar = document.getElementById('meAvatar');
+  if (me.photoUrl) avatar.src = me.photoUrl;
+  document.getElementById('claimForMe').textContent = t('friend.claim.forMe', { name: me.shortName });
+}
+
+// ---------------- TABS ----------------
+// Remembered per browser; first visit opens on your showtimes if you
+// have any, otherwise on all movies.
+function savedTab(){
+  try{ return localStorage.getItem('canopy_tab'); }catch(e){ return null; }
+}
+function setTab(tab){
+  currentTab = tab === 'mine' ? 'mine' : 'all';
+  try{ localStorage.setItem('canopy_tab', currentTab); }catch(e){}
+  document.getElementById('mineTab').classList.toggle('hidden', currentTab !== 'mine');
+  document.getElementById('allTab').classList.toggle('hidden', currentTab !== 'all');
+  document.querySelectorAll('.tabs button').forEach(b =>
+    b.classList.toggle('active', b.dataset.tab === currentTab));
 }
 
 // A film is its title -- the same key posters are filed under (see
@@ -1589,36 +1854,55 @@ function showtimesForFilm(title){
 // second trip to the server for a list it already got back from the save.
 function renderCards(){
   renderFilmGrid();
+  renderMine();
   if (currentFilmTitle) renderFilmShowtimes();
+}
+
+// The next date each movie has, today or later -- null once it's all past.
+function nextDate(movie){
+  const today = todayISO();
+  return (movie.dates || []).find(d => d >= today) || null;
 }
 
 function renderFilmGrid(){
   const grid = document.getElementById('filmGrid');
-  if (allShowtimes.length === 0){
+  const upcoming = allMovies.filter(m => nextDate(m))
+    .sort((a, b) => nextDate(a).localeCompare(nextDate(b)));
+  if (upcoming.length === 0){
     grid.innerHTML = '<div class="empty-state">' + escapeHtml(t('friend.list.empty')) + '</div>';
     return;
   }
-  // allShowtimes arrives soonest-first, so films come out ordered by
-  // their next showing.
-  const films = new Map();
-  allShowtimes.forEach(obj => {
-    const key = filmKey(obj);
-    if (!films.has(key)) films.set(key, []);
-    films.get(key).push(obj);
-  });
   grid.innerHTML = '';
-  films.forEach((showtimes, title) => grid.appendChild(buildFilmTile(title, showtimes)));
+  upcoming.forEach(m => grid.appendChild(buildFilmTile(m)));
 }
 
-function buildFilmTile(title, showtimes){
-  const tile = document.createElement('button');
-  tile.type = 'button';
+const LOCK_ICON_SVG =
+  '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round">' +
+  '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
+
+// A movie on the All tab. Unlocked: opens its showtimes. Locked: a
+// padlock, and tapping it asks for the password right there on the
+// poster (startUnlock).
+function buildFilmTile(movie){
+  const title = movie.title;
+  const showtimes = showtimesForFilm(title);
+  const tile = document.createElement('div');
   tile.className = 'film-tile';
-  tile.addEventListener('click', () => openFilm(title));
+  tile.dataset.movieId = movie.id;
+  tile.setAttribute('role', 'button');
+  tile.setAttribute('tabindex', '0');
+  const activate = () => {
+    if (movie.unlocked) openFilm(title);
+    else if (!tile.classList.contains('is-unlocking')) startUnlock(movie.id);
+  };
+  tile.addEventListener('click', (e) => { if (!e.target.closest('.unlock-form')) activate(); });
+  tile.addEventListener('keydown', (e) => {
+    if ((e.key === 'Enter' || e.key === ' ') && !e.target.closest('.unlock-form')){ e.preventDefault(); activate(); }
+  });
 
   const poster = document.createElement('div');
   poster.className = 'film-poster';
-  const posterUrl = showtimes[0].posterUrl;
+  const posterUrl = movie.posterUrl;
   if (posterUrl){
     poster.classList.add('has-img');
     const img = document.createElement('img');
@@ -1631,6 +1915,13 @@ function buildFilmTile(title, showtimes){
     fallback.textContent = title;
     poster.appendChild(fallback);
   }
+  if (!movie.unlocked){
+    const badge = document.createElement('div');
+    badge.className = 'lock-badge';
+    badge.setAttribute('aria-label', 'Locked');
+    badge.innerHTML = LOCK_ICON_SVG;
+    poster.appendChild(badge);
+  }
   tile.appendChild(poster);
 
   const name = document.createElement('div');
@@ -1638,16 +1929,161 @@ function buildFilmTile(title, showtimes){
   name.textContent = title;
   tile.appendChild(name);
 
-  const next = showtimes[0];
+  const count = movie.unlocked ? showtimes.length : (movie.dates || []).filter(d => d >= todayISO()).length;
   const sub = document.createElement('div');
   sub.className = 'film-sub';
   sub.textContent = [
-    t(showtimes.length === 1 ? 'friend.grid.showtimesOne' : 'friend.grid.showtimesMany', { count: showtimes.length }),
-    t('friend.grid.next', { when: formatDateDisplay(next.date) })
+    t(count === 1 ? 'friend.grid.showtimesOne' : 'friend.grid.showtimesMany', { count }),
+    t('friend.grid.next', { when: formatDateDisplay(nextDate(movie)) })
   ].join(' \u00b7 ');
   tile.appendChild(sub);
 
   return tile;
+}
+
+// ---------------- UNLOCKING A MOVIE ----------------
+// The password goes in over the movie's own poster (blurred). Once right,
+// the movie stays unlocked on this browser -- the server remembers it
+// against this browser, not against your profile.
+function startUnlock(movieId){
+  setTab('all');
+  document.querySelectorAll('.film-tile.is-unlocking').forEach(cancelUnlock);
+  const tile = document.querySelector('.film-tile[data-movie-id="' + movieId + '"]');
+  if (!tile) return;
+  tile.classList.add('is-unlocking');
+  const form = document.createElement('form');
+  form.className = 'unlock-form';
+  form.innerHTML =
+    '<input type="password" autocomplete="off" placeholder="' + escapeHtml(t('friend.unlock.placeholder')) + '">' +
+    '<button type="submit">' + escapeHtml(t('friend.unlock.button')) + '</button>' +
+    '<button type="button" class="unlock-cancel">' + escapeHtml(t('friend.unlock.cancel')) + '</button>' +
+    '<div class="unlock-error"></div>';
+  form.querySelector('.unlock-cancel').addEventListener('click', () => cancelUnlock(tile));
+  form.addEventListener('submit', (e) => { e.preventDefault(); submitUnlock(movieId, tile, form); });
+  tile.querySelector('.film-poster').appendChild(form);
+  tile.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  setTimeout(() => form.querySelector('input').focus(), 0);
+}
+
+function cancelUnlock(tile){
+  tile.classList.remove('is-unlocking');
+  const form = tile.querySelector('.unlock-form');
+  if (form) form.remove();
+}
+
+async function submitUnlock(movieId, tile, form){
+  const input = form.querySelector('input');
+  const errorEl = form.querySelector('.unlock-error');
+  const btn = form.querySelector('button[type=submit]');
+  errorEl.textContent = '';
+  btn.disabled = true;
+  try{
+    const res = await fetch('/api/public/movies/' + encodeURIComponent(movieId) + '/unlock', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: input.value })
+    });
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok){
+      errorEl.textContent = t(res.status === 429 ? 'friend.unlock.tooMany' : 'friend.unlock.wrong');
+      input.select();
+      tile.classList.remove('shake');
+      void tile.offsetWidth;
+      tile.classList.add('shake');
+      return;
+    }
+    const movie = allMovies.find(m => m.id === movieId);
+    await loadList();
+    if (movie) openFilm(movie.title);
+  }catch(e){
+    errorEl.textContent = t('friend.unlock.failed');
+  }finally{
+    btn.disabled = false;
+  }
+}
+
+// ---------------- MY SHOWTIMES ----------------
+function renderMine(){
+  const container = document.getElementById('mineCards');
+  if (!mineItems.length){
+    container.innerHTML = '<div class="mine-empty">' + escapeHtml(t('friend.mine.empty')) +
+      '<br><button type="button" onclick="setTab(\'all\')">' + escapeHtml(t('friend.mine.browse')) + '</button></div>';
+    return;
+  }
+  container.innerHTML = '';
+  mineItems.forEach(item => container.appendChild(buildMineCard(item)));
+}
+
+// One showtime you have seats in. Unlocked here: the full card, and your
+// seats open their orders. Locked here: your seats read-only, and the way
+// to change anything is to unlock the movie.
+function buildMineCard(item){
+  const obj = item.unlocked ? (allShowtimes.find(s => s.id === item.showtime.id) || item.showtime) : item.showtime;
+  const card = document.createElement('div');
+  card.className = 'card';
+
+  const body = document.createElement('div');
+  body.className = 'card-body';
+  body.appendChild(buildPosterEl(obj));
+  const info = document.createElement('div');
+  info.className = 'card-info';
+  const h3 = document.createElement('h3');
+  h3.textContent = obj.title || 'Untitled';
+  info.appendChild(h3);
+  const when = document.createElement('div');
+  when.className = 'when';
+  when.textContent = showtimeWhen(obj);
+  info.appendChild(when);
+  if (obj.info){
+    const note = document.createElement('div');
+    note.className = 'showtime-info';
+    note.textContent = obj.info;
+    info.appendChild(note);
+  }
+  const meta = document.createElement('div');
+  meta.className = 'meta';
+  meta.textContent = showtimeWhere(obj);
+  info.appendChild(meta);
+  body.appendChild(info);
+
+  if (item.unlocked){
+    body.setAttribute('role', 'button');
+    body.setAttribute('tabindex', '0');
+    const open = () => { currentFilmTitle = filmKey(obj); openSeatPicker(obj.id); };
+    body.addEventListener('click', open);
+    body.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); open(); } });
+    const chevron = document.createElement('div');
+    chevron.className = 'card-chevron';
+    chevron.setAttribute('aria-hidden', 'true');
+    body.appendChild(chevron);
+  }
+  card.appendChild(body);
+
+  const list = document.createElement('div');
+  list.className = 'claimed-list';
+  const ordersOpen = concessionsOpen(obj);
+  item.seatIds.slice().sort(compareSeatIds).forEach(seatId => {
+    if (item.unlocked){
+      list.appendChild(buildClaimedSeatLine(obj, seatId, ordersOpen));
+    } else {
+      const seat = (obj.seats || {})[seatId] || {};
+      const row = document.createElement('div');
+      row.className = 'mine-seat';
+      row.innerHTML = seatWhoHtml(seatId, seat);
+      list.appendChild(row);
+    }
+  });
+  card.appendChild(list);
+
+  if (!item.unlocked){
+    const lock = document.createElement('button');
+    lock.type = 'button';
+    lock.className = 'locked-note';
+    lock.innerHTML = LOCK_ICON_SVG.replace('#fff', '#f0dda9') + '<span>' + escapeHtml(t('friend.mine.locked')) + '</span>';
+    lock.addEventListener('click', () => startUnlock(obj.movieId));
+    card.appendChild(lock);
+  }
+  return card;
 }
 
 function openFilm(title){
@@ -1823,6 +2259,16 @@ function seatOwesAnything(obj, seat){
   return !seat.concessionsPaid && (seat.concessions || []).length > 0;
 }
 
+// Seat, photo, name, and for a guest who brought them -- "you" if that
+// was you.
+function seatWhoHtml(seatId, seat){
+  const photo = seat.photoUrl ? '<img class="avatar" src="' + escapeHtml(seat.photoUrl) + '" alt="">' : '';
+  const via = seat.guest && seat.via
+    ? '<span class="via">' + escapeHtml(t('friend.list.via', { name: seat.mine ? t('friend.list.you') : seat.via })) + '</span>'
+    : '';
+  return '<span class="seat-id">' + escapeHtml(seatId) + '</span>' + photo + '<b>' + escapeHtml(seat.name || '') + '</b>' + via;
+}
+
 // One claimed seat on a list card. The whole row is the way into that
 // seat's concession cart -- see the CONCESSIONS block below for why any
 // friend can open any seat's, not just their own.
@@ -1832,7 +2278,7 @@ function buildClaimedSeatLine(obj, seatId, ordersOpen){
 
   const row = document.createElement('button');
   row.type = 'button';
-  row.className = 'seat-line';
+  row.className = 'seat-line' + (seat.mine ? ' is-mine' : '');
   row.addEventListener('click', () => openCart(obj.id, seatId));
 
   const main = document.createElement('div');
@@ -1847,7 +2293,7 @@ function buildClaimedSeatLine(obj, seatId, ordersOpen){
   // Seat first, then who's in it: the seat is what you're scanning for
   // when you're looking down a row, and it's the shorter of the two so
   // the names line up.
-  who.innerHTML = '<span class="seat-id">' + escapeHtml(seatId) + '</span><b>' + escapeHtml(seat.name || '') + '</b>' +
+  who.innerHTML = seatWhoHtml(seatId, seat) +
     (seatOwesAnything(obj, seat) ? '<span class="unpaid-tag">unpaid</span>' : '');
   main.appendChild(who);
 
@@ -2058,15 +2504,33 @@ function buildSeatmap(obj){
 }
 
 // ---------------- CLAIM OVERLAY ----------------
+// "For me" by default -- unless you already have your own seat in this
+// showtime, when the next one is most likely for someone you're bringing.
 function openClaimOverlay(seatId){
   claimingSeatId = seatId;
   document.getElementById('claimTitle').textContent = t('friend.claim.title', { seat: seatId });
   document.getElementById('claimError').textContent = '';
-  document.getElementById('claimName').value = '';
+  const show = allShowtimes.find(s => s.id === currentShowtimeId);
+  const haveOwn = !!show && Object.values(show.seats || {}).some(x => x.mine && !x.guest);
+  setClaimFor(haveOwn ? 'guest' : 'me');
+  document.getElementById('claimGuestName').value = '';
   document.getElementById('claimOverlay').classList.remove('hidden');
   overlayOpened();
-  setTimeout(() => document.getElementById('claimName').focus(), 0);
+  if (haveOwn) setTimeout(() => document.getElementById('claimGuestName').focus(), 0);
 }
+
+function claimFor(){
+  const checked = document.querySelector('input[name="claimFor"]:checked');
+  return checked ? checked.value : 'me';
+}
+function setClaimFor(value){
+  document.querySelectorAll('input[name="claimFor"]').forEach(r => { r.checked = r.value === value; });
+  document.getElementById('claimGuestName').classList.toggle('hidden', value !== 'guest');
+}
+document.querySelectorAll('input[name="claimFor"]').forEach(r => r.addEventListener('change', () => {
+  setClaimFor(claimFor());
+  if (claimFor() === 'guest') document.getElementById('claimGuestName').focus();
+}));
 
 function closeClaimOverlay(){
   claimingSeatId = null;
@@ -2215,8 +2679,8 @@ function closeSuccessOverlay(){
 async function submitClaim(){
   if (!claimingSeatId || !currentShowtimeId) return;
   const errorEl = document.getElementById('claimError');
-  const name = document.getElementById('claimName').value.trim();
-  if (!name){
+  const guestName = claimFor() === 'guest' ? document.getElementById('claimGuestName').value.trim() : '';
+  if (claimFor() === 'guest' && !guestName){
     errorEl.textContent = t('friend.claim.noName');
     return;
   }
@@ -2224,7 +2688,7 @@ async function submitClaim(){
     const res = await fetch('/api/public/showtimes/' + currentShowtimeId + '/claim', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ seatId: claimingSeatId, name })
+      body: JSON.stringify({ seatId: claimingSeatId, guestName })
     });
     if (await handleAuthFailure(res)) return;
     if (res.status === 409){
@@ -2245,19 +2709,176 @@ async function submitClaim(){
     if (idx !== -1) allShowtimes[idx] = data.showtime;
     buildSeatmap(data.showtime);
     openSuccessOverlay(data.showtime, claimedSeatId);
+    // My showtimes picks up the new seat in the background.
+    loadList();
   }catch(e){
     errorEl.textContent = t('friend.claim.unreachable');
   }
 }
 
+// ---------------- PROFILE ----------------
+function openProfile(){
+  if (!me) return;
+  document.getElementById('profileEmail').textContent = me.email;
+  document.getElementById('profileFirst').value = me.firstName;
+  document.getElementById('profileLast').value = me.lastName;
+  document.getElementById('profileError').textContent = '';
+  const photo = document.getElementById('profilePhoto');
+  if (me.photoUrl) photo.src = me.photoUrl;
+  document.getElementById('profileOverlay').classList.remove('hidden');
+  overlayOpened();
+}
+
+function closeProfile(){
+  document.getElementById('profileOverlay').classList.add('hidden');
+  overlayClosed();
+}
+
+// Changing your profile needs a movie you have a seat in unlocked on this
+// browser (see canEditProfile in server.js) -- otherwise knowing your
+// email would be enough to rename you.
+async function saveProfile(){
+  const errorEl = document.getElementById('profileError');
+  errorEl.textContent = '';
+  try{
+    const res = await fetch('/api/profile', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        firstName: document.getElementById('profileFirst').value,
+        lastName: document.getElementById('profileLast').value
+      })
+    });
+    if (await handleAuthFailure(res)) return;
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 403){ errorEl.textContent = t('friend.profile.locked'); return; }
+    if (!res.ok){ errorEl.textContent = data.error || t('friend.profile.failed'); return; }
+    me = data.person;
+    renderMe();
+    closeProfile();
+    loadList();
+  }catch(e){
+    errorEl.textContent = t('friend.profile.failed');
+  }
+}
+
+document.getElementById('profilePhotoInput').addEventListener('change', async (e) => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  const errorEl = document.getElementById('profileError');
+  errorEl.textContent = '';
+  let result;
+  try{
+    result = await cropProfilePhoto(file, t('welcome.cropHint'));
+  }catch(err){
+    errorEl.textContent = t('welcome.photoUnreadable');
+    return;
+  }
+  if (!result) return;
+  const form = new FormData();
+  form.append('photo', result.blob, 'photo.jpg');
+  try{
+    const res = await fetch('/api/profile/photo', { method: 'POST', body: form });
+    if (await handleAuthFailure(res)) return;
+    if (res.status === 403){ errorEl.textContent = t('friend.profile.locked'); return; }
+    if (!res.ok){ errorEl.textContent = t('friend.profile.failed'); return; }
+    me = (await res.json()).person;
+    renderMe();
+    document.getElementById('profilePhoto').src = me.photoUrl;
+    loadList();
+  }catch(err){
+    errorEl.textContent = t('friend.profile.failed');
+  }
+});
+
+// ---------------- "ARE THESE YOURS?" ----------------
+// Seats reserved before profiles existed carry a name and no owner. These
+// are the ones in movies unlocked here, grouped by the name on them;
+// names that start with your first name come first, already ticked.
+let existingSeats = [];
+
+async function openExisting(fromProfile){
+  let seats = [];
+  try{
+    const res = await fetch('/api/public/claimable');
+    if (await handleAuthFailure(res)) return;
+    if (res.ok) seats = (await res.json()).seats || [];
+  }catch(e){}
+  seats = seats.filter(x => !isPastShowtime(x));
+  if (!seats.length){
+    if (fromProfile) alert(t('friend.existing.none'));
+    return;
+  }
+  existingSeats = seats;
+  const first = (me && me.firstName || '').toLowerCase();
+  const isLikely = (name) => !!first && name.toLowerCase().split(/\s+/)[0] === first;
+  const byName = new Map();
+  seats.forEach(x => {
+    if (!byName.has(x.name)) byName.set(x.name, []);
+    byName.get(x.name).push(x);
+  });
+  const names = Array.from(byName.keys()).sort((a, b) =>
+    (isLikely(b) - isLikely(a)) || a.localeCompare(b));
+  const list = document.getElementById('existingList');
+  list.innerHTML = '';
+  names.forEach(name => {
+    const head = document.createElement('div');
+    head.className = 'existing-name';
+    head.textContent = name;
+    list.appendChild(head);
+    byName.get(name).forEach(x => {
+      const row = document.createElement('label');
+      row.className = 'existing-seat';
+      row.innerHTML = '<input type="checkbox"' + (isLikely(name) ? ' checked' : '') +
+        ' data-showtime="' + escapeHtml(x.showtimeId) + '" data-seat="' + escapeHtml(x.seatId) + '"><span>' +
+        escapeHtml(x.title + ' \u00b7 ' + formatDateDisplay(x.date) + ' \u00b7 ' + formatTimeDisplay(x.time) + ' \u00b7 ' + x.seatId) +
+        '</span>';
+      list.appendChild(row);
+    });
+  });
+  document.getElementById('existingError').textContent = '';
+  document.getElementById('existingOverlay').classList.remove('hidden');
+  overlayOpened();
+}
+
+function closeExisting(){
+  document.getElementById('existingOverlay').classList.add('hidden');
+  overlayClosed();
+}
+
+async function submitExisting(){
+  const picked = Array.from(document.querySelectorAll('#existingList input:checked'))
+    .map(i => ({ showtimeId: i.dataset.showtime, seatId: i.dataset.seat }));
+  if (!picked.length){ closeExisting(); return; }
+  const btn = document.getElementById('existingSubmit');
+  btn.disabled = true;
+  try{
+    const res = await fetch('/api/public/claim-existing', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ seats: picked })
+    });
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok){ document.getElementById('existingError').textContent = t('friend.existing.failed'); return; }
+    closeExisting();
+    setTab('mine');
+    await loadList();
+  }catch(e){
+    document.getElementById('existingError').textContent = t('friend.existing.failed');
+  }finally{
+    btn.disabled = false;
+  }
+}
+
 // ---------------- CONCESSIONS ----------------
 //
-// There's no per-friend identity anywhere in this app -- one shared
-// password, and a name typed free-text at claim time -- so a cart belongs
-// to a SEAT, not to a login, and anyone on the reservation page can open
-// and edit any reserved seat's cart. That's deliberate (and matches how
-// the rest of the friend side already works): it's what makes "I'm at the
-// counter, add a popcorn to Jordan's too" a thing you can just do.
+// A cart belongs to a SEAT, and anyone with the movie unlocked can open
+// and edit any reserved seat's cart -- not just their own. That's
+// deliberate (and how the friend side has always worked): it's what makes
+// "I'm at the counter, add a popcorn to Jordan's too" a thing you can just
+// do. Limiting carts to your own seats and guests is a possible later step
+// now that seats have owners.
 //
 // Menu items are the host's list (admin editor). A cart line snapshots
 // the item's name and price at the moment it was added, so the host
@@ -3318,9 +3939,13 @@ function cartTotalRow(label, valueHtml, onUndo){
 
 // ---------------- INIT ----------------
 // A reload keeps its history entry, so put back the view it names once
-// there's a list to find it in.
-loadList().then(() => {
+// there's a list to find it in. Straight after setting up a profile,
+// offer the seats reserved under your name before profiles existed.
+loadMe().then(loadList).then(() => {
   if (navState().canopyView !== 'grid') applyNavState(navState());
+  let isNew = false;
+  try{ isNew = sessionStorage.getItem('canopy_new_profile') === '1'; sessionStorage.removeItem('canopy_new_profile'); }catch(e){}
+  if (isNew) openExisting(false);
 });
 loadConfig(); // populates venmoHandle for the post-claim pay link
 loadConcessionMenu(); // so the post-claim overlay knows whether to offer concessions

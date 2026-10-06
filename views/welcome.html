@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<!-- viewport-fit=cover lets the page draw under the notch/status bar and
+     the home indicator instead of iOS letterboxing it -- what lets the
+     backdrop below run edge to edge. Nothing else here sits near an edge
+     (the card is centered), so there's nothing to pad back in. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Canopy Tickets</title>
+<!-- OG_META -->
+<style>
+  :root{
+    --gold:#c9a24b;
+    --bg:#0b0b0d;
+    --muted:#9a9a9a;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:var(--bg);
+    color:#fff;
+    font-family:-apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    padding:20px;
+  }
+  .hidden{display:none !important;}
+  .card{
+    width:100%;
+    max-width:340px;
+    background:#151517;
+    border:1px solid #2a2a2a;
+    border-radius:14px;
+    padding:28px 24px;
+  }
+  .site-logo{
+    display:block;
+    max-height:56px;
+    max-width:100%;
+    width:auto;
+    height:auto;
+    margin:0 auto 14px;
+  }
+  /* When a logo was uploaded, the site name in it is enough -- drop the
+     redundant "Canopy Tickets" heading rather than show both. */
+  .site-logo ~ h1{display:none;}
+  h1{font-size:20px;margin:0 0 6px;}
+  h2{font-size:19px;margin:0 0 4px;text-align:center;}
+  p{
+    margin:0 0 20px;
+    color:var(--muted);
+    font-size:13px;
+    text-align:center;
+    line-height:1.4;
+  }
+  .for-email{margin-bottom:18px;}
+  .for-email button{
+    width:auto;
+    background:none;
+    color:var(--gold);
+    padding:0;
+    font-size:13px;
+    font-weight:600;
+  }
+  /* 16px: iOS Safari zooms the page in when a smaller control takes focus. */
+  input[type="email"], input[type="text"]{
+    width:100%;
+    background:#0f0f10;
+    color:#fff;
+    border:1px solid #3a3a3a;
+    border-radius:10px;
+    padding:12px 14px;
+    font-size:16px;
+    margin-bottom:12px;
+  }
+  .name-row{display:flex;gap:10px;}
+  .name-row input{min-width:0;}
+  button{
+    width:100%;
+    background:var(--gold);
+    color:#241c07;
+    border:none;
+    border-radius:12px;
+    padding:12px;
+    font-size:15px;
+    font-weight:700;
+    cursor:pointer;
+  }
+  button:disabled{opacity:.5;cursor:not-allowed;}
+  .error{
+    color:#e2857a;
+    font-size:13px;
+    min-height:18px;
+    margin-bottom:6px;
+    text-align:center;
+  }
+
+  /* The photo: a circle that's the picker until there's a photo, then the
+     preview (tap again to pick another). */
+  .photo-pick{
+    position:relative;
+    display:block;
+    width:112px;
+    height:112px;
+    margin:0 auto 6px;
+    border-radius:50%;
+    overflow:hidden;
+    background:#0f0f10;
+    border:1px dashed #555;
+    cursor:pointer;
+  }
+  .photo-pick.has-photo{border:2px solid var(--gold);}
+  .photo-pick img{width:100%;height:100%;object-fit:cover;display:block;}
+  .photo-pick span{
+    position:absolute;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    color:#ccc;
+    font-size:13px;
+    padding:10px;
+  }
+  .photo-pick input{position:absolute;inset:0;opacity:0;cursor:pointer;}
+  .photo-note{font-size:12px;margin-bottom:16px;}
+
+  /* The link-preview image fills the screen behind a frosted-glass card.
+     cover on a fixed layer fills the height of a portrait phone and crops
+     the 16:9 image's sides; the dim keeps the card readable over a busy
+     frame. 100lvh rather than bottom:0: the large viewport is the height
+     with Safari's toolbars collapsed, so the image still reaches the
+     bottom edge behind a translucent toolbar. The page colour moves from
+     body to html, so the script can set it without body painting a solid
+     box over the backdrop (which sits at z-index -1). */
+  html.has-backdrop{background:var(--bg);}
+  html.has-backdrop body{background:transparent;}
+  body.has-backdrop::before{
+    content:"";
+    position:fixed;
+    top:0;
+    left:0;
+    right:0;
+    height:100lvh;
+    z-index:-1;
+    background:var(--backdrop) center / cover no-repeat, var(--bg);
+  }
+  body.has-backdrop::after{
+    content:"";
+    position:fixed;
+    top:0;
+    left:0;
+    right:0;
+    height:100lvh;
+    z-index:-1;
+    background:rgba(0,0,0,0.25);
+  }
+  /* iOS Safari 26 paints the strips behind its status bar and toolbar a
+     single solid colour it picks from the page -- a fixed bar touching
+     that edge if there is one, the page background if not -- and won't
+     show the image there. These two bars give it a colour to pick: each
+     is the average colour of the image's edge (set by the script below)
+     and fades into the image. */
+  .edge-tint{
+    position:fixed;
+    left:0;
+    right:0;
+    height:40px;
+    z-index:0;
+    pointer-events:none;
+    background-color:transparent;
+  }
+  .edge-tint.top{
+    top:0;
+    -webkit-mask-image:linear-gradient(to bottom, #000, transparent);
+    mask-image:linear-gradient(to bottom, #000, transparent);
+  }
+  .edge-tint.bottom{
+    bottom:0;
+    -webkit-mask-image:linear-gradient(to top, #000, transparent);
+    mask-image:linear-gradient(to top, #000, transparent);
+  }
+  body.has-backdrop .card{
+    background:rgba(21,21,23,0.45);
+    border-color:rgba(255,255,255,0.14);
+    -webkit-backdrop-filter:blur(20px) saturate(140%);
+    backdrop-filter:blur(20px) saturate(140%);
+    box-shadow:0 10px 40px rgba(0,0,0,0.35);
+  }
+  body.has-backdrop p{color:#d0d0d0;}
+  body.has-backdrop input[type="email"], body.has-backdrop input[type="text"]{
+    background:rgba(0,0,0,0.35);
+    border-color:rgba(255,255,255,0.18);
+  }
+</style>
+</head>
+<body data-backdrop="__OG_IMAGE_URL__">
+  <div class="edge-tint top" id="edgeTop" aria-hidden="true"></div>
+  <div class="edge-tint bottom" id="edgeBottom" aria-hidden="true"></div>
+
+  <!-- Step 1: who are you? A known email is all it takes to come back. -->
+  <form class="card" id="emailForm">
+    <!-- LOGO_IMG -->
+    <h1>Canopy Tickets</h1>
+    <p data-copy="welcome.tagline"></p>
+    <div class="error" id="emailError"></div>
+    <input type="email" id="email" placeholder="Email" autocomplete="email" autocapitalize="off" spellcheck="false" autofocus required>
+    <button type="submit" id="emailBtn">Continue</button>
+  </form>
+
+  <!-- Step 2, for an email we haven't seen: name and photo, all required. -->
+  <form class="card hidden" id="profileForm">
+    <h2 data-copy="welcome.profileHeading"></h2>
+    <p class="for-email"><span id="profileEmail"></span> &middot; <button type="button" onclick="backToEmail()">Change</button></p>
+    <label class="photo-pick" id="photoPick">
+      <img id="photoPreview" class="hidden" alt="">
+      <span id="photoPrompt" data-copy="welcome.addPhoto"></span>
+      <input type="file" id="photoInput" accept="image/*">
+    </label>
+    <p class="photo-note" data-copy="welcome.photoNote"></p>
+    <div class="name-row">
+      <input type="text" id="firstName" placeholder="First name" autocomplete="given-name" maxlength="60">
+      <input type="text" id="lastName" placeholder="Last name" autocomplete="family-name" maxlength="60">
+    </div>
+    <div class="error" id="profileError"></div>
+    <button type="submit" id="profileBtn" disabled>Create profile</button>
+  </form>
+
+<script src="/copy.js"></script>
+<script src="/vendor/cropperjs-1.6.3/cropper.min.js"></script>
+<script src="/photo-crop.js"></script>
+<script>
+applyCopy();
+
+// ---------------- Backdrop ----------------
+// The link-preview image behind the card, when one has been uploaded.
+const BACKDROP = document.body.getAttribute('data-backdrop');
+if (BACKDROP && BACKDROP.charAt(0) === '/'){
+  document.body.style.setProperty('--backdrop', 'url("' + BACKDROP + '")');
+  document.body.classList.add('has-backdrop');
+  document.documentElement.classList.add('has-backdrop');
+  tintEdgesFrom(BACKDROP);
+}
+
+// Works out the colour along the top and bottom edges of the backdrop as
+// it's actually cropped on this screen (cover, centered), and hands each
+// to its .edge-tint bar -- and the bottom one to the page background too,
+// for a Safari that ignores the bars and only reads that. Scaled down to
+// a few dozen pixels first: an average doesn't need the full 4K image.
+function tintEdgesFrom(url){
+  const img = new Image();
+  img.onload = () => {
+    try{
+      const vw = window.innerWidth, vh = window.innerHeight;
+      const cw = 48, ch = Math.max(2, Math.round(cw * vh / vw));
+      const scale = Math.max(cw / img.naturalWidth, ch / img.naturalHeight);
+      const dw = img.naturalWidth * scale, dh = img.naturalHeight * scale;
+      const canvas = document.createElement('canvas');
+      canvas.width = cw;
+      canvas.height = ch;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, (cw - dw) / 2, (ch - dh) / 2, dw, dh);
+      // 0.75: the backdrop sits under a 25% black dim (body::after).
+      const edge = (y) => {
+        const d = ctx.getImageData(0, y, cw, 1).data;
+        const sum = [0, 0, 0];
+        for (let i = 0; i < d.length; i += 4){ sum[0] += d[i]; sum[1] += d[i + 1]; sum[2] += d[i + 2]; }
+        return 'rgb(' + sum.map(v => Math.round(v / cw * 0.75)).join(',') + ')';
+      };
+      const top = edge(0), bottom = edge(ch - 1);
+      document.getElementById('edgeTop').style.backgroundColor = top;
+      document.getElementById('edgeBottom').style.backgroundColor = bottom;
+      document.documentElement.style.backgroundColor = bottom;
+    }catch(e){
+      // Leave the default dark strips.
+    }
+  };
+  img.src = url;
+}
+
+// ---------------- Step 1: email ----------------
+let email = '';
+
+// Signed in: the same URL now serves the reservation page.
+function enter(){ window.location.reload(); }
+
+document.getElementById('emailForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const errorEl = document.getElementById('emailError');
+  const btn = document.getElementById('emailBtn');
+  errorEl.textContent = '';
+  btn.disabled = true;
+  try{
+    const res = await fetch('/api/signin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: document.getElementById('email').value })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 400){ errorEl.textContent = t('welcome.badEmail'); return; }
+    if (!res.ok){ errorEl.textContent = t('welcome.failed'); return; }
+    if (data.person){ enter(); return; }
+    email = data.email;
+    showProfile();
+  }catch(err){
+    errorEl.textContent = t('welcome.unreachable');
+  }finally{
+    btn.disabled = false;
+  }
+});
+
+function showProfile(){
+  document.getElementById('emailForm').classList.add('hidden');
+  document.getElementById('profileForm').classList.remove('hidden');
+  document.getElementById('profileEmail').textContent = email;
+  document.getElementById('firstName').focus();
+}
+
+function backToEmail(){
+  document.getElementById('profileForm').classList.add('hidden');
+  document.getElementById('emailForm').classList.remove('hidden');
+  document.getElementById('email').focus();
+}
+
+// ---------------- Step 2: name + photo ----------------
+let photoBlob = null;
+
+function updateProfileButton(){
+  const ready = photoBlob &&
+    document.getElementById('firstName').value.trim() &&
+    document.getElementById('lastName').value.trim();
+  document.getElementById('profileBtn').disabled = !ready;
+}
+document.getElementById('firstName').addEventListener('input', updateProfileButton);
+document.getElementById('lastName').addEventListener('input', updateProfileButton);
+
+// Picking a photo opens it for framing (public/photo-crop.js). Nothing
+// leaves the phone until "Create profile", and then only the framed
+// square.
+document.getElementById('photoInput').addEventListener('change', async (e) => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  const errorEl = document.getElementById('profileError');
+  errorEl.textContent = '';
+  let result;
+  try{
+    result = await cropProfilePhoto(file, t('welcome.cropHint'));
+  }catch(err){
+    errorEl.textContent = t('welcome.photoUnreadable');
+    return;
+  }
+  if (!result) return;
+  photoBlob = result.blob;
+  const preview = document.getElementById('photoPreview');
+  preview.src = result.dataUrl;
+  preview.classList.remove('hidden');
+  document.getElementById('photoPrompt').classList.add('hidden');
+  document.getElementById('photoPick').classList.add('has-photo');
+  updateProfileButton();
+});
+
+document.getElementById('profileForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const errorEl = document.getElementById('profileError');
+  const btn = document.getElementById('profileBtn');
+  errorEl.textContent = '';
+  btn.disabled = true;
+  const form = new FormData();
+  form.append('email', email);
+  form.append('firstName', document.getElementById('firstName').value);
+  form.append('lastName', document.getElementById('lastName').value);
+  form.append('photo', photoBlob, 'photo.jpg');
+  try{
+    const res = await fetch('/api/profile', { method: 'POST', body: form });
+    if (res.status === 409){ errorEl.textContent = t('welcome.emailTaken'); return; }
+    if (!res.ok){
+      const data = await res.json().catch(() => ({}));
+      errorEl.textContent = data.error || t('welcome.failed');
+      return;
+    }
+    // The reservation page offers "are these yours?" once, after this.
+    try{ sessionStorage.setItem('canopy_new_profile', '1'); }catch(err){}
+    enter();
+  }catch(err){
+    errorEl.textContent = t('welcome.unreachable');
+  }finally{
+    updateProfileButton();
+  }
+});
+</script>
+</body>
+</html>

@@ -1,46 +1,48 @@
 # Canopy Tickets
 
 A small tool for tracking AMC seat blocks you've bought so friends can
-claim seats. Two doors, one password each:
+claim seats.
 
-- At **`/admin`**, enter **`ADMIN_PASSWORD`** and you land in the editor — create
-  showtimes, pick which seats you actually bought on a real AMC seat map,
-  assign seats to specific friends, and mark them paid. Friends can mark
-  themselves paid too, for tickets and concessions alike.
-- At **`/`**, enter the **friend password** (set from the editor, not an env var — see
-  below) and you land on the reservation page — the one you hand out to
-  friends. They see a grid of upcoming movies (soonest showing first), tap
-  one to see just that film's showtimes and how many spots are still open,
-  pick a specific open seat off a seat map, claim it by
-  name, and get a one-tap Venmo and/or Cash App link pre-filled with the
-  price (whichever you've set up — see "Payment handles" below). You still
-  confirm the payment actually landed manually on the admin side.
+- At **`/admin`**, enter **`ADMIN_PASSWORD`** and you land in the editor — add
+  movies and their showtimes, pick which seats you actually bought on a
+  real AMC seat map, give each movie a password, assign seats to specific
+  friends, and mark them paid. Friends can mark themselves paid too, for
+  tickets and concessions alike.
+- At **`/`**, friends sign in with their **email**. A new email sets up a
+  profile: first and last name and a photo, all required (friends see
+  each other as "Matt G"). Then two tabs: **My showtimes** (their seats,
+  and guests they booked) and **All movies**. A movie is locked until its
+  **password** is typed in, once per phone; after that they see its
+  showtimes, pick an open seat off a seat map, reserve it for themselves
+  or for someone they're bringing, and get a one-tap Venmo and/or Cash App
+  link pre-filled with the price (whichever you've set up — see "Payment
+  handles" below). You still confirm the payment actually landed manually
+  on the admin side.
 - Friends can come back any time and tap their reserved seat to build a
   **concession order** off the AMC menu, which ships built in and is
   editable from the editor — see "Concessions" below. The
   pay link then covers the ticket and the snacks together, and the editor
   gives you a summed shopping list to take to the counter.
 
-Each door only takes its own password: `ADMIN_PASSWORD` typed at `/` is
-just a wrong password, and the friend password doesn't open `/admin`. The
-domain root is still the only link you hand out; `/admin` is yours.
+The domain root is the only link you hand out; `/admin` is yours. See
+"Friends: sign-in and movie passwords" below for how the two halves of
+that (an email, a movie's password) fit together.
 
 **Seat maps currently only cover AMC Metreon (San Francisco) — IMAX
 (Auditorium 16) and Dolby Cinema (Auditorium 13).** Other screens/theaters
 are coming soon; see `public/seat-layout.js` below for how a new one gets
 added.
 
-Everything is persisted server-side as a JSON file (see "Deploying with
-Docker" below for making that survive restarts/redeploys).
+Everything is persisted server-side in one SQLite file plus a few small
+files and images (see "Storage & backups" below).
 
 ## How it works
 
-- `server.js` — Express app: two login endpoints, `/api/login` (friend
-  password only) and `/api/admin/login` (`ADMIN_PASSWORD` only), each
-  issuing its own independent cookie, plus a JSON REST API for showtimes.
-  `GET /` serves the reservation page to a friend session and the login
-  form to anyone else; `GET /admin` does the same for the editor and an
-  admin session.
+- `server.js` — Express app: the admin login (`ADMIN_PASSWORD`), friend
+  sign-in by email, profiles and photos, per-movie unlocks, and the JSON
+  APIs for both sides. `GET /` serves the reservation page to a browser
+  someone's signed in on and the welcome page to anyone else; `GET /admin`
+  serves the editor to an admin session and the login form otherwise.
 - `lib/store.js` — persistence: movies, showtimes and seats live in one
   SQLite file, `data/canopy.db` (`lib/sqliteStore.js`). On its first start
   it imports the old `data/showtimes.json` and checks every showtime and
@@ -54,8 +56,13 @@ Docker" below for making that survive restarts/redeploys).
   (`"amc-metreon-16"`) via a fallback in `server.js` if unset.
   `setSeatConcessions` does the same read-check-write dance for a friend
   editing a reserved seat's concession order.
-- `lib/sharedPassword.js` — persistence for the friend password (see
-  below). No password saved means friend login is off.
+- `lib/sharedPassword.js` — the old site-wide friend password. Only read
+  once now, to give the movies that existed then that password as their
+  own (see "Friends: sign-in and movie passwords").
+- `lib/deviceAuth.js` — the friend side's cookie: a signed id for this
+  browser, good for a year from the last visit.
+- `lib/photoStore.js` — profile photos (already cropped to 512px by the
+  browser), served only to signed-in friends and the host.
 - `lib/concessionMenu.js` — persistence for the concession menu: one
   global list of `{id, name, price, note, optionGroup}` plus the option
   groups items choose from (see "Concessions" below for why it isn't per
@@ -68,9 +75,9 @@ Docker" below for making that survive restarts/redeploys).
   string setting: `createTextSettingStore(name)` gives each named setting
   its own file in `DATA_DIR`. Used for the Venmo and Cash App handles
   (see "Payment handles" below).
-- `lib/auth.js` — one small password-session helper, instantiated twice
-  (`canopy_admin` and `canopy_shared` cookies) so admin and friend logins
-  never overlap.
+- `lib/auth.js` — the admin's password-session cookie (`canopy_admin`).
+  The same helper reads the old friend-password cookie (`canopy_shared`),
+  which nothing issues any more.
 - `lib/seats.js` — normalizes a stored seat entry into
   `{status: 'occupied'}` or `{status: 'assigned', name, paid, concessionsPaid,
   concessions}`,
@@ -104,8 +111,9 @@ Docker" below for making that survive restarts/redeploys).
   (rename in place), poster (tap to replace) and showtimes; a showtime
   opens the seat-map editor, which also shows what friends have ordered,
   per seat plus a summed shopping list. **Food & Drink**: the concessions menu
-  editor. **Settings**: friend password, payment handles, logo and
-  link-preview image. The screen is in the URL hash (`#/movie/<id>`,
+  editor. **People**: everyone who's set up a profile (fix a name, delete a
+  typo'd one). **Settings**: payment handles, logo and link-preview image.
+  A movie's page also has its password, which saves as you type. The screen is in the URL hash (`#/movie/<id>`,
   `#/showtime/<id>`, ...), so back and reload work. There's no Save
   button on a showtime: each field and each seat saves as it's changed,
   and a pill at the bottom says whether it has (tap it to retry a save
@@ -113,10 +121,10 @@ Docker" below for making that survive restarts/redeploys).
   authenticated admin requests.
 - `views/public.html` — the friend-facing reservation page. Claiming a
   seat offers an **Add to calendar** link first (see below), served as a
-  real `.ics` by `server.js`. Only served to
-  authenticated shared requests. Opens on a poster grid with one tile per
-  film (grouped by title, the same key posters are filed under); tapping
-  one lists that film's showtimes. Shows each showtime's remaining spot count
+  real `.ics` by `server.js`. Only served to a signed-in browser. Two
+  tabs: **My showtimes** and **All movies**, a poster grid where a locked
+  movie takes its password over its own (blurred) poster; tapping an
+  unlocked one lists that film's showtimes. Shows each showtime's remaining spot count
   (green if any are open, red if sold out), who's already claimed a seat,
   a seat map to pick a specific open one from (hover or tap a taken seat
   for who it's assigned to), and a pre-filled Venmo and/or Cash App pay button right
@@ -124,9 +132,10 @@ Docker" below for making that survive restarts/redeploys).
   below); doesn't expose which seats are sold-out-but-not-mine vs. simply
   not part of the block. Each reserved seat on the list is also the way
   into that seat's concession cart (see "Concessions" below).
-- `public/login.html` — the password screen for both doors. It reads
-  which one it's on from the URL (`/` or `/admin`) and posts to the
-  matching login endpoint.
+- `views/welcome.html` — the friend door: email, and for a new one, name
+  and photo. `public/photo-crop.js` frames the photo (Cropper.js 1.x,
+  vendored in `public/vendor/`).
+- `public/login.html` — the admin's password screen at `/admin`.
 - `public/copy.js` — every sentence the app says, in one object. See
   "Editing the copy" below.
 
@@ -157,25 +166,41 @@ buttons they name; the concessions menu, which is data — edit it in the
 menu editor, or `lib/concessionMenu.js` for the built-in list it starts
 from; and anything only a developer sees.
 
-## The friend password
+## Friends: sign-in and movie passwords
 
-Unlike `ADMIN_PASSWORD`, the friend/shared password is **not** an
-environment variable. It's set (and can be changed any time — e.g. a
-fresh password per movie, so a new round of tickets gets a new invite)
-from the "Friend Password" field on the admin's Settings tab. It's shown back to you in plain text there, on purpose — the whole
-point is handing it to friends (text it, etc.), so there's nothing to
-hide it from you.
+There's no password at the front door. A friend types their **email**; a
+known one is signed in, a new one sets up a profile (first name, last
+name, photo — all required). That's an honor system: nothing checks the
+email is really theirs. So the account is deliberately worth very little
+on its own:
 
-If no friend password has ever been set, friend login is simply off —
-nobody can reach the reservation page until you set one. Saving an empty
-field clears it (turning friend access back off), which is a quick way to
-close reservations once a movie's roster is final.
+- **Each movie has its own password**, set on the movie's page in the
+  admin and shown there in plain text (it's for handing out). A friend
+  types it once and the movie stays unlocked **on that browser** for good.
+  Unlocks belong to the browser, not the profile.
+- **Changing anything needs the movie unlocked on the browser doing it**:
+  reserving, concession orders, marking paid. Renaming a profile or
+  changing its photo needs one of that person's movies unlocked there.
+- So someone who only knows a friend's email can sign in as them and see
+  which showtimes they're in (My showtimes works anywhere, read-only) —
+  and nothing else.
+- Wrong movie passwords are limited (8 tries per movie per browser, 40
+  per network address, per 15 minutes).
 
-One limitation worth knowing: changing or clearing the password doesn't
-force-log-out friends who are already signed in (sessions are independent
-of the password's current value, same as `ADMIN_PASSWORD` changes don't
-log out an existing admin session). Rotating the password controls new
-access, not already-granted access.
+A movie without a password can't be unlocked by anyone; the admin's
+movie grid flags those. Changing a movie's password doesn't re-lock
+browsers that already unlocked it.
+
+**Moving over from the single friend password:** every movie that existed
+then got the old friend password as its own (change any of them on the
+movie's page). A browser still signed in with the old password gets all
+of those movies unlocked automatically, then is asked for an email once.
+After setting up a profile, a friend is offered the seats reserved under
+their name before profiles existed ("Are any of these yours?"); the same
+list is in the profile sheet later.
+
+Sessions last a year from the last visit, so someone who drops by now and
+then is never signed out.
 
 ## Add to calendar
 
@@ -430,12 +455,11 @@ either half by hand.
 
 A few things worth knowing about how this actually works:
 
-- **Anyone can edit any seat's cart.** There's no per-friend identity in
-  this app — one shared password, and a name typed free-text at claim
-  time — so a cart belongs to a *seat*, not to a login. That's
-  deliberate, and it's the same trust model the rest of the friend side
-  already runs on: it's what makes "I'm at the counter, add a popcorn to
-  Jordan's too" something you can just do.
+- **Anyone with the movie unlocked can edit any seat's cart**, not just
+  their own. That's deliberate: it's what makes "I'm at the counter, add
+  a popcorn to Jordan's too" something you can just do. Now that seats
+  have owners, limiting carts to your own seats and guests is possible
+  later.
 - **Orders close when you finalize them**, from the **Finalize Order**
   button under the roll-up in the editor. After that the cart still
   opens, but read-only, with a note pointing people at you; **Reopen
@@ -484,7 +508,7 @@ A few things worth knowing about how this actually works:
 
 ## Payment handles
 
-Like the friend password, Venmo and Cash App handles are **not**
+Like movie passwords, Venmo and Cash App handles are **not**
 environment variables. Set either, both, or neither from the "Payment
 Handles" field on the admin's Settings tab — a friend
 only sees a pay button on the reservation page for the one(s) you've
@@ -537,10 +561,10 @@ ADMIN_PASSWORD=whatever npm start
 ```
 
 Then visit `http://localhost:3000/admin`, enter `ADMIN_PASSWORD` to reach the
-editor, and set a friend password (and, optionally, Venmo/Cash App
-handles) from there (the reservation page has nothing to log into until
-you set a friend password). If you don't set `ADMIN_PASSWORD`, the server
-generates a random one and prints it to the console on startup.
+editor, add a movie and give it a password (and, optionally, set
+Venmo/Cash App handles), then sign in at `http://localhost:3000` with any
+email to see the friend side. If you don't set `ADMIN_PASSWORD`, the
+server generates a random one and prints it to the console on startup.
 
 ## Deploying with Docker
 
@@ -557,11 +581,10 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-Visit `http://localhost:3000/admin`, log in with `ADMIN_PASSWORD`, and set a
-friend password from the editor (see "The friend password" above). The
-`canopy-data` named volume declared in `docker-compose.yml` is what
-persists `showtimes.json`, the concessions menu, the friend password, and
-uploaded images across restarts and rebuilds — don't remove it (`docker compose down -v` would
+Visit `http://localhost:3000/admin`, log in with `ADMIN_PASSWORD`, and add
+a movie with a password. The `canopy-data` named volume declared in
+`docker-compose.yml` is what persists the database, photos, the
+concessions menu, and uploaded images across restarts and rebuilds — don't remove it (`docker compose down -v` would
 wipe it).
 
 To pick up new code later: `docker compose up -d --build` again. The
@@ -604,9 +627,8 @@ as static files instead of actually running the Node server.
    to **Dockerfile**.
 2. Set environment variables:
    - `ADMIN_PASSWORD` — your password for the editor. Keep this one to
-     yourself. (There's no env var for the friend password, or for Venmo/
-     Cash App — set those from the editor after deploying; see "The
-     friend password" and "Payment handles" above.)
+     yourself. (There's no env var for movie passwords or for Venmo/Cash
+     App — set those from the editor after deploying.)
    - `SESSION_SECRET` — a long random string (e.g. `openssl rand -hex 32`).
      Recommended, not strictly required: if unset, one is derived
      deterministically from `ADMIN_PASSWORD` instead of being randomized,
@@ -614,8 +636,8 @@ as static files instead of actually running the Node server.
      way. Set it explicitly so that changing `ADMIN_PASSWORD` later
      doesn't also silently log everyone out.
 3. Add a **persistent volume** — this is where `canopy.db` (showtimes,
-   seats and friends' concession orders), the concessions menu, the
-   friend password, the Venmo/Cash App handles, and the uploaded
+   seats, friends' profiles and concession orders), profile photos, the
+   concessions menu, the Venmo/Cash App handles, and the uploaded
    logo/link-preview images all live.
    Without it, every redeploy gives the container a brand-new, empty
    filesystem and all of that is gone. The `Dockerfile`'s `VOLUME` line
@@ -634,7 +656,7 @@ as static files instead of actually running the Node server.
    the domain root is the link friends get, and `/admin` on the same
    domain is the editor.
 6. Deploy. Visit `<app URL>/admin`, enter your `ADMIN_PASSWORD` to get to the
-   editor, set a friend password from there, and start adding showtimes.
+   editor, add a movie, give it a password, and add its showtimes.
 
 ### Confirming persistence actually works
 
@@ -649,7 +671,7 @@ Check this in Coolify's deployment logs right after a redeploy. If it says
 actually attached (Storages tab is empty, wrong destination path, or it
 was added but the resource hasn't been redeployed since) — fix that and
 redeploy again; nothing else changes. The same volume is also what makes
-the friend password, payment handles, concessions menu, and uploaded
+profiles, photos, payment handles, the concessions menu, and uploaded
 images survive a redeploy, so this check covers all of it.
 
 ## Storage & backups
