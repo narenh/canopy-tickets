@@ -36,7 +36,6 @@ const COPY = {
     failed: 'Something went wrong. Try again.',
     unreachable: 'Could not reach the server. Try again.',
     profileHeading: 'Create Profile',
-    addPhoto: '+ Add a photo',
     cropHint: 'Pinch and drag to fit your face in the circle.',
     photoUnreadable: "Couldn't open that photo. Try another one.",
     photoRequired: 'A profile picture is required.',
