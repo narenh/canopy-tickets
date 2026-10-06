@@ -88,7 +88,9 @@ const COPY = {
     mine: {
       empty: "You don't have any seats yet.",
       browse: 'Browse movies',
-      locked: 'Unlock this movie on this phone to make changes'
+      locked: 'Unlock this movie on this phone to make changes',
+      going: "Who's going ({count})",
+      yourOrders: 'Your concessions'
     },
 
     profile: {

@@ -152,7 +152,25 @@
     padding:4px 0;
   }
   .mine-seat .seat-id{color:var(--muted);font-weight:700;min-width:30px;}
-  .mine-seat b{color:var(--gold);}
+  .mine-seat b{color:#eee;font-weight:600;}
+  .mine-seat.is-mine b{color:var(--gold);font-weight:700;}
+  .mine-seat .you-tag{
+    font-size:10.5px;
+    font-weight:700;
+    color:#241c07;
+    background:var(--gold);
+    border-radius:8px;
+    padding:1px 6px;
+  }
+  .mine-section{margin-top:12px;}
+  .mine-section-head{
+    color:var(--muted);
+    font-size:11px;
+    font-weight:700;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    margin-bottom:4px;
+  }
   .cards{
     /* 10, not 20, at the sides. Paired with the card's own 10 below it
        this puts a card's contents at 20px -- the same left edge as the
@@ -735,6 +753,15 @@
   /* Your own seat stands out in a list of everyone's. */
   button.seat-line.is-mine{border-color:#5a4a22;background:#17140d;}
   .seat-line .avatar, .mine-seat .avatar{width:22px;height:22px;flex:0 0 auto;}
+  .avatar-blank{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:#3a3a3e;
+    color:#ccc;
+    font-size:11px;
+    font-weight:700;
+  }
   .seat-line-who{display:flex;align-items:center;gap:7px;flex-wrap:wrap;}
   .seat-line-who .via, .mine-seat .via{color:var(--muted);font-size:11.5px;}
   .seat-line-main{flex:1;min-width:0;}
@@ -2059,21 +2086,43 @@ function buildMineCard(item){
   }
   card.appendChild(body);
 
-  const list = document.createElement('div');
-  list.className = 'claimed-list';
-  const ordersOpen = concessionsOpen(obj);
-  item.seatIds.slice().sort(compareSeatIds).forEach(seatId => {
-    if (item.unlocked){
-      list.appendChild(buildClaimedSeatLine(obj, seatId, ordersOpen));
-    } else {
-      const seat = (obj.seats || {})[seatId] || {};
-      const row = document.createElement('div');
-      row.className = 'mine-seat';
-      row.innerHTML = seatWhoHtml(seatId, seat);
-      list.appendChild(row);
-    }
+  const seats = obj.seats || {};
+  const myIds = item.seatIds.slice().sort(compareSeatIds);
+
+  // Who's going: everyone with a seat, read-only, yours marked. (A movie
+  // that isn't unlocked here only ever comes with your own seats -- see
+  // /api/public/mine -- so this is just you there.)
+  const goingIds = Object.keys(seats).filter(id => seats[id].name).sort(compareSeatIds);
+  const going = document.createElement('div');
+  going.className = 'mine-section';
+  if (item.unlocked){
+    const head = document.createElement('div');
+    head.className = 'mine-section-head';
+    head.textContent = t('friend.mine.going', { count: goingIds.length });
+    going.appendChild(head);
+  }
+  goingIds.forEach(seatId => {
+    const row = document.createElement('div');
+    row.className = 'mine-seat' + (seats[seatId].mine ? ' is-mine' : '');
+    row.innerHTML = seatWhoHtml(seatId, seats[seatId]) +
+      (seats[seatId].mine && !seats[seatId].guest ? '<span class="you-tag">' + escapeHtml(t('friend.list.you')) + '</span>' : '');
+    going.appendChild(row);
   });
-  card.appendChild(list);
+  card.appendChild(going);
+
+  // Your concessions: just your seat and your guests', each the way into
+  // its order. Other people's orders are theirs to look after.
+  if (item.unlocked){
+    const orders = document.createElement('div');
+    orders.className = 'mine-section';
+    const head = document.createElement('div');
+    head.className = 'mine-section-head';
+    head.textContent = t('friend.mine.yourOrders');
+    orders.appendChild(head);
+    const ordersOpen = concessionsOpen(obj);
+    myIds.forEach(seatId => orders.appendChild(buildClaimedSeatLine(obj, seatId, ordersOpen)));
+    card.appendChild(orders);
+  }
 
   if (!item.unlocked){
     const lock = document.createElement('button');
@@ -2262,7 +2311,12 @@ function seatOwesAnything(obj, seat){
 // Seat, photo, name, and for a guest who brought them -- "you" if that
 // was you.
 function seatWhoHtml(seatId, seat){
-  const photo = seat.photoUrl ? '<img class="avatar" src="' + escapeHtml(seat.photoUrl) + '" alt="">' : '';
+  // No photo (a guest, or a seat reserved before profiles): their
+  // initial in a grey circle, so every row's name lines up.
+  const initial = (seat.name || '?').trim().charAt(0).toUpperCase();
+  const photo = seat.photoUrl
+    ? '<img class="avatar" src="' + escapeHtml(seat.photoUrl) + '" alt="">'
+    : '<span class="avatar avatar-blank" aria-hidden="true">' + escapeHtml(initial) + '</span>';
   const via = seat.guest && seat.via
     ? '<span class="via">' + escapeHtml(t('friend.list.via', { name: seat.mine ? t('friend.list.you') : seat.via })) + '</span>'
     : '';
