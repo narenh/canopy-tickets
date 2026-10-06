@@ -2044,13 +2044,9 @@ async function loadList(){
     allMovies = (await moviesRes.json()).movies || [];
     allShowtimes = ((await showtimesRes.json()).showtimes || []).filter(obj => !isPastShowtime(obj));
     mineItems = ((await mineRes.json()).items || []).filter(item => !isPastShowtime(item.showtime));
-    const claimCheck = updateClaimBanner();
-    // First visit opens on My showtimes if you have any -- or if there
-    // are old reservations to claim, so that banner is the first thing seen.
-    if (!currentTab){
-      await claimCheck;
-      setTab(savedTab() || (mineItems.length || showClaimBanner ? 'mine' : 'all'));
-    }
+    updateClaimBanner();
+    // Always opens on My showtimes, empty or not.
+    if (!currentTab) setTab('mine');
     renderCards();
     // The film that was open has nothing upcoming left (its last showing
     // was yesterday, or the host deleted it) -- nothing to show there.
@@ -2085,14 +2081,10 @@ function renderMe(){
 }
 
 // ---------------- TABS ----------------
-// Remembered per browser; first visit opens on your showtimes if you
-// have any, otherwise on all movies.
-function savedTab(){
-  try{ return localStorage.getItem('canopy_tab'); }catch(e){ return null; }
-}
+// The page always opens on My showtimes; switching only lasts until the
+// page is reloaded.
 function setTab(tab){
   currentTab = tab === 'mine' ? 'mine' : 'all';
-  try{ localStorage.setItem('canopy_tab', currentTab); }catch(e){}
   document.getElementById('mineTab').classList.toggle('hidden', currentTab !== 'mine');
   document.getElementById('allTab').classList.toggle('hidden', currentTab !== 'all');
   document.querySelectorAll('.tabs button').forEach(b =>
