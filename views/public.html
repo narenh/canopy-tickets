@@ -1107,7 +1107,7 @@
   <div id="filmView" class="hidden">
     <div class="header">
       <div class="top-row">
-        <div class="back-btn" onclick="backToGrid()">&#8592;</div>
+        <div class="back-btn" onclick="goBack()">&#8592;</div>
         <div class="picker-title" id="filmTitle"></div>
       </div>
     </div>
@@ -1119,7 +1119,7 @@
   <div id="pickerView" class="hidden">
     <div class="header">
       <div class="top-row">
-        <div class="back-btn" onclick="backFromPicker()">&#8592;</div>
+        <div class="back-btn" onclick="goBack()">&#8592;</div>
         <div class="picker-title" id="pickerTitle">Movie Title</div>
       </div>
       <div class="picker-subtitle" id="pickerSubtitle"></div>
@@ -1438,20 +1438,88 @@ function showList(){ showView('listView'); }
 // Going a level deeper starts at the top: the tap that got here may have
 // been far down a long grid or list.
 function showPicker(){ showView('pickerView'); window.scrollTo(0, 0); }
-function backToGrid(){
-  currentFilmTitle = null;
-  currentShowtimeId = null;
-  showList();
-  loadList();
+
+// ---------------- BACK GESTURE ----------------
+//
+// Each level deeper pushes a browser history entry, so the phone's back
+// swipe (and the browser's back button) goes up a level instead of
+// leaving the site. The on-page arrows go through history too, so there's
+// one path back, not two that can disagree. The entry also survives a
+// reload, which puts you back on the film or seat map you were looking
+// at -- see the init at the bottom.
+function navState(){
+  return (history.state && history.state.canopyView) ? history.state : { canopyView: 'grid' };
 }
-// Back from a seat map lands on that film's showtimes, not the grid --
-// the likeliest next move is a different time of the same movie.
-// loadList() drops back to the grid by itself if the film has nothing
-// upcoming left.
-function backFromPicker(){
-  currentShowtimeId = null;
-  showView(currentFilmTitle ? 'filmView' : 'listView');
+
+function goBack(){
+  if (navState().canopyView !== 'grid') history.back();
+  else applyNavState(navState());
+}
+
+window.addEventListener('popstate', () => {
+  const state = navState();
+  // Back out of a sheet onto the view it was opened over: just close the
+  // sheet. Redrawing the view would also throw away its scroll position.
+  if (isShowingState(state)){
+    closeAllOverlays();
+    return;
+  }
+  applyNavState(state);
   loadList();
+});
+
+function isShowingState(state){
+  const visible = ['listView', 'filmView', 'pickerView'].find(id =>
+    !document.getElementById(id).classList.contains('hidden'));
+  if (state.canopyView === 'grid') return visible === 'listView';
+  if (state.canopyView === 'film') return visible === 'filmView' && currentFilmTitle === state.film;
+  return visible === 'pickerView' && currentShowtimeId === state.showtimeId;
+}
+
+// The claim, post-claim and concessions sheets each get a history entry
+// too, so a back swipe closes the sheet rather than the page behind it.
+// One entry covers a chain of sheets (claim -> success -> concessions
+// open one straight after closing the last), which is why closing checks
+// a tick later whether another sheet took over before stepping back.
+function anyOverlayOpen(){
+  return ['claimOverlay', 'successOverlay', 'cartOverlay'].some(id =>
+    !document.getElementById(id).classList.contains('hidden'));
+}
+function overlayOpened(){
+  const state = navState();
+  if (!state.overlay) history.pushState({ ...state, overlay: true }, '');
+}
+function overlayClosed(){
+  setTimeout(() => {
+    if (!anyOverlayOpen() && navState().overlay) history.back();
+  }, 0);
+}
+
+// Shows whichever view a history entry names. A film or showtime that
+// has since gone (its last showing passed, the host deleted it) falls
+// back a level rather than opening onto nothing.
+function applyNavState(state){
+  // A sheet left open goes with the view it was opened over.
+  closeAllOverlays();
+  if (state.canopyView === 'picker' && allShowtimes.some(s => s.id === state.showtimeId)){
+    currentFilmTitle = state.film || null;
+    showSeatPicker(state.showtimeId);
+    return;
+  }
+  currentShowtimeId = null;
+  if ((state.canopyView === 'film' || state.canopyView === 'picker') && state.film &&
+      showtimesForFilm(state.film).length){
+    showFilm(state.film);
+    return;
+  }
+  currentFilmTitle = null;
+  showList();
+}
+
+function closeAllOverlays(){
+  if (!document.getElementById('claimOverlay').classList.contains('hidden')) closeClaimOverlay();
+  if (!document.getElementById('successOverlay').classList.contains('hidden')) closeSuccessOverlay();
+  if (!document.getElementById('cartOverlay').classList.contains('hidden')) closeCartOverlay();
 }
 
 // Today's date as the calendar on the wall has it, NOT as UTC has it.
@@ -1583,11 +1651,16 @@ function buildFilmTile(title, showtimes){
 }
 
 function openFilm(title){
+  history.pushState({ canopyView: 'film', film: title }, '');
+  showFilm(title);
+  window.scrollTo(0, 0);
+}
+
+function showFilm(title){
   currentFilmTitle = title;
   document.getElementById('filmTitle').textContent = title;
   renderFilmShowtimes();
   showView('filmView');
-  window.scrollTo(0, 0);
 }
 
 function renderFilmShowtimes(){
@@ -1800,6 +1873,12 @@ function buildClaimedSeatLine(obj, seatId, ordersOpen){
 
 // ---------------- SEAT PICKER VIEW ----------------
 function openSeatPicker(id){
+  if (!allShowtimes.some(s => s.id === id)) return;
+  history.pushState({ canopyView: 'picker', film: currentFilmTitle, showtimeId: id }, '');
+  showSeatPicker(id);
+}
+
+function showSeatPicker(id){
   const obj = allShowtimes.find(s => s.id === id);
   if (!obj) return;
   currentShowtimeId = id;
@@ -1985,12 +2064,14 @@ function openClaimOverlay(seatId){
   document.getElementById('claimError').textContent = '';
   document.getElementById('claimName').value = '';
   document.getElementById('claimOverlay').classList.remove('hidden');
+  overlayOpened();
   setTimeout(() => document.getElementById('claimName').focus(), 0);
 }
 
 function closeClaimOverlay(){
   claimingSeatId = null;
   document.getElementById('claimOverlay').classList.add('hidden');
+  overlayClosed();
 }
 
 // ---------------- SUCCESS / PAY OVERLAY ----------------
@@ -2027,6 +2108,7 @@ function openSuccessOverlay(showtime, seatId){
 
   renderSuccessStep();
   document.getElementById('successOverlay').classList.remove('hidden');
+  overlayOpened();
 }
 
 function successButton(label, className, onClick){
@@ -2127,6 +2209,7 @@ function advanceSuccessStep(){
 
 function closeSuccessOverlay(){
   document.getElementById('successOverlay').classList.add('hidden');
+  overlayClosed();
 }
 
 async function submitClaim(){
@@ -2456,6 +2539,7 @@ async function openCart(showtimeId, seatId){
   const body = document.getElementById('cartBody');
   body.innerHTML = '<div class="cart-empty-menu">Loading menu...</div>';
   document.getElementById('cartOverlay').classList.remove('hidden');
+  overlayOpened();
   // Pins the showtime list behind the sheet. Without it a phone will
   // happily scroll the page underneath once the menu hits its end, which
   // is the one thing a full-screen sheet shouldn't do.
@@ -2501,6 +2585,7 @@ function closeCartOverlay(){
   orderRowEls.clear();
   document.getElementById('cartOverlay').classList.add('hidden');
   document.body.classList.remove('cart-open');
+  overlayClosed();
 }
 
 // Shown whenever the cart is read-only. Its own function because the
@@ -3232,7 +3317,11 @@ function cartTotalRow(label, valueHtml, onUndo){
 }
 
 // ---------------- INIT ----------------
-loadList();
+// A reload keeps its history entry, so put back the view it names once
+// there's a list to find it in.
+loadList().then(() => {
+  if (navState().canopyView !== 'grid') applyNavState(navState());
+});
 loadConfig(); // populates venmoHandle for the post-claim pay link
 loadConcessionMenu(); // so the post-claim overlay knows whether to offer concessions
 </script>
