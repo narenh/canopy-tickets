@@ -879,12 +879,7 @@ app.get('/api/public/movies', (req, res) => {
 app.post('/api/public/movies/:id/unlock', (req, res) => {
   const movie = store.getMovie(req.params.id);
   if (!movie) return res.status(404).json({ error: 'not found' });
-  // Already unlocked here AND typed by this person: nothing to prove. A
-  // movie only the device has unlocked still takes the password, so the
-  // person signed in now is recorded as knowing it (see claim-existing).
-  if (req.unlocked.has(movie.id) && store.personUnlockedMovieIds(req.person.id).has(movie.id)) {
-    return res.json(meView(req));
-  }
+  if (req.unlocked.has(movie.id)) return res.json(meView(req));
   const key = `${req.device.id}:${movie.id}`;
   if (unlockLimiter.blocked(key) || unlockIpLimiter.blocked(req.ip)) {
     return res.status(429).json({ error: 'too many tries -- wait a few minutes', reason: 'rate_limited' });
@@ -896,7 +891,7 @@ app.post('/api/public/movies/:id/unlock', (req, res) => {
     // 403, not 401: the page reads a 401 as "you've been signed out".
     return res.status(403).json({ error: 'wrong password', reason: 'wrong_password' });
   }
-  store.unlockMovie(req.device.id, movie.id, req.person.id);
+  store.unlockMovie(req.device.id, movie.id);
   req.unlocked.add(movie.id);
   res.json(meView(req));
 });
@@ -970,25 +965,37 @@ app.post('/api/public/showtimes/:id/claim', (req, res) => {
 });
 
 // Seats reserved before profiles existed, in movies unlocked here, for
-// "are these yours?". needsPassword: this person hasn't typed that
-// movie's password themselves yet, which claiming one of its seats
-// takes -- the phone having it unlocked isn't enough.
+// "are these yours?".
 app.get('/api/public/claimable', (req, res) => {
-  const typed = store.personUnlockedMovieIds(req.person.id);
-  const seats = store.claimableSeats(req.unlocked)
-    .map((x) => ({ ...x, needsPassword: !typed.has(x.movieId) }));
-  res.json({ seats });
+  res.json({ seats: store.claimableSeats(req.unlocked) });
 });
 
+// Claims seats reserved before profiles, one movie per request, and
+// ALWAYS with that movie's password in the request -- even when this
+// browser has the movie unlocked. Unlocks belong to the browser, so
+// without this a new profile made on a phone with everything unlocked
+// could take over anyone's old seat (and its order). Wrong passwords
+// count against the same limits as unlocking.
 app.post('/api/public/claim-existing', (req, res) => {
-  const { seats } = req.body || {};
-  if (!Array.isArray(seats)) return res.status(400).json({ error: 'seats must be an array' });
+  const { movieId, password, seats } = req.body || {};
+  if (typeof movieId !== 'string' || !Array.isArray(seats)) {
+    return res.status(400).json({ error: 'movieId and seats are required' });
+  }
+  const movie = store.getMovie(movieId);
+  if (!movie) return res.status(404).json({ error: 'not found' });
+  const key = `${req.device.id}:${movie.id}`;
+  if (unlockLimiter.blocked(key) || unlockIpLimiter.blocked(req.ip)) {
+    return res.status(429).json({ error: 'too many tries -- wait a few minutes', reason: 'rate_limited' });
+  }
+  if (!movie.password || !checkPassword(String(password || ''), movie.password)) {
+    unlockLimiter.fail(key);
+    unlockIpLimiter.fail(req.ip);
+    return res.status(403).json({ error: 'wrong password', reason: 'wrong_password' });
+  }
+  store.unlockMovie(req.device.id, movie.id);
   const items = seats.slice(0, 50).filter((x) => x && typeof x.showtimeId === 'string' && typeof x.seatId === 'string');
-  // Unlocked on this device and the password typed by this person. Seats
-  // in any other movie are skipped (and not counted in `claimed`).
-  const typed = store.personUnlockedMovieIds(req.person.id);
-  const allowed = new Set(Array.from(req.unlocked).filter((id) => typed.has(id)));
-  const result = store.claimExistingSeats(req.person.id, items, allowed);
+  // Only seats in this movie; any others in the list are skipped.
+  const result = store.claimExistingSeats(req.person.id, items, new Set([movie.id]));
   if (!result.ok) return sendResult(res, result);
   res.json({ claimed: result.claimed });
 });

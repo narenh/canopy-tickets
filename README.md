@@ -185,14 +185,11 @@ on its own:
 - **A seat's order and payment are its owner's**: your own seat and the
   guests you booked. Other people's seats show who's sitting there and
   can't be opened; the server refuses writes to them too.
-- **Claiming a seat reserved before profiles needs that movie's password
-  typed by the person claiming it** (recorded in `person_unlocks`), not
-  just the browser having it unlocked — otherwise a new profile made on
-  a phone with everything unlocked could claim anyone's seat. Seats
-  picked across several movies ask for one password at a time.
-- So someone who only knows a friend's email can sign in as them and see
-  which showtimes they're in (My showtimes works anywhere, read-only) —
-  and nothing else.
+- **Claiming a seat reserved before profiles always takes that movie's
+  password, typed in the claim itself** — even if the movie is unlocked
+  on that browser. Otherwise a new profile made on a phone with
+  everything unlocked could claim anyone's seat. Seats picked across
+  several movies ask for one password at a time.
 - Wrong movie passwords are limited (8 tries per movie per browser, 40
   per network address, per 15 minutes).
 

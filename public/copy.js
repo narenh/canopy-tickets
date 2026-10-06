@@ -116,10 +116,10 @@ const COPY = {
       skip: 'Not now',
       none: 'No unclaimed seats in the movies unlocked on this phone.',
       failed: "Couldn't save. Try again.",
-      // Claiming a seat takes its movie's password, one movie at a time.
+      // Claiming always takes the movie's password, one movie at a time.
       pwHeading: 'Password for {title}',
       pwHint: 'Enter the movie password to claim your seats.',
-      pwHintMore: 'Enter the movie password to claim your seats. You picked seats in {count} movies, so this asks one at a time.',
+      pwStep: '(Movie {n} of {count})',
       pwContinue: 'Continue',
       pwBack: 'Back'
     },

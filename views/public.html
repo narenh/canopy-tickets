@@ -1436,7 +1436,7 @@
         <div class="claim-error" id="existingPwError"></div>
         <div class="claim-actions">
           <button type="submit" class="claim-submit-btn" id="existingPwSubmit" data-copy="friend.existing.pwContinue"></button>
-          <button type="button" onclick="showExistingPick()" data-copy="friend.existing.pwBack"></button>
+          <button type="button" onclick="backToExistingPick()" data-copy="friend.existing.pwBack"></button>
         </div>
       </form>
     </div>
@@ -2962,11 +2962,10 @@ document.getElementById('profilePhotoInput').addEventListener('change', async (e
 // Seats reserved before profiles existed carry a name and no owner. These
 // are the ones in movies unlocked here, grouped by the name on them;
 // names that start with your first name come first, already ticked.
-// Claiming one takes its movie's password typed by you -- the phone
-// having the movie unlocked isn't enough, or a new profile on a phone
-// with everything unlocked could take anyone's seat. Ticked seats in
-// movies you haven't typed the password for ask for it one movie at a
-// time before anything is claimed.
+// Claiming always takes the movie's password, typed right then -- even
+// when the movie is unlocked on this phone, or a new profile on a phone
+// with everything unlocked could take anyone's seat. Ticked seats are
+// claimed one movie at a time, each with its own password.
 let existingSeats = [];
 
 async function openExisting(fromProfile){
@@ -2978,7 +2977,9 @@ async function openExisting(fromProfile){
   }catch(e){}
   seats = seats.filter(x => !isPastShowtime(x));
   if (!seats.length){
-    if (fromProfile) alert(t('friend.existing.none'));
+    // Back from the password step with everything already claimed.
+    if (!document.getElementById('existingOverlay').classList.contains('hidden')) closeExisting();
+    else if (fromProfile) alert(t('friend.existing.none'));
     return;
   }
   existingSeats = seats;
@@ -3019,60 +3020,23 @@ function showExistingPick(){
   document.getElementById('existingPick').classList.remove('hidden');
 }
 
-// Movies among the ticked seats whose password this person still has to
-// type, in the order they appear.
-function existingMoviesNeedingPassword(){
-  const ids = [];
+// The ticked seats, grouped by movie in the order they appear -- each
+// group is one password and one claim.
+let claimQueue = [];
+let claimDone = 0;
+
+function tickedByMovie(){
+  const groups = [];
   document.querySelectorAll('#existingList input:checked').forEach(i => {
-    const x = existingSeats.find(e => e.showtimeId === i.dataset.showtime && e.seatId === i.dataset.seat);
-    if (x && x.needsPassword && !ids.includes(x.movieId)) ids.push(x.movieId);
-  });
-  return ids;
-}
-
-function askExistingPassword(movieId){
-  const x = existingSeats.find(e => e.movieId === movieId);
-  const left = existingMoviesNeedingPassword().length;
-  document.getElementById('existingPwTitle').textContent = t('friend.existing.pwHeading', { title: x ? x.title : '' });
-  document.getElementById('existingPwHint').textContent = t(left > 1 ? 'friend.existing.pwHintMore' : 'friend.existing.pwHint', { count: left });
-  document.getElementById('existingPwError').textContent = '';
-  const input = document.getElementById('existingPwInput');
-  input.value = '';
-  input.placeholder = t('friend.unlock.placeholder');
-  input.dataset.movie = movieId;
-  document.getElementById('existingPick').classList.add('hidden');
-  document.getElementById('existingPassword').classList.remove('hidden');
-  setTimeout(() => input.focus(), 0);
-}
-
-async function submitExistingPassword(e){
-  e.preventDefault();
-  const input = document.getElementById('existingPwInput');
-  const errorEl = document.getElementById('existingPwError');
-  const btn = document.getElementById('existingPwSubmit');
-  const movieId = input.dataset.movie;
-  errorEl.textContent = '';
-  btn.disabled = true;
-  try{
-    const res = await fetch('/api/public/movies/' + encodeURIComponent(movieId) + '/unlock', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: input.value })
-    });
-    if (await handleAuthFailure(res)) return;
-    if (!res.ok){
-      errorEl.textContent = t(res.status === 429 ? 'friend.unlock.tooMany' : 'friend.unlock.wrong');
-      input.select();
-      return;
+    let g = groups.find(x => x.movieId === i.dataset.movie);
+    if (!g){
+      const x = existingSeats.find(e => e.movieId === i.dataset.movie);
+      g = { movieId: i.dataset.movie, title: x ? x.title : '', seats: [] };
+      groups.push(g);
     }
-    existingSeats.forEach(x => { if (x.movieId === movieId) x.needsPassword = false; });
-    btn.disabled = false;
-    submitExisting();
-  }catch(err){
-    errorEl.textContent = t('friend.unlock.failed');
-  }finally{
-    btn.disabled = false;
-  }
+    g.seats.push({ showtimeId: i.dataset.showtime, seatId: i.dataset.seat });
+  });
+  return groups;
 }
 
 function closeExisting(){
@@ -3080,28 +3044,65 @@ function closeExisting(){
   overlayClosed();
 }
 
-async function submitExisting(){
-  const picked = Array.from(document.querySelectorAll('#existingList input:checked'))
-    .map(i => ({ showtimeId: i.dataset.showtime, seatId: i.dataset.seat }));
-  if (!picked.length){ closeExisting(); return; }
-  const needed = existingMoviesNeedingPassword();
-  if (needed.length){ askExistingPassword(needed[0]); return; }
+function submitExisting(){
+  claimQueue = tickedByMovie();
+  claimDone = 0;
+  if (!claimQueue.length){ closeExisting(); return; }
+  askExistingPassword();
+}
+
+function askExistingPassword(){
+  const g = claimQueue[0];
+  const total = claimDone + claimQueue.length;
+  document.getElementById('existingPwTitle').textContent = t('friend.existing.pwHeading', { title: g.title });
+  document.getElementById('existingPwHint').textContent = t('friend.existing.pwHint') +
+    (total > 1 ? ' ' + t('friend.existing.pwStep', { n: claimDone + 1, count: total }) : '');
+  document.getElementById('existingPwError').textContent = '';
+  const input = document.getElementById('existingPwInput');
+  input.value = '';
+  input.placeholder = t('friend.unlock.placeholder');
+  document.getElementById('existingPick').classList.add('hidden');
+  document.getElementById('existingPassword').classList.remove('hidden');
+  setTimeout(() => input.focus(), 0);
+}
+
+// Back to the list. Movies already claimed on the way are done, so the
+// list is fetched again without them.
+function backToExistingPick(){
+  if (claimDone){ claimDone = 0; openExisting(false); loadList(); return; }
   showExistingPick();
-  const btn = document.getElementById('existingSubmit');
+}
+
+async function submitExistingPassword(e){
+  e.preventDefault();
+  const g = claimQueue[0];
+  if (!g) return;
+  const input = document.getElementById('existingPwInput');
+  const errorEl = document.getElementById('existingPwError');
+  const btn = document.getElementById('existingPwSubmit');
+  errorEl.textContent = '';
   btn.disabled = true;
   try{
     const res = await fetch('/api/public/claim-existing', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ seats: picked })
+      body: JSON.stringify({ movieId: g.movieId, password: input.value, seats: g.seats })
     });
     if (await handleAuthFailure(res)) return;
-    if (!res.ok){ document.getElementById('existingError').textContent = t('friend.existing.failed'); return; }
+    if (!res.ok){
+      errorEl.textContent = res.status === 403 ? t('friend.unlock.wrong')
+        : res.status === 429 ? t('friend.unlock.tooMany') : t('friend.existing.failed');
+      input.select();
+      return;
+    }
+    claimQueue.shift();
+    claimDone++;
+    if (claimQueue.length){ askExistingPassword(); return; }
     closeExisting();
     setTab('mine');
     await loadList();
-  }catch(e){
-    document.getElementById('existingError').textContent = t('friend.existing.failed');
+  }catch(err){
+    errorEl.textContent = t('friend.unlock.failed');
   }finally{
     btn.disabled = false;
   }
