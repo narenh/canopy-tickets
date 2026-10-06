@@ -981,7 +981,7 @@
     border-top:1px solid #2a2a2a;
   }
   .cart-item{
-    padding:9px 0;
+    padding:11px 0;
     border-bottom:1px solid #202023;
   }
   .cart-item:last-child{border-bottom:none;}
@@ -994,16 +994,18 @@
     gap:10px;
   }
   .ci-main{flex:1;min-width:0;}
-  .ci-name{font-size:14px;color:#fff;overflow-wrap:anywhere;}
-  .ci-price{font-size:12px;color:var(--muted);margin-top:1px;}
+  .ci-name{font-size:15.5px;color:#fff;overflow-wrap:anywhere;}
+  .ci-price{font-size:13px;color:#9e9ea4;margin-top:2px;}
+  /* "Choose a sauce": says up front that "+" will ask for a pick. */
+  .ci-needs{font-size:12.5px;color:#cbb37a;margin-top:2px;}
   .ci-off-menu{color:#e2857a;}
   /* One tap, one line. No quantity control: a quantity can only carry
      one idea of what the order is, and two popcorn chickens may well
      want two different sauces. */
   .ci-add{
     flex:0 0 auto;
-    width:30px;
-    height:30px;
+    width:34px;
+    height:34px;
     border-radius:50%;
     border:none;
     background:var(--gold);
@@ -1015,74 +1017,33 @@
     cursor:pointer;
   }
   .ci-add:disabled{opacity:.35;cursor:not-allowed;}
+  /* Options open under the row: the "+" turns into a close. */
+  .ci-add.is-open{background:#2a2a2e;color:#ddd;transform:rotate(45deg);}
+  .ci-add{transition:transform .15s, background .15s;}
   .ci-count{
     flex:0 0 auto;
-    font-size:12px;
+    font-size:13px;
     font-weight:700;
     color:var(--gold);
     min-width:16px;
     text-align:right;
   }
-  /* A button and a list of buttons rather than a <select>, because iOS
-     Safari zooms the whole page in when a form control with text under
-     16px takes focus and never zooms back out -- and 16px here would
-     out-shout the item name above it. Buttons don't trigger that. */
-  .ci-choice{margin-top:7px;}
-  .ci-choice-btn{
-    width:100%;
-    display:flex;
-    align-items:center;
-    gap:8px;
-    background:#0f0f10;
-    color:#fff;
-    border:1px solid #2f2f2f;
-    border-radius:8px;
-    padding:7px 8px;
-    font-size:12.5px;
+  /* An item's options, opened by its "+": one chip per option, and a tap
+     on one adds the item with it. Buttons rather than a <select>, which
+     iOS would zoom the page in on. */
+  .ci-options{margin-top:10px;}
+  .ci-chips{display:flex;flex-wrap:wrap;gap:7px;}
+  .ci-chip{
+    background:#17140d;
+    color:#f0dda9;
+    border:1px solid #5a4a22;
+    border-radius:16px;
+    padding:7px 12px;
+    font-size:13.5px;
     font-family:inherit;
-    text-align:left;
     cursor:pointer;
   }
-  .ci-choice-btn span{flex:1;min-width:0;overflow-wrap:anywhere;}
-  .ci-choice-btn::after{
-    content:'';
-    flex:0 0 auto;
-    width:6px;
-    height:6px;
-    border-right:1.5px solid var(--muted);
-    border-bottom:1.5px solid var(--muted);
-    transform:rotate(45deg);
-    margin-top:-3px;
-  }
-  .ci-choice-btn[aria-expanded="true"]::after{transform:rotate(-135deg);margin-top:3px;}
-  /* Amber, not red: nothing is wrong yet, there's just a pick to make
-     before the "+" will do anything. */
-  .ci-choice-btn.needs-choice{
-    border-color:var(--gold-dark);
-    color:var(--gold);
-  }
-  .ci-choice-btn.needs-choice::after{border-color:var(--gold);}
-  .ci-choice-btn:disabled{opacity:.5;cursor:not-allowed;}
-  .ci-choice-list{
-    margin-top:4px;
-    border:1px solid #2f2f2f;
-    border-radius:8px;
-    overflow:hidden;
-  }
-  .ci-choice-opt{
-    display:block;
-    width:100%;
-    background:#141416;
-    color:#fff;
-    border:none;
-    border-bottom:1px solid #202023;
-    padding:9px 10px;
-    font-size:12.5px;
-    font-family:inherit;
-    text-align:left;
-    cursor:pointer;
-  }
-  .ci-choice-opt:last-child{border-bottom:none;}
+  .ci-chip:active{background:var(--gold);color:#241c07;}
 
   /* ---------- ORDER LIST ---------- */
   .cart-order{
@@ -1155,15 +1116,15 @@
     display:flex;
     align-items:baseline;
     gap:8px;
-    padding:4px 0;
-    font-size:13px;
+    padding:5px 0;
+    font-size:14px;
   }
   .order-main{flex:1;min-width:0;overflow-wrap:anywhere;}
   .order-name{color:#fff;}
   .order-option{color:var(--gold);}
   .order-option.is-missing{color:#e2857a;}
   .order-line-note{color:var(--muted);font-size:11.5px;}
-  .order-price{flex:0 0 auto;color:var(--muted);font-size:12px;}
+  .order-price{flex:0 0 auto;color:var(--muted);font-size:13px;}
   .order-remove{
     flex:0 0 auto;
     width:22px;
@@ -1195,11 +1156,15 @@
     color:#ddd;
     margin-bottom:12px;
   }
+  /* The breakdown is small and quiet; "You owe" below it is the line
+     that matters. */
   .cart-total-row{
     display:flex;
     justify-content:space-between;
     gap:12px;
-    padding:2px 0;
+    padding:1px 0;
+    font-size:12.5px;
+    color:#a8a8ae;
   }
   .cart-total-row.is-owed{
     font-size:15px;
@@ -1271,6 +1236,8 @@
     background:#101012;
   }
   .cart-section summary{
+    /* Sentence case and a size between the items' -- a heading, not a
+       shout. */
     /* Sticks to the top of the scrolling menu while its own section is
        open, so "which list am I in" is answerable without scrolling back
        up -- the point where a 25-row section is most confusing is in the
@@ -1287,12 +1254,10 @@
     display:flex;
     align-items:center;
     gap:9px;
-    padding:11px 12px;
+    padding:12px 12px;
     background:#1a1a1e;
-    font-size:11.5px;
-    font-weight:800;
-    letter-spacing:.09em;
-    text-transform:uppercase;
+    font-size:15px;
+    font-weight:700;
     /* Gold, not white: nothing else in this list is gold except the "+"
        buttons, so a header can't be mistaken for an item's name. */
     color:var(--gold);
@@ -1326,10 +1291,8 @@
      Colour alone carries the "something in here is ordered" state. */
   .cart-section-count{
     flex:0 0 auto;
-    font-size:10.5px;
-    font-weight:700;
-    letter-spacing:.02em;
-    text-transform:none;
+    font-size:12px;
+    font-weight:600;
     color:var(--muted);
   }
   .cart-section-count.has-order{color:var(--gold);}
@@ -1339,7 +1302,7 @@
   .cart-section-body{padding:0;}
   /* Indented so a row inside a section reads as belonging to the header
      above it rather than as another top-level item. */
-  .cart-section-body .cart-item{padding:9px 12px;}
+  .cart-section-body .cart-item{padding:11px 12px;}
   .cart-section-body .cart-item:last-child{border-bottom:none;}
   .cart-empty-menu{
     color:var(--muted);
@@ -1655,7 +1618,8 @@
             <button type="button" class="mark-paid-btn hidden" id="cartMarkPaid" onclick="markCartPaid()"></button>
           </div>
           <div class="food-pending hidden" id="cartFoodPending"></div>
-          <button type="button" id="cartCloseBtn" onclick="closeCartOverlay()">Close</button>
+          <!-- No Close button: the × at the top does it, and the room is
+               worth more to the menu. -->
         </div>
       </div>
     </div>
@@ -3709,6 +3673,7 @@ function renderCart(){
   const body = document.getElementById('cartBody');
   body.innerHTML = '';
   menuRowEls.clear();
+  openOptions = null;
   sectionEls = [];
 
   const menuRows = buildMenuRows();
@@ -3822,102 +3787,64 @@ function buildMenuRowEl(row){
 
   // The choice is made HERE, before the line exists, because the order
   // list below is deliberately not editable -- changing your mind is
-  // remove and re-add. That also means "+" can't be pressed until there's
-  // something to add: half an order of popcorn chicken with no sauce
-  // named isn't a thing the host can go and buy.
+  // remove and re-add. "+" on such an item opens its options as chips
+  // under the row; tapping one adds the item with it, in one go. The row
+  // says up front that there's a choice to make ("Choose a sauce").
   const choices = optionsForItem(row.itemId);
-  let picker = null;
+  let panel = null;
   if (choices.length){
     const label = optionLabelForItem(row.itemId);
-    picker = buildChoicePicker(label, row.name, choices, () => {
-      add.disabled = cartLocked || !picker.value;
+    const prompt = t('friend.cart.chooseOption', { label: label.toLowerCase() });
+    const needs = document.createElement('div');
+    needs.className = 'ci-needs';
+    needs.textContent = prompt;
+    main.appendChild(needs);
+
+    panel = document.createElement('div');
+    panel.className = 'ci-options';
+    panel.hidden = true;
+    const chips = document.createElement('div');
+    chips.className = 'ci-chips';
+    choices.forEach(name => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'ci-chip';
+      chip.textContent = name;
+      chip.addEventListener('click', () => {
+        addOrderLine(row, name);
+        closeOptionsPanel();
+      });
+      chips.appendChild(chip);
     });
-    picker.button.disabled = cartLocked;
-    el.appendChild(picker.el);
+    panel.appendChild(chips);
+    el.appendChild(panel);
   }
 
-  add.disabled = cartLocked || !!(picker && !picker.value);
+  add.disabled = cartLocked;
   add.addEventListener('click', () => {
-    if (picker && !picker.value) return;
-    addOrderLine(row, picker ? picker.value : '');
-    if (picker){
-      // Back to blank so the next one is a deliberate pick rather than a
-      // silent repeat of the last -- two tenders with the same sauce
-      // should be as explicit as two with different ones.
-      picker.reset();
-      add.disabled = true;
-    }
+    if (!panel){ addOrderLine(row, ''); return; }
+    if (!panel.hidden){ closeOptionsPanel(); return; }
+    closeOptionsPanel();
+    panel.hidden = false;
+    add.classList.add('is-open');
+    add.setAttribute('aria-expanded', 'true');
+    openOptions = { panel, add };
   });
+  if (panel) add.setAttribute('aria-expanded', 'false');
 
   menuRowEls.set(row.itemId, { count });
   syncMenuRowCount(row.itemId);
   return el;
 }
 
-// Stands in for a <select>: a button that names the current pick and a
-// list of buttons underneath it. Same two taps as the native picker, but
-// it can be styled to sit under a 14px item name without dwarfing it, and
-// without iOS zooming the page in on focus.
-let openChoicePicker = null;   // only one list open at a time
-
-function buildChoicePicker(label, itemName, choices, onChange){
-  const wrap = document.createElement('div');
-  wrap.className = 'ci-choice';
-
-  const placeholder = t('friend.cart.choosePrompt', { label: label.toLowerCase() });
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = 'ci-choice-btn needs-choice';
-  btn.setAttribute('aria-expanded', 'false');
-  btn.setAttribute('aria-label', label + ' for ' + itemName);
-  const text = document.createElement('span');
-  text.textContent = placeholder;
-  btn.appendChild(text);
-  wrap.appendChild(btn);
-
-  const list = document.createElement('div');
-  list.className = 'ci-choice-list';
-  list.hidden = true;
-  wrap.appendChild(list);
-
-  const api = { el: wrap, button: btn, value: '' };
-
-  api.close = function(){
-    list.hidden = true;
-    btn.setAttribute('aria-expanded', 'false');
-    if (openChoicePicker === api) openChoicePicker = null;
-  };
-  api.reset = function(){
-    api.value = '';
-    text.textContent = placeholder;
-    btn.classList.add('needs-choice');
-    api.close();
-  };
-
-  btn.addEventListener('click', () => {
-    if (!list.hidden){ api.close(); return; }
-    if (openChoicePicker) openChoicePicker.close();
-    list.hidden = false;
-    btn.setAttribute('aria-expanded', 'true');
-    openChoicePicker = api;
-  });
-
-  choices.forEach(name => {
-    const opt = document.createElement('button');
-    opt.type = 'button';
-    opt.className = 'ci-choice-opt';
-    opt.textContent = name;
-    opt.addEventListener('click', () => {
-      api.value = name;
-      text.textContent = name;
-      btn.classList.remove('needs-choice');
-      api.close();
-      onChange();
-    });
-    list.appendChild(opt);
-  });
-
-  return api;
+// Only one item's options are open at a time.
+let openOptions = null;   // { panel, add }
+function closeOptionsPanel(){
+  if (!openOptions) return;
+  openOptions.panel.hidden = true;
+  openOptions.add.classList.remove('is-open');
+  openOptions.add.setAttribute('aria-expanded', 'false');
+  openOptions = null;
 }
 
 function syncMenuRowCount(itemId){

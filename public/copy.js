@@ -229,7 +229,8 @@ const COPY = {
       sectionItemsOne: '{count} item',
       sectionItemsMany: '{count} items',
       sectionInOrder: '{count} in order',
-      choosePrompt: 'Choose {label}...',
+      // Under an item with a required pick, and above its options.
+      chooseOption: 'Choose a {label}',
       // A cart line placed before its item had a choice to make.
       noChoice: ' · no {label}',
       orderCountOne: '{count} item',
