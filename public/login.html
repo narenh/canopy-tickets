@@ -77,6 +77,36 @@
     font-weight:700;
     cursor:pointer;
   }
+  /* Friend login only (see the script below): the link-preview image
+     fills the screen behind a frosted-glass form. cover on a fixed layer
+     fills the height of a portrait phone and crops the 16:9 image's
+     sides; the dim keeps the form readable over a busy frame. */
+  body.has-backdrop::before{
+    content:"";
+    position:fixed;
+    inset:0;
+    z-index:-1;
+    background:var(--backdrop) center / cover no-repeat, var(--bg);
+  }
+  body.has-backdrop::after{
+    content:"";
+    position:fixed;
+    inset:0;
+    z-index:-1;
+    background:rgba(0,0,0,0.25);
+  }
+  body.has-backdrop form{
+    background:rgba(21,21,23,0.45);
+    border-color:rgba(255,255,255,0.14);
+    -webkit-backdrop-filter:blur(20px) saturate(140%);
+    backdrop-filter:blur(20px) saturate(140%);
+    box-shadow:0 10px 40px rgba(0,0,0,0.35);
+  }
+  body.has-backdrop p{color:#d0d0d0;}
+  body.has-backdrop input{
+    background:rgba(0,0,0,0.35);
+    border-color:rgba(255,255,255,0.18);
+  }
   .error{
     color:#e2857a;
     font-size:13px;
@@ -85,7 +115,7 @@
   }
 </style>
 </head>
-<body>
+<body data-backdrop="__OG_IMAGE_URL__">
   <form id="loginForm">
     <!-- LOGO_IMG -->
     <h1>Canopy Tickets</h1>
@@ -104,6 +134,14 @@
 const IS_ADMIN = /^\/admin(\/|$)/.test(window.location.pathname);
 const HOME = IS_ADMIN ? '/admin' : '/';
 if (IS_ADMIN) document.querySelector('[data-copy="login.tagline"]').setAttribute('data-copy', 'login.adminTagline');
+
+// The friend door gets the link-preview image as a backdrop, when one
+// has been uploaded; the admin door stays plain.
+const BACKDROP = document.body.getAttribute('data-backdrop');
+if (!IS_ADMIN && BACKDROP && BACKDROP.charAt(0) === '/'){
+  document.body.style.setProperty('--backdrop', 'url("' + BACKDROP + '")');
+  document.body.classList.add('has-backdrop');
+}
 
 applyCopy();
 

@@ -202,6 +202,13 @@ function buildOgTags(req) {
   return tags.join('\n  ');
 }
 
+// Same-origin, cache-busted URL of the link-preview image, or '' if none
+// has been uploaded. The friend login page uses it as its backdrop.
+function ogImageUrl() {
+  const meta = ogImageStore.getMeta();
+  return meta ? `/og-image?v=${meta.uploadedAt}` : '';
+}
+
 // Builds the site logo <img>, or '' if none has been uploaded yet (in
 // which case the page just shows without one -- no broken-image icon).
 // Same cache-busting reasoning as the OG image: the URL changes on every
@@ -251,6 +258,7 @@ function renderHtmlPage(res, req, filePath) {
     html
       .replace('<!-- OG_META -->', buildOgTags(req))
       .replace('<!-- LOGO_IMG -->', buildLogoImgTag())
+      .replace('__OG_IMAGE_URL__', ogImageUrl())
       .replace('src="/seat-layout.js"', `src="/seat-layout.js?v=${SEAT_LAYOUT_JS_VERSION}"`)
       .replace('src="/copy.js"', `src="/copy.js?v=${COPY_JS_VERSION}"`)
   );
