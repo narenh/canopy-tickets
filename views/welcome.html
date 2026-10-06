@@ -357,7 +357,13 @@ function tintEdgesFrom(url){
 // nothing else. The server hands out a challenge, the browser has the
 // phone sign it, the server checks it -- SimpleWebAuthnBrowser does the
 // browser half.
-const { startRegistration, startAuthentication, browserSupportsWebAuthn } = SimpleWebAuthnBrowser;
+// (Inlined by the server -- see INLINE_SCRIPTS in server.js. If it's
+// somehow missing, say so rather than leaving dead buttons.)
+const { startRegistration, startAuthentication, browserSupportsWebAuthn } = window.SimpleWebAuthnBrowser || {
+  startRegistration: () => Promise.reject(new Error('passkey library did not load -- reload the page')),
+  startAuthentication: () => Promise.reject(new Error('passkey library did not load -- reload the page')),
+  browserSupportsWebAuthn: () => true
+};
 
 let email = '';
 

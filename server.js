@@ -234,9 +234,17 @@ function buildLogoImgTag() {
 //
 // Read once at startup (they only change with a deploy). Anything else
 // that loads them (a stale page, a bookmark) still gets the files from
-// /public as before. The vendored Cropper.js is left as a file: its path
-// carries its version, so it can never be the wrong one.
-const INLINE_SCRIPTS = ['copy.js', 'seat-layout.js', 'photo-crop.js'].map((name) => {
+// /public as before.
+//
+// A versioned vendor path can't be the wrong version, but it can be
+// MISSING: a brand-new file asked for during a deploy can land on the old
+// container, 404, and that 404 is kept for the same four hours. That's
+// how the passkey library went missing on an iPhone the day it shipped
+// (the sign-in page's script then died before wiring up its buttons), so
+// it's inlined too. Cropper.js has been around long enough to stay a file.
+const INLINE_SCRIPTS = [
+  'copy.js', 'seat-layout.js', 'photo-crop.js', 'vendor/simplewebauthn-browser-14.0.0/index.umd.min.js'
+].map((name) => {
   // `</script` inside the source would end the inline tag early.
   const source = fs.readFileSync(path.join(__dirname, 'public', name), 'utf8').replace(/<\/script/gi, '<\\/script');
   return { tag: `<script src="/${name}"></script>`, inline: `<script>/* ${name} */\n${source}\n</script>` };
