@@ -404,7 +404,16 @@
   }
   /* Going: "Going" (two thirds, inert) beside "Add +1" (one third). */
   .claim-btn-row{display:flex;gap:8px;}
-  .claim-btn-row .going-btn{flex:2 1 0;width:auto;cursor:default;}
+  .claim-btn-row .going-btn{
+    flex:2 1 0;
+    width:auto;
+    cursor:default;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+  }
+  .going-btn svg{width:15px;height:15px;flex:0 0 auto;}
   .claim-btn-row .plus-one-btn{flex:1 1 0;width:auto;}
   /* ---------- MOVIE GRID (landing) ---------- */
   /* One tile per film rather than one card per showtime: with several
@@ -2517,24 +2526,27 @@ function buildCard(obj){
     }
 
     // Already going (your own seat here): one seat each, so Reserve becomes
-    // a "Going" that does nothing, beside "Add +1" for someone you're
-    // bringing -- the same seat picker, and the form then only asks
-    // their name (see openClaimOverlay).
+    // a "✓ Going" that does nothing, beside "Add +1" for someone you're
+    // bringing (hidden when sold out) -- the same seat picker, and the
+    // form then only asks their name (see openClaimOverlay).
     const going = Object.values(obj.seats || {}).some(x => x.mine && !x.guest);
     if (going){
       const row = document.createElement('div');
       row.className = 'claim-btn-row';
       const goingBtn = document.createElement('button');
       goingBtn.className = 'claim-btn going-btn';
-      goingBtn.textContent = t('friend.film.going');
+      goingBtn.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3.2L13 4.8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+        escapeHtml(t('friend.film.going'));
       goingBtn.disabled = true;
-      const plusBtn = document.createElement('button');
-      plusBtn.className = 'claim-btn plus-one-btn';
-      plusBtn.textContent = t('friend.film.addPlusOne');
-      if (availCount > 0) plusBtn.onclick = () => openSeatPicker(obj.id);
-      else plusBtn.disabled = true;
       row.appendChild(goingBtn);
-      row.appendChild(plusBtn);
+      // Sold out: nothing to add, so just Going, full width.
+      if (availCount > 0){
+        const plusBtn = document.createElement('button');
+        plusBtn.className = 'claim-btn plus-one-btn';
+        plusBtn.textContent = t('friend.film.addPlusOne');
+        plusBtn.onclick = () => openSeatPicker(obj.id);
+        row.appendChild(plusBtn);
+      }
       card.appendChild(row);
     } else {
       const pickBtn = document.createElement('button');
