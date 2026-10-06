@@ -88,6 +88,11 @@
   /* 100lvh rather than bottom:0: the large viewport is the height with
      Safari's toolbars collapsed, so the image still reaches the bottom
      edge behind a translucent toolbar instead of stopping above it. */
+  /* The page colour moves from body to html here, so the script below
+     can set it without body painting a solid box over the backdrop
+     (which sits at z-index -1, behind body's own background). */
+  html.has-backdrop{background:var(--bg);}
+  html.has-backdrop body{background:transparent;}
   body.has-backdrop::before{
     content:"";
     position:fixed;
@@ -107,6 +112,32 @@
     height:100lvh;
     z-index:-1;
     background:rgba(0,0,0,0.25);
+  }
+  /* iOS Safari 26 paints the strips behind its status bar and toolbar a
+     single solid colour it picks from the page -- a fixed bar touching
+     that edge if there is one, the page background if not -- and won't
+     show the image there. These two bars give it a colour to pick: each
+     is the average colour of the image's edge (set by the script below)
+     and fades into the image, so the strip reads as a continuation of
+     it rather than a band. */
+  .edge-tint{
+    position:fixed;
+    left:0;
+    right:0;
+    height:40px;
+    z-index:0;
+    pointer-events:none;
+    background-color:transparent;
+  }
+  .edge-tint.top{
+    top:0;
+    -webkit-mask-image:linear-gradient(to bottom, #000, transparent);
+    mask-image:linear-gradient(to bottom, #000, transparent);
+  }
+  .edge-tint.bottom{
+    bottom:0;
+    -webkit-mask-image:linear-gradient(to top, #000, transparent);
+    mask-image:linear-gradient(to top, #000, transparent);
   }
   body.has-backdrop form{
     background:rgba(21,21,23,0.45);
@@ -129,6 +160,8 @@
 </style>
 </head>
 <body data-backdrop="__OG_IMAGE_URL__">
+  <div class="edge-tint top" id="edgeTop" aria-hidden="true"></div>
+  <div class="edge-tint bottom" id="edgeBottom" aria-hidden="true"></div>
   <form id="loginForm">
     <!-- LOGO_IMG -->
     <h1>Canopy Tickets</h1>
@@ -154,6 +187,44 @@ const BACKDROP = document.body.getAttribute('data-backdrop');
 if (!IS_ADMIN && BACKDROP && BACKDROP.charAt(0) === '/'){
   document.body.style.setProperty('--backdrop', 'url("' + BACKDROP + '")');
   document.body.classList.add('has-backdrop');
+  document.documentElement.classList.add('has-backdrop');
+  tintEdgesFrom(BACKDROP);
+}
+
+// Works out the colour along the top and bottom edges of the backdrop as
+// it's actually cropped on this screen (cover, centered), and hands each
+// to its .edge-tint bar -- and the bottom one to the page background too,
+// for a Safari that ignores the bars and only reads that. Scaled down to
+// a few dozen pixels first: an average doesn't need the full 4K image.
+function tintEdgesFrom(url){
+  const img = new Image();
+  img.onload = () => {
+    try{
+      const vw = window.innerWidth, vh = window.innerHeight;
+      const cw = 48, ch = Math.max(2, Math.round(cw * vh / vw));
+      const scale = Math.max(cw / img.naturalWidth, ch / img.naturalHeight);
+      const dw = img.naturalWidth * scale, dh = img.naturalHeight * scale;
+      const canvas = document.createElement('canvas');
+      canvas.width = cw;
+      canvas.height = ch;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, (cw - dw) / 2, (ch - dh) / 2, dw, dh);
+      // 0.75: the backdrop sits under a 25% black dim (body::after).
+      const edge = (y) => {
+        const d = ctx.getImageData(0, y, cw, 1).data;
+        const sum = [0, 0, 0];
+        for (let i = 0; i < d.length; i += 4){ sum[0] += d[i]; sum[1] += d[i + 1]; sum[2] += d[i + 2]; }
+        return 'rgb(' + sum.map(v => Math.round(v / cw * 0.75)).join(',') + ')';
+      };
+      const top = edge(0), bottom = edge(ch - 1);
+      document.getElementById('edgeTop').style.backgroundColor = top;
+      document.getElementById('edgeBottom').style.backgroundColor = bottom;
+      document.documentElement.style.backgroundColor = bottom;
+    }catch(e){
+      // Leave the default dark strips.
+    }
+  };
+  img.src = url;
 }
 
 applyCopy();
