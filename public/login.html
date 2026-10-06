@@ -179,6 +179,15 @@
 // page once signed in.
 const IS_ADMIN = /^\/admin(\/|$)/.test(window.location.pathname);
 const HOME = IS_ADMIN ? '/admin' : '/';
+
+// The login form is served at the page it guards, so getting in is a
+// reload of this same URL -- which keeps its hash, so a link to one
+// screen (/admin#/menu) still lands there after logging in. (Assigning
+// the same URL with a hash doesn't reload; it only scrolls.)
+function goHome(){
+  if (window.location.pathname === HOME) window.location.reload();
+  else window.location.href = HOME;
+}
 if (IS_ADMIN) document.querySelector('[data-copy="login.tagline"]').setAttribute('data-copy', 'login.adminTagline');
 
 // The friend door gets the link-preview image as a backdrop, when one
@@ -241,7 +250,7 @@ applyCopy();
     const last = Number(sessionStorage.getItem(key) || 0);
     if (Date.now() - last < 4000) return;
     sessionStorage.setItem(key, String(Date.now()));
-    window.location.href = HOME;
+    goHome();
   }catch(e){}
 })();
 
@@ -257,7 +266,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
       body: JSON.stringify({ password })
     });
     if (res.ok){
-      window.location.href = HOME;
+      goHome();
       return;
     }
     errorEl.textContent = res.status === 401 ? t('login.wrongPassword') : t('login.failed');

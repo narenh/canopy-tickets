@@ -99,12 +99,18 @@ Docker" below for making that survive restarts/redeploys).
   new auditorium by adding an entry here -- the admin editor's Screen
   dropdown is built from this file at load time, grouped by theater,
   so there's nothing else to keep in sync by hand.
-- `views/admin.html` — the showtime list + seat-map editor, plus (below
-  the showtimes list) the friend-password field, the payment handles
-  fields, the concessions menu editor, and the logo/link-preview
-  uploaders. The editor also shows what friends have ordered for the
-  showtime you're editing, per seat plus a summed shopping list. Only
-  served to authenticated admin requests.
+- `views/admin.html` — the admin, in three tabs. **Movies**: a poster
+  grid (past movies collapsed underneath); a movie's page has its title
+  (rename in place), poster (tap to replace) and showtimes; a showtime
+  opens the seat-map editor, which also shows what friends have ordered,
+  per seat plus a summed shopping list. **Menu**: the concessions menu
+  editor. **Settings**: friend password, payment handles, logo and
+  link-preview image. The screen is in the URL hash (`#/movie/<id>`,
+  `#/showtime/<id>`, ...), so back and reload work. There's no Save
+  button on a showtime: each field and each seat saves as it's changed,
+  and a pill at the bottom says whether it has (tap it to retry a save
+  that failed). The menu still has an explicit Save. Only served to
+  authenticated admin requests.
 - `views/public.html` — the friend-facing reservation page. Claiming a
   seat offers an **Add to calendar** link first (see below), served as a
   real `.ics` by `server.js`. Only served to
@@ -156,8 +162,7 @@ from; and anything only a developer sees.
 Unlike `ADMIN_PASSWORD`, the friend/shared password is **not** an
 environment variable. It's set (and can be changed any time — e.g. a
 fresh password per movie, so a new round of tickets gets a new invite)
-from the "Friend Password" field in the admin editor, below the showtimes
-list. It's shown back to you in plain text there, on purpose — the whole
+from the "Friend Password" field on the admin's Settings tab. It's shown back to you in plain text there, on purpose — the whole
 point is handing it to friends (text it, etc.), so there's nothing to
 hide it from you.
 
@@ -434,10 +439,7 @@ A few things worth knowing about how this actually works:
 - **Orders close when you finalize them**, from the **Finalize Order**
   button under the roll-up in the editor. After that the cart still
   opens, but read-only, with a note pointing people at you; **Reopen
-  Order** puts it back. It writes immediately rather than waiting for Save Showtime,
-  because it's you saying "I'm at the counter now" and it must not ride
-  along with a seats object the editor may have been holding since before
-  somebody's last order.
+  Order** puts it back. It takes effect the moment you press it.
 
   It used to be a clock — two hours before showtime — which was wrong
   twice over. It could only ever guess at when the order actually gets
@@ -484,7 +486,7 @@ A few things worth knowing about how this actually works:
 
 Like the friend password, Venmo and Cash App handles are **not**
 environment variables. Set either, both, or neither from the "Payment
-Handles" field in the admin editor, below the showtimes list — a friend
+Handles" field on the admin's Settings tab — a friend
 only sees a pay button on the reservation page for the one(s) you've
 actually filled in. Store the handle without the leading `@` (Venmo) or
 `$` (Cash App); it gets added back automatically when building the pay
@@ -496,7 +498,7 @@ doesn't, since there's no query param for that on Cash App's side.
 
 ## Link-preview image & logo
 
-The editor (below the showtimes list) has two image uploads, admin only:
+The admin's Settings tab has two image uploads:
 
 - **Site Logo** — shown on the login screen and at the top of the editor
   and reservation pages. Assumes a PNG, ideally with a transparent

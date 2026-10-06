@@ -41,19 +41,39 @@
      and anything narrower puts each row's last seat behind a
      horizontal scroll on desktop. Narrow this and check the IMAX
      picker before assuming it's only a prose-width knob. */
-  #listView, #editorView{
+  .view{
     max-width:880px;
     margin:0 auto;
   }
 
-  /* ---------- LIST VIEW ---------- */
-  .list-header{
-    padding:24px 20px 10px;
+  /* ---------- TOP BAR ---------- */
+  .topbar-head{
+    padding:24px 20px 6px;
     display:flex;
     justify-content:space-between;
     align-items:flex-start;
     gap:10px;
   }
+  .topbar h1{
+    font-size:26px;
+    margin:0;
+  }
+  .tabs{
+    display:flex;
+    gap:4px;
+    padding:6px 16px 0;
+    border-bottom:1px solid #2a2a2a;
+  }
+  .tabs a{
+    color:var(--muted);
+    text-decoration:none;
+    font-size:14px;
+    font-weight:600;
+    padding:10px 12px;
+    border-bottom:2px solid transparent;
+    margin-bottom:-1px;
+  }
+  .tabs a.active{color:#fff;border-bottom-color:var(--gold);}
   .site-logo{
     display:block;
     max-height:40px;
@@ -61,15 +81,6 @@
     width:auto;
     height:auto;
     margin:0 0 10px;
-  }
-  .list-header h1{
-    font-size:26px;
-    margin:0 0 4px;
-  }
-  .list-header p{
-    margin:0;
-    color:var(--muted);
-    font-size:14px;
   }
   .logout-link{
     color:var(--muted);
@@ -93,6 +104,97 @@
     font-weight:700;
     cursor:pointer;
   }
+  .add-movie{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    align-items:center;
+  }
+  .add-movie input{
+    flex:1 1 200px;
+    min-width:0;
+    background:#0f0f10;
+    color:#fff;
+    border:1px solid #3a3a3a;
+    border-radius:10px;
+    padding:11px 12px;
+    font-size:16px;
+  }
+  .add-movie .add-movie-go{background:var(--gold);color:#241c07;border:none;font-weight:700;}
+  .add-movie .og-status{flex-basis:100%;margin-top:0;}
+
+  /* ---------- MOVIE GRID ---------- */
+  /* Same tile as the friend page's grid (views/public.html), so a movie
+     looks the same on both sides. */
+  .movie-grid{
+    padding:14px 20px 20px;
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(140px, 1fr));
+    gap:16px 12px;
+  }
+  .movie-grid .empty-state, .movie-grid .loading-state{grid-column:1 / -1;}
+  .movie-tile{
+    display:block;
+    width:100%;
+    background:none;
+    border:none;
+    border-radius:10px;
+    padding:0;
+    color:inherit;
+    font:inherit;
+    text-align:left;
+    cursor:pointer;
+  }
+  .movie-tile:hover{background:none;}
+  .movie-tile:focus-visible{outline:2px solid var(--gold);outline-offset:3px;}
+  .tile-poster{
+    aspect-ratio:2 / 3;
+    border-radius:10px;
+    overflow:hidden;
+    background:#0f0f10;
+    border:1px solid #2a2a2a;
+    margin-bottom:8px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:10px;
+  }
+  .tile-poster.has-img{padding:0;border-color:transparent;background:#000;}
+  .tile-poster img{width:100%;height:100%;object-fit:cover;display:block;}
+  .tile-poster-fallback{color:var(--muted);font-size:15px;font-weight:700;text-align:center;line-height:1.25;}
+  .movie-tile:hover .tile-poster{border-color:#3a3a3a;}
+  .tile-title{font-size:15px;font-weight:700;line-height:1.25;margin-bottom:3px;}
+  .tile-sub{color:#ccc;font-size:12.5px;line-height:1.35;}
+
+  /* ---------- ONE MOVIE ---------- */
+  .movie-head{
+    display:flex;
+    gap:14px;
+    align-items:flex-end;
+    margin-top:12px;
+  }
+  .movie-poster{
+    position:relative;
+    flex:0 0 auto;
+    width:96px;
+    aspect-ratio:2 / 3;
+    border-radius:10px;
+    overflow:hidden;
+    background:#0f0f10;
+    border:1px dashed #3a3a3a;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+  }
+  .movie-poster img{width:100%;height:100%;object-fit:cover;display:block;}
+  .movie-poster:has(img:not(.hidden)){border-style:solid;border-color:transparent;}
+  .movie-poster-empty{color:var(--muted);font-size:12px;text-align:center;padding:6px;}
+  .movie-poster input{position:absolute;inset:0;opacity:0;cursor:pointer;}
+  .movie-head-side{flex:1;min-width:0;}
+  .movie-head-count{color:#ccc;font-size:14px;}
+  .danger-zone{padding:10px 20px 0;}
+
   .past-section{
     margin:6px 20px 6px;
   }
@@ -113,6 +215,7 @@
   }
   .past-section[open] summary::before{transform:rotate(90deg);}
   .past-section .cards{padding:6px 0 0;}
+  .past-section .movie-grid{padding:6px 0 0;}
   .og-section{
     margin:14px 20px 6px;
     padding:14px 16px;
@@ -180,10 +283,23 @@
   /* Poster + title/info/seat-count column, side by side; the claimed-
      seat names and Open/Delete buttons below stay full-width (not part
      of this row). */
+  .card.is-link{cursor:pointer;}
+  .card.is-link:hover{border-color:#3a3a3a;}
+  .card.is-link:focus-visible{outline:2px solid var(--gold);outline-offset:2px;}
   .card-body{
     display:flex;
+    align-items:center;
     gap:12px;
-    margin-bottom:12px;
+  }
+  .card-body + .claimed-list{margin-top:10px;}
+  .card-chevron{
+    flex:0 0 auto;
+    width:8px;
+    height:8px;
+    border-right:2px solid var(--muted);
+    border-top:2px solid var(--muted);
+    transform:rotate(45deg);
+    margin-right:4px;
   }
   .card-info{flex:1;min-width:0;}
   /* Same box whether or not this title has a poster yet, so every
@@ -286,40 +402,13 @@
     padding:0;
     min-width:0;
   }
-  .title:hover{background:rgba(255,255,255,0.06);}
-  .poster-row{
-    display:flex;
-    gap:10px;
-    align-items:flex-start;
-    margin-top:8px;
-  }
-  .poster-editor-preview{
-    width:50px;
-    height:75px;
-    object-fit:cover;
-    border-radius:6px;
-    border:1px solid #3a3a3a;
-    flex:0 0 auto;
-  }
-  .poster-editor-controls{
-    display:flex;
-    align-items:center;
-    gap:8px;
-    flex-wrap:wrap;
-  }
-  .poster-editor-controls input[type="file"]{
-    color:#ccc;
-    font-size:12px;
-    max-width:180px;
-  }
-  .poster-editor-controls button{
-    background:#1e1e1e;
-    color:#fff;
-    border:1px solid #3a3a3a;
-    border-radius:8px;
-    padding:6px 10px;
-    font-size:12px;
-    cursor:pointer;
+  .title:hover, .title:focus{background:rgba(255,255,255,0.06);}
+  .editor-title{
+    font-size:24px;
+    font-weight:800;
+    line-height:1.15;
+    flex:1;
+    min-width:0;
   }
   .subtitle{
     margin-top:10px;
@@ -331,8 +420,7 @@
     align-items:center;
     gap:6px;
   }
-  .subtitle .theater{outline:none;}
-  .subtitle .theater:hover{background:rgba(255,255,255,0.06);}
+  .subtitle input.theater{width:9.5em;}
   .sep{color:#777;}
   .subtitle input, .subtitle select{
     background:transparent;
@@ -526,39 +614,39 @@
     font-size:11.5px;
     padding:0 20px 10px;
   }
-  .save-bar{
-    position:sticky;
-    bottom:0;
-    background:linear-gradient(to top, var(--bg) 60%, transparent);
-    padding:16px 20px 6px;
+  .editor-actions{
     display:flex;
     gap:10px;
-  }
-  .save-btn{
-    flex:1;
-    background:var(--gold);
-    color:#241c07;
-    border:none;
-    border-radius:24px;
-    padding:14px;
-    font-size:15px;
-    font-weight:700;
+    flex-wrap:wrap;
+    padding:16px 20px 8px;
   }
   .delete-btn{
     background:#2a1616;
     border:1px solid #5a2323;
     color:#e2857a;
-    border-radius:24px;
-    padding:14px 18px;
-    font-size:14px;
   }
-  .save-status{
-    text-align:center;
-    font-size:12px;
-    color:var(--muted);
-    padding:0 20px 4px;
-    min-height:16px;
+  .delete-btn:hover{background:#3a1c1c;}
+  /* Says whether the editor's changes have reached the server. Fixed at
+     the bottom so it's on screen wherever the seat map is scrolled to.
+     A failed save turns it red and makes it the retry button. */
+  .save-pill{
+    position:fixed;
+    left:50%;
+    bottom:calc(16px + env(safe-area-inset-bottom));
+    transform:translateX(-50%);
+    z-index:40;
+    background:#1b1b1e;
+    border:1px solid #333;
+    color:#ccc;
+    font-size:12.5px;
+    border-radius:20px;
+    padding:7px 14px;
+    box-shadow:0 4px 16px rgba(0,0,0,.4);
+    cursor:default;
   }
+  .save-pill:hover{background:#1b1b1e;}
+  .save-pill.is-saved{color:var(--green);}
+  .save-pill.is-error{background:#3a1416;border-color:#7a2a2f;color:#ffb3ad;cursor:pointer;}
 
   /* ---------- SEAT EDITOR OVERLAY ---------- */
   .seat-editor-overlay{
@@ -932,54 +1020,152 @@
 </head>
 <body>
 
-  <!-- ===================== LIST VIEW ===================== -->
-  <div id="listView">
-    <div class="list-header">
+  <!-- ===================== TOP BAR (Movies / Menu / Settings) ===================== -->
+  <!-- Only on the three top-level screens. A movie and a showtime are
+       drill-downs with a back arrow instead. -->
+  <div class="topbar view" id="topbar">
+    <div class="topbar-head">
       <div>
         <!-- LOGO_IMG -->
-        <h1>My Showtimes</h1>
-        <p data-copy="admin.listSubtitle"></p>
+        <h1>Admin</h1>
       </div>
       <div class="logout-link" onclick="logout()">Log out</div>
     </div>
+    <nav class="tabs">
+      <a href="#/movies" data-tab="movies">Movies</a>
+      <a href="#/menu" data-tab="menu">Menu</a>
+      <a href="#/settings" data-tab="settings">Settings</a>
+    </nav>
+  </div>
+
+  <!-- ===================== MOVIES ===================== -->
+  <div id="moviesView" class="view hidden">
     <div class="new-btn-wrap">
-      <button class="new-btn" onclick="openNew()">+ New Showtime</button>
+      <button class="new-btn" id="addMovieBtn" onclick="showAddMovie()">+ Add movie</button>
+      <form class="add-movie hidden" id="addMovieForm" onsubmit="event.preventDefault(); addMovie();">
+        <input type="text" id="addMovieTitle" placeholder="Movie title" autocomplete="off" maxlength="200">
+        <button type="submit" class="add-movie-go">Add</button>
+        <button type="button" onclick="hideAddMovie()">Cancel</button>
+        <div class="og-status" id="addMovieStatus"></div>
+      </form>
     </div>
-
-    <div class="cards" id="cardsContainer">
-      <div class="loading-state">Loading...</div>
-    </div>
-
-    <!-- Collapsed by default (native <details>, no JS needed for the
-         toggle itself) -- hidden entirely via the .hidden class when
-         there's nothing past yet. Cards inside sort most-recent-first,
-         the opposite of the upcoming list above. -->
-    <details class="past-section hidden" id="pastSection">
-      <summary>Past showtimes (<span id="pastCount">0</span>)</summary>
-      <div class="cards" id="pastCardsContainer"></div>
+    <div class="movie-grid" id="movieGrid"><div class="loading-state">Loading...</div></div>
+    <details class="past-section hidden" id="pastMovies">
+      <summary>Past movies (<span id="pastMovieCount">0</span>)</summary>
+      <div class="movie-grid" id="pastMovieGrid"></div>
     </details>
+  </div>
 
-    <div class="og-section">
-      <h3>Friend Password</h3>
-      <p data-copy="admin.passwordBlurb"></p>
-      <div class="og-controls">
-        <input type="text" id="sharedPasswordInput" placeholder="No password set -- friend login is off">
-        <button type="button" onclick="saveSharedPassword()">Save</button>
+  <!-- ===================== ONE MOVIE ===================== -->
+  <div id="movieView" class="view hidden">
+    <div class="header">
+      <div class="top-row">
+        <div class="back-btn" onclick="goUp()">&#8592;</div>
+        <!-- Renames on Enter or when you leave the field. Showtimes take
+             their title from the movie, so this renames all of them. -->
+        <input class="title" id="movieTitle" maxlength="200" autocomplete="off">
       </div>
-      <div class="og-status" id="sharedPasswordStatus"></div>
+      <div class="og-status" id="movieTitleStatus"></div>
+      <div class="movie-head">
+        <!-- Tap the poster to replace it; uploads as soon as one's picked. -->
+        <label class="movie-poster" id="moviePoster" title="Change poster">
+          <img id="moviePosterImg" class="hidden" alt="">
+          <span class="movie-poster-empty" id="moviePosterEmpty">Add poster</span>
+          <input type="file" id="moviePosterInput" accept="image/png,image/jpeg,image/webp,image/gif" onchange="uploadMoviePoster()">
+        </label>
+        <div class="movie-head-side">
+          <div class="movie-head-count" id="movieShowtimeCount"></div>
+          <div class="og-status" id="moviePosterStatus"></div>
+        </div>
+      </div>
+    </div>
+    <div class="new-btn-wrap">
+      <button class="new-btn" onclick="addShowtime()">+ Add showtime</button>
+    </div>
+    <div class="cards" id="movieShowtimes"></div>
+    <details class="past-section hidden" id="pastShowtimes">
+      <summary>Past showtimes (<span id="pastShowtimeCount">0</span>)</summary>
+      <div class="cards" id="pastShowtimeCards"></div>
+    </details>
+    <div class="danger-zone hidden" id="deleteMovieWrap">
+      <button type="button" class="delete-btn" onclick="deleteMovie()">Delete movie</button>
+    </div>
+  </div>
+
+  <!-- ===================== ONE SHOWTIME ===================== -->
+  <!-- No Save button: every change saves as it's made. The pill at the
+       bottom says whether that's happened. -->
+  <div id="editorView" class="view hidden">
+    <div class="header">
+      <div class="top-row">
+        <div class="back-btn" onclick="goUp()">&#8592;</div>
+        <div class="editor-title" id="editorTitle"></div>
+      </div>
+      <div class="subtitle">
+        <input type="text" class="theater" id="theaterField" placeholder="Theater" autocomplete="off">
+        <span class="sep">|</span>
+        <input type="date" id="showDate">
+        <span class="sep">|</span>
+        <input type="time" id="showTime">
+        <span class="sep">|</span>
+        <!-- Options follow the selected screen's `formats` (seat-layout.js)
+             -- see syncFormatOptions(). -->
+        <select id="format"></select>
+        <span class="sep">|</span>
+        <!-- Options populated at load time from SEAT_LAYOUTS (seat-layout.js),
+             grouped by theater -- see populateScreenOptions(). -->
+        <select id="screen"></select>
+        <span class="sep">|</span>
+        <span class="price-field">$<input type="number" id="price" step="0.01" min="0" placeholder="17.49" inputmode="decimal"></span>
+      </div>
+      <div class="price-quick">
+        <span>Quick price:</span>
+        <button type="button" class="quick-price-btn" onclick="setPrice(17.49)">$17.49</button>
+        <button type="button" class="quick-price-btn" onclick="setPrice(28.99)">$28.99</button>
+      </div>
+      <!-- Optional note shown to friends on this showtime's card. The
+           datalist offers every note already used, so "Japanese Spoken"
+           is typed once. -->
+      <div class="info-row">
+        <input type="text" id="showInfo" list="infoSuggestions" maxlength="120" autocomplete="off"
+               placeholder="Showtime info (optional)">
+        <datalist id="infoSuggestions"></datalist>
+      </div>
     </div>
 
-    <div class="og-section">
-      <h3>Link Preview Image</h3>
-      <p data-copy="admin.ogBlurb"></p>
-      <img id="ogPreview" class="og-preview hidden" alt="Current link preview image">
-      <div class="og-controls">
-        <input type="file" id="ogFileInput" accept="image/png,image/jpeg,image/webp,image/gif">
-        <button type="button" onclick="uploadOgImage()">Upload</button>
-      </div>
-      <div class="og-status" id="ogStatus"></div>
+    <div class="seatmap" id="seatmap"></div>
+
+    <div class="summary" id="summary">Your seats: <b>none</b></div>
+
+    <!-- What friends have ordered for this showtime, per seat plus a
+         summed shopping list. -->
+    <div class="orders" id="orders"></div>
+
+    <!-- Finalizing is the switch that stops friends changing their
+         orders. Sits under the roll-up because that's the list you're
+         reading when you decide you're done and about to go buy it. -->
+    <div class="orders-close hidden" id="ordersCloseBar">
+      <button type="button" id="ordersCloseBtn" onclick="toggleOrdersClosed()">Finalize Order</button>
+      <span class="orders-close-note" id="ordersCloseNote"></span>
     </div>
 
+    <div class="toolbar-note" data-copy="admin.seatGrid.help"></div>
+
+    <div class="legend">
+      <div class="legend-item"><span class="legend-swatch sw-avail"></span> <span data-copy="admin.seatGrid.legendNotOurs"></span></div>
+      <div class="legend-item"><span class="legend-swatch sw-inblock"></span> <span data-copy="admin.seatGrid.legendAvailable"></span></div>
+      <div class="legend-item"><span class="legend-swatch sw-claimed"></span> <span data-copy="admin.seatGrid.legendClaimed"></span></div>
+      <div class="legend-item"><span class="legend-swatch sw-claimed"><span class="sw-paid-dot"></span></span> <span data-copy="admin.seatGrid.legendPaid" data-copy-html></span></div>
+    </div>
+
+    <div class="editor-actions">
+      <button type="button" onclick="duplicateShowtime()">Duplicate showtime</button>
+      <button type="button" class="delete-btn" onclick="deleteShowtime()">Delete showtime</button>
+    </div>
+  </div>
+
+  <!-- ===================== MENU ===================== -->
+  <div id="menuView" class="view hidden">
     <div class="og-section">
       <h3>Concessions Menu</h3>
       <p data-copy="admin.menuEditor.blurb"></p>
@@ -1004,7 +1190,19 @@
       </div>
       <div class="og-status" id="menuStatus"></div>
     </div>
+  </div>
 
+  <!-- ===================== SETTINGS ===================== -->
+  <div id="settingsView" class="view hidden">
+    <div class="og-section">
+      <h3>Friend Password</h3>
+      <p data-copy="admin.passwordBlurb"></p>
+      <div class="og-controls">
+        <input type="text" id="sharedPasswordInput" placeholder="No password set -- friend login is off">
+        <button type="button" onclick="saveSharedPassword()">Save</button>
+      </div>
+      <div class="og-status" id="sharedPasswordStatus"></div>
+    </div>
     <div class="og-section">
       <h3>Payment Handles</h3>
       <p data-copy="admin.payBlurb"></p>
@@ -1019,7 +1217,16 @@
       </div>
       <div class="og-status" id="paymentHandlesStatus"></div>
     </div>
-
+    <div class="og-section">
+      <h3>Link Preview Image</h3>
+      <p data-copy="admin.ogBlurb"></p>
+      <img id="ogPreview" class="og-preview hidden" alt="Current link preview image">
+      <div class="og-controls">
+        <input type="file" id="ogFileInput" accept="image/png,image/jpeg,image/webp,image/gif">
+        <button type="button" onclick="uploadOgImage()">Upload</button>
+      </div>
+      <div class="og-status" id="ogStatus"></div>
+    </div>
     <div class="og-section">
       <h3>Site Logo</h3>
       <p data-copy="admin.logoBlurb"></p>
@@ -1032,97 +1239,8 @@
     </div>
   </div>
 
-  <!-- ===================== EDITOR VIEW ===================== -->
-  <div id="editorView" class="hidden">
-    <div class="header">
-      <div class="top-row">
-        <div class="back-btn" onclick="backToList()">&#8592;</div>
-        <input class="title" id="titleField" list="titleSuggestions" value="Movie Title" oninput="schedulePosterPreviewRefresh()">
-        <!-- Populated at load time from every distinct title already used
-             across your showtimes (see refreshTitleSuggestions()), so
-             retyping "Barbie" a second time autocompletes instead of
-             risking a typo that'd split it into two different titles. -->
-        <datalist id="titleSuggestions"></datalist>
-      </div>
-      <!-- Poster is looked up/saved by the title text above, not by this
-           showtime -- reusing a title reuses whatever's already
-           uploaded for it. refreshPosterPreview() re-checks on every
-           edit to the title field (see titleField's oninput below). -->
-      <div class="poster-row">
-        <img id="posterPreview" class="poster-editor-preview hidden" alt="Current poster">
-        <div class="poster-editor-controls">
-          <input type="file" id="posterFileInput" accept="image/png,image/jpeg,image/webp,image/gif">
-          <button type="button" onclick="uploadPoster()">Upload poster</button>
-          <span class="og-status" id="posterStatus"></span>
-        </div>
-      </div>
-      <div class="subtitle">
-        <span class="theater" id="theaterField" contenteditable="true">Theater Name</span>
-        <span class="sep">|</span>
-        <input type="date" id="showDate">
-        <span class="sep">|</span>
-        <input type="time" id="showTime">
-        <span class="sep">|</span>
-        <!-- Options follow the selected screen's `formats` (seat-layout.js)
-             -- see syncFormatOptions(). -->
-        <select id="format"></select>
-        <span class="sep">|</span>
-        <!-- Options populated at load time from SEAT_LAYOUTS (seat-layout.js),
-             grouped by theater -- see populateScreenOptions(). -->
-        <select id="screen" onchange="syncFormatOptions(); buildSeatGrid()"></select>
-        <span class="sep">|</span>
-        <span class="price-field">$<input type="number" id="price" step="0.01" min="0" placeholder="17.49"></span>
-      </div>
-      <div class="price-quick">
-        <span>Quick price:</span>
-        <button type="button" class="quick-price-btn" onclick="setPrice(17.49)">$17.49</button>
-        <button type="button" class="quick-price-btn" onclick="setPrice(28.99)">$28.99</button>
-      </div>
-      <!-- Optional note shown to friends on this showtime's card. The
-           datalist offers every note already used (see
-           refreshTitleSuggestions()), so "Japanese Spoken" is typed once. -->
-      <div class="info-row">
-        <input type="text" id="showInfo" list="infoSuggestions" maxlength="120" autocomplete="off"
-               placeholder="Showtime info (optional)">
-        <datalist id="infoSuggestions"></datalist>
-      </div>
-      <div class="edit-hint" data-copy="admin.seatGrid.fieldsHelp"></div>
-    </div>
-
-    <div class="seatmap" id="seatmap"></div>
-
-    <div class="summary" id="summary">Your seats: <b>none</b></div>
-
-    <!-- What friends have ordered for this showtime, per seat plus a
-         summed shopping list. Built from the seats currently loaded in
-         the editor, so it reflects unsaved seat edits too. -->
-    <div class="orders" id="orders"></div>
-
-    <!-- Finalizing is the switch that stops friends changing their
-         orders. Sits under the roll-up because that's the list you're
-         reading when you decide you're done and about to go buy it.
-         Writes immediately -- it deliberately doesn't wait for Save
-         Showtime. -->
-    <div class="orders-close hidden" id="ordersCloseBar">
-      <button type="button" id="ordersCloseBtn" onclick="toggleOrdersClosed()">Finalize Order</button>
-      <span class="orders-close-note" id="ordersCloseNote"></span>
-    </div>
-
-    <div class="toolbar-note" data-copy="admin.seatGrid.help"></div>
-
-    <div class="legend">
-      <div class="legend-item"><span class="legend-swatch sw-avail"></span> <span data-copy="admin.seatGrid.legendNotOurs"></span></div>
-      <div class="legend-item"><span class="legend-swatch sw-inblock"></span> <span data-copy="admin.seatGrid.legendAvailable"></span></div>
-      <div class="legend-item"><span class="legend-swatch sw-claimed"></span> <span data-copy="admin.seatGrid.legendClaimed"></span></div>
-      <div class="legend-item"><span class="legend-swatch sw-claimed"><span class="sw-paid-dot"></span></span> <span data-copy="admin.seatGrid.legendPaid" data-copy-html></span></div>
-    </div>
-
-    <div class="save-status" id="saveStatus"></div>
-    <div class="save-bar">
-      <button class="save-btn" onclick="saveCurrent()">Save Showtime</button>
-      <button class="delete-btn hidden" id="deleteBtn" onclick="deleteCurrent()">Delete</button>
-    </div>
-  </div>
+  <!-- Whether the showtime editor's changes have reached the server. -->
+  <button type="button" class="save-pill hidden" id="savePill" onclick="retrySave()"></button>
 
   <!-- ===================== SEAT EDITOR OVERLAY ===================== -->
   <div class="seat-editor-overlay hidden" id="seatEditorOverlay">
@@ -1176,7 +1294,7 @@ const WHEELCHAIR_ICON_SVG =
   '<path d="M16.98 14.804A1 1 0 0 0 16 14h-4.133l-.429-3H16V9h-4.847l-.163-1.142A1 1 0 0 0 10 7H9a1.003 1.003 0 0 0-.99 1.142l.877 6.142A2.009 2.009 0 0 0 10.867 16h4.313l.839 4.196c.094.467.504.804.981.804h3v-2h-2.181l-.839-4.196z"/>' +
   '<path d="M12.51 17.5c-.739 1.476-2.25 2.5-4.01 2.5A4.505 4.505 0 0 1 4 15.5a4.503 4.503 0 0 1 2.817-4.167l-.289-2.025C3.905 10.145 2 12.604 2 15.5 2 19.084 4.916 22 8.5 22a6.497 6.497 0 0 0 5.545-3.126l-.274-1.374H12.51z"/></svg>';
 
-let currentId = null;      // null = unsaved new showtime
+let currentId = null;      // the showtime open in the editor, or null
 let seatStates = {};       // seatId -> { status: 'occupied' } | { status: 'assigned', name, paid, concessions }
 let seatEls = {};          // seatId -> DOM element, populated by buildSeatGrid
 let editingSeatId = null;
@@ -1323,18 +1441,69 @@ async function logout(){
   window.location.href = '/admin';
 }
 
-// ---------------- VIEW SWITCHING ----------------
-function showList(){
-  document.getElementById('editorView').classList.add('hidden');
-  document.getElementById('listView').classList.remove('hidden');
+// ---------------- ROUTING ----------------
+//
+// The screen is named in the URL hash -- #/movies, #/movie/<id>,
+// #/showtime/<id>, #/menu, #/settings -- so the browser's back button and
+// a phone's back swipe go up a level, and a reload stays put.
+const VIEWS = ['moviesView', 'movieView', 'editorView', 'menuView', 'settingsView'];
+
+function parseRoute(){
+  const parts = (location.hash || '').replace(/^#\/?/, '').split('/');
+  const name = parts[0] || 'movies';
+  return { name, id: parts[1] ? decodeURIComponent(parts[1]) : null };
 }
-function showEditor(){
-  document.getElementById('listView').classList.add('hidden');
-  document.getElementById('editorView').classList.remove('hidden');
+
+function navigate(hash){
+  if (location.hash === hash) route();
+  else location.hash = hash;
 }
-function backToList(){
-  showList();
-  loadList();
+
+// The parent of whatever's on screen: a showtime's movie, a movie's grid.
+let parentHash = '#/movies';
+
+// Back arrow. Steps back through history when the parent is what we came
+// from (so the history doesn't fill with loops), and goes straight there
+// when the page was opened on a deep link.
+let cameFrom = null;
+function goUp(){
+  if (cameFrom === parentHash) history.back();
+  else location.replace(parentHash);
+}
+
+let currentHash = location.hash;
+window.addEventListener('hashchange', () => {
+  cameFrom = currentHash;
+  currentHash = location.hash;
+  route();
+});
+
+async function route(){
+  // Anything typed but not yet sent goes before the screen changes.
+  flushPendingPatch();
+  closeSeatEditor();
+  const r = parseRoute();
+  let view = 'moviesView';
+  if (r.name === 'movie' && r.id) view = 'movieView';
+  else if (r.name === 'showtime' && r.id) view = 'editorView';
+  else if (r.name === 'menu') view = 'menuView';
+  else if (r.name === 'settings') view = 'settingsView';
+
+  if (view !== 'editorView'){
+    currentId = null;
+    renderSavePill();
+  }
+  VIEWS.forEach(v => document.getElementById(v).classList.toggle('hidden', v !== view));
+  const topLevel = ['moviesView', 'menuView', 'settingsView'].includes(view);
+  document.getElementById('topbar').classList.toggle('hidden', !topLevel);
+  document.querySelectorAll('.tabs a').forEach(a =>
+    a.classList.toggle('active', a.dataset.tab === r.name || (r.name !== 'menu' && r.name !== 'settings' && a.dataset.tab === 'movies')));
+  window.scrollTo(0, 0);
+
+  if (view === 'moviesView'){ parentHash = '#/movies'; await loadMovies(); }
+  else if (view === 'movieView'){ parentHash = '#/movies'; await openMovie(r.id); }
+  else if (view === 'editorView'){ await openShowtime(r.id); }
+  else parentHash = '#/movies';
 }
 
 // A showtime is "past" starting the day after it occurs -- it stays in
@@ -1346,14 +1515,6 @@ function isPastShowtime(obj){
   return typeof obj.date === 'string' && obj.date < todayISO();
 }
 
-// Every distinct title already used, so the title field's <datalist>
-// can autocomplete instead of risking a typo splitting one movie into
-// two different titles across showtimes. Showtime info notes get the
-// same treatment from the same list.
-function refreshTitleSuggestions(items){
-  fillDatalist('titleSuggestions', items.map(obj => obj.title));
-  fillDatalist('infoSuggestions', items.map(obj => obj.info));
-}
 function fillDatalist(id, values){
   const seen = new Set(values.filter(Boolean));
   document.getElementById(id).innerHTML = Array.from(seen).sort()
@@ -1361,46 +1522,290 @@ function fillDatalist(id, values){
     .join('');
 }
 
-// ---------------- LIST VIEW ----------------
-async function loadList(){
-  const container = document.getElementById('cardsContainer');
-  const pastSection = document.getElementById('pastSection');
-  const pastContainer = document.getElementById('pastCardsContainer');
-  container.innerHTML = '<div class="loading-state">Loading...</div>';
-  pastSection.classList.add('hidden');
+// Every showtime note already used, for the info field's autocomplete.
+async function loadInfoSuggestions(){
   try{
     const res = await fetch('/api/showtimes');
+    if (!res.ok) return;
+    const data = await res.json();
+    fillDatalist('infoSuggestions', (data.showtimes || []).map(s => s.info));
+  }catch(e){}
+}
+
+// ---------------- MOVIES ----------------
+async function loadMovies(){
+  const grid = document.getElementById('movieGrid');
+  const pastWrap = document.getElementById('pastMovies');
+  try{
+    const res = await fetch('/api/movies');
     if (await handleAuthFailure(res)) return;
     if (!res.ok) throw new Error('failed to load');
+    const movies = (await res.json()).movies || [];
+    const today = todayISO();
+    // A movie is upcoming while any of its showings is today or later --
+    // and so is one with no showtimes yet, which is a movie just added.
+    const upcoming = [], past = [];
+    movies.forEach(m => {
+      m.next = m.dates.find(d => d >= today) || null;
+      m.last = m.dates.length ? m.dates[m.dates.length - 1] : null;
+      (m.next || !m.dates.length ? upcoming : past).push(m);
+    });
+    // New movies (nothing scheduled) first, then by next showing.
+    upcoming.sort((a, b) => (a.next || '').localeCompare(b.next || ''));
+    past.sort((a, b) => (b.last || '').localeCompare(a.last || ''));
+
+    grid.innerHTML = '';
+    if (!upcoming.length){
+      grid.innerHTML = '<div class="empty-state">' + escapeHtml(t(movies.length ? 'admin.movies.noneUpcoming' : 'admin.movies.none')) + '</div>';
+    }
+    upcoming.forEach(m => grid.appendChild(buildMovieTile(m, false)));
+
+    const pastGrid = document.getElementById('pastMovieGrid');
+    pastGrid.innerHTML = '';
+    past.forEach(m => pastGrid.appendChild(buildMovieTile(m, true)));
+    document.getElementById('pastMovieCount').textContent = past.length;
+    pastWrap.classList.toggle('hidden', !past.length);
+  }catch(e){
+    grid.innerHTML = '<div class="empty-state">' + escapeHtml(t('admin.movies.loadFailed')) + '</div>';
+  }
+}
+
+function buildMovieTile(m, isPast){
+  const tile = document.createElement('button');
+  tile.type = 'button';
+  tile.className = 'movie-tile';
+  tile.addEventListener('click', () => navigate('#/movie/' + encodeURIComponent(m.id)));
+
+  const poster = document.createElement('div');
+  poster.className = 'tile-poster';
+  if (m.posterUrl){
+    poster.classList.add('has-img');
+    const img = document.createElement('img');
+    img.src = m.posterUrl;
+    img.alt = '';
+    poster.appendChild(img);
+  } else {
+    const fb = document.createElement('div');
+    fb.className = 'tile-poster-fallback';
+    fb.textContent = m.title;
+    poster.appendChild(fb);
+  }
+  tile.appendChild(poster);
+
+  const name = document.createElement('div');
+  name.className = 'tile-title';
+  name.textContent = m.title;
+  tile.appendChild(name);
+
+  const sub = document.createElement('div');
+  sub.className = 'tile-sub';
+  if (!m.showtimeCount){
+    sub.textContent = t('admin.movies.noShowtimes');
+  } else {
+    const count = t(m.showtimeCount === 1 ? 'admin.movies.showtimesOne' : 'admin.movies.showtimesMany', { count: m.showtimeCount });
+    const when = isPast
+      ? t('admin.movies.last', { when: formatDateDisplay(m.last) })
+      : t('admin.movies.next', { when: formatDateDisplay(m.next) });
+    sub.textContent = count + ' · ' + when;
+  }
+  tile.appendChild(sub);
+  return tile;
+}
+
+function showAddMovie(){
+  document.getElementById('addMovieBtn').classList.add('hidden');
+  document.getElementById('addMovieForm').classList.remove('hidden');
+  document.getElementById('addMovieStatus').textContent = '';
+  const input = document.getElementById('addMovieTitle');
+  input.value = '';
+  input.focus();
+}
+function hideAddMovie(){
+  document.getElementById('addMovieForm').classList.add('hidden');
+  document.getElementById('addMovieBtn').classList.remove('hidden');
+}
+
+// Adding a title that already exists just opens that movie.
+async function addMovie(){
+  const title = document.getElementById('addMovieTitle').value.trim();
+  const statusEl = document.getElementById('addMovieStatus');
+  if (!title){ statusEl.textContent = t('admin.movies.typeTitle'); return; }
+  statusEl.textContent = t('admin.status.saving');
+  try{
+    const res = await fetch('/api/movies', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title })
+    });
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok){ statusEl.textContent = t('admin.status.saveFailed'); return; }
     const data = await res.json();
-    const items = data.showtimes || [];
-    refreshTitleSuggestions(items);
-    if (items.length === 0){
-      container.innerHTML = '<div class="empty-state">' + escapeHtml(t('admin.listEmptyAll')) + '</div>';
+    hideAddMovie();
+    navigate('#/movie/' + encodeURIComponent(data.movie.id));
+  }catch(e){
+    statusEl.textContent = t('admin.status.saveFailed');
+  }
+}
+
+// ---------------- ONE MOVIE ----------------
+let currentMovie = null;
+
+async function openMovie(id){
+  const list = document.getElementById('movieShowtimes');
+  list.innerHTML = '<div class="loading-state">Loading...</div>';
+  try{
+    const res = await fetch('/api/movies/' + encodeURIComponent(id));
+    if (await handleAuthFailure(res)) return;
+    if (res.status === 404){ location.replace('#/movies'); return; }
+    if (!res.ok) throw new Error('failed to load');
+    currentMovie = (await res.json()).movie;
+  }catch(e){
+    list.innerHTML = '<div class="empty-state">' + escapeHtml(t('admin.movies.openFailed')) + '</div>';
+    return;
+  }
+  renderMovie();
+}
+
+function renderMovie(){
+  const m = currentMovie;
+  document.getElementById('movieTitle').value = m.title;
+  document.getElementById('movieTitleStatus').textContent = '';
+  document.getElementById('moviePosterStatus').textContent = '';
+  const img = document.getElementById('moviePosterImg');
+  img.classList.toggle('hidden', !m.posterUrl);
+  if (m.posterUrl) img.src = m.posterUrl;
+  document.getElementById('moviePosterEmpty').classList.toggle('hidden', !!m.posterUrl);
+
+  const showtimes = m.showtimes || [];
+  document.getElementById('movieShowtimeCount').textContent = showtimes.length
+    ? t(showtimes.length === 1 ? 'admin.movies.showtimesOne' : 'admin.movies.showtimesMany', { count: showtimes.length })
+    : t('admin.movies.noShowtimes');
+
+  const upcoming = showtimes.filter(s => !isPastShowtime(s))
+    .sort((a, b) => (a.date + 'T' + a.time).localeCompare(b.date + 'T' + b.time));
+  // Most recent first: the further back, the less it matters.
+  const past = showtimes.filter(isPastShowtime)
+    .sort((a, b) => (b.date + 'T' + b.time).localeCompare(a.date + 'T' + a.time));
+
+  const list = document.getElementById('movieShowtimes');
+  list.innerHTML = '';
+  if (!upcoming.length){
+    list.innerHTML = '<div class="empty-state">' + escapeHtml(t('admin.movies.noUpcomingShowtimes')) + '</div>';
+  }
+  upcoming.forEach(s => list.appendChild(buildCard(s)));
+
+  const pastList = document.getElementById('pastShowtimeCards');
+  pastList.innerHTML = '';
+  past.forEach(s => pastList.appendChild(buildCard(s)));
+  document.getElementById('pastShowtimeCount').textContent = past.length;
+  document.getElementById('pastShowtimes').classList.toggle('hidden', !past.length);
+
+  // Only an empty movie can be deleted; the server refuses otherwise too.
+  document.getElementById('deleteMovieWrap').classList.toggle('hidden', showtimes.length > 0);
+}
+
+// Renames on Enter or leaving the field. Every showtime takes its title
+// from the movie, so this is the one place a title changes.
+async function renameMovie(){
+  if (!currentMovie) return;
+  const input = document.getElementById('movieTitle');
+  const statusEl = document.getElementById('movieTitleStatus');
+  const title = input.value.trim();
+  if (title === currentMovie.title) return;
+  if (!title){ input.value = currentMovie.title; return; }
+  statusEl.textContent = t('admin.status.saving');
+  try{
+    const res = await fetch('/api/movies/' + encodeURIComponent(currentMovie.id), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title })
+    });
+    if (await handleAuthFailure(res)) return;
+    if (res.status === 409){
+      statusEl.textContent = t('admin.movies.titleTaken');
+      input.value = currentMovie.title;
       return;
     }
-    const upcoming = items.filter(obj => !isPastShowtime(obj));
-    const past = items.filter(isPastShowtime);
-
-    upcoming.sort((a,b) => (a.date+'T'+a.time).localeCompare(b.date+'T'+b.time));
-    container.innerHTML = '';
-    if (upcoming.length === 0){
-      container.innerHTML = '<div class="empty-state">' + escapeHtml(t('admin.listEmptyUpcoming')) + '</div>';
-    } else {
-      upcoming.forEach(obj => container.appendChild(buildCard(obj)));
-    }
-
-    if (past.length > 0){
-      // Most-recent-first -- the opposite order from the upcoming list,
-      // since "longer ago" matters less the further back it gets.
-      past.sort((a,b) => (b.date+'T'+b.time).localeCompare(a.date+'T'+a.time));
-      pastContainer.innerHTML = '';
-      past.forEach(obj => pastContainer.appendChild(buildCard(obj)));
-      document.getElementById('pastCount').textContent = past.length;
-      pastSection.classList.remove('hidden');
-    }
+    if (!res.ok){ statusEl.textContent = t('admin.status.saveFailed'); return; }
+    currentMovie.title = (await res.json()).movie.title;
+    input.value = currentMovie.title;
+    statusEl.textContent = t('admin.status.saved');
+    setTimeout(() => { if (statusEl.textContent === t('admin.status.saved')) statusEl.textContent = ''; }, 1500);
   }catch(e){
-    container.innerHTML = '<div class="empty-state">' + escapeHtml(t('admin.listLoadFailed')) + '</div>';
+    statusEl.textContent = t('admin.status.saveFailed');
+  }
+}
+document.getElementById('movieTitle').addEventListener('change', renameMovie);
+document.getElementById('movieTitle').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter'){ e.preventDefault(); e.target.blur(); }
+});
+
+// Uploads as soon as a file is picked -- there's nothing else to confirm.
+async function uploadMoviePoster(){
+  const input = document.getElementById('moviePosterInput');
+  const statusEl = document.getElementById('moviePosterStatus');
+  if (!currentMovie || !input.files || !input.files[0]) return;
+  statusEl.textContent = t('admin.status.uploading');
+  const formData = new FormData();
+  formData.append('image', input.files[0]);
+  try{
+    const res = await fetch('/api/movies/' + encodeURIComponent(currentMovie.id) + '/poster', { method: 'POST', body: formData });
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok){
+      const data = await res.json().catch(() => ({}));
+      statusEl.textContent = data.error || t('admin.status.uploadFailed');
+      return;
+    }
+    const movie = (await res.json()).movie;
+    currentMovie.posterUrl = movie.posterUrl;
+    (currentMovie.showtimes || []).forEach(s => { s.posterUrl = movie.posterUrl; });
+    input.value = '';
+    renderMovie();
+    statusEl.textContent = t('admin.status.uploaded');
+    setTimeout(() => { if (statusEl.textContent === t('admin.status.uploaded')) statusEl.textContent = ''; }, 1500);
+  }catch(e){
+    statusEl.textContent = t('admin.status.uploadFailed');
+  }
+}
+
+async function deleteMovie(){
+  if (!currentMovie) return;
+  if (!confirm(t('admin.movies.deleteConfirm', { title: currentMovie.title }))) return;
+  try{
+    const res = await fetch('/api/movies/' + encodeURIComponent(currentMovie.id), { method: 'DELETE' });
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok) throw new Error('failed');
+    currentMovie = null;
+    location.replace('#/movies');
+  }catch(e){
+    alert(t('admin.deleteFailed'));
+  }
+}
+
+// A new showtime starts as a copy of the movie's latest one (same
+// theater, screen, format, price and time -- usually all that's the same
+// between showings), dated today; or the defaults, for a movie's first.
+async function addShowtime(){
+  if (!currentMovie) return;
+  const latest = (currentMovie.showtimes || []).slice()
+    .sort((a, b) => (b.date + 'T' + b.time).localeCompare(a.date + 'T' + a.time))[0];
+  const screen = latest && latest.screen ? latest.screen : DEFAULT_SCREEN;
+  const layout = SEAT_LAYOUTS[screen] || SEAT_LAYOUTS[DEFAULT_SCREEN];
+  const body = latest
+    ? { theater: latest.theater || '', screen, format: latest.format || '', price: latest.price, time: latest.time || '19:00', date: todayISO() }
+    : { theater: layout.theater || 'AMC Metreon 16', screen, format: (layout.formats || [])[0] || '', price: 17.49, time: '19:00', date: todayISO() };
+  try{
+    const res = await fetch('/api/movies/' + encodeURIComponent(currentMovie.id) + '/showtimes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok) throw new Error('failed');
+    const showtime = (await res.json()).showtime;
+    navigate('#/showtime/' + encodeURIComponent(showtime.id));
+  }catch(e){
+    alert(t('admin.status.saveFailed'));
   }
 }
 
@@ -1408,28 +1813,18 @@ function formatPrice(price){
   return (typeof price === 'number') ? ('$' + price.toFixed(2)) : '';
 }
 
-// Poster art, when this title has any (see server's posterUrlForTitle),
-// goes to the left of the title/info/open-seat-count column -- not the
-// claimed-seat names or the Open/Delete buttons below, which stay
-// full-width. Same fixed size whether or not there's actually a poster,
-// so cards line up evenly.
-function buildPosterEl(obj){
-  const poster = document.createElement('div');
-  poster.className = 'poster-thumb';
-  if (obj.posterUrl){
-    const img = document.createElement('img');
-    img.src = obj.posterUrl;
-    img.alt = '';
-    poster.appendChild(img);
-  } else {
-    poster.classList.add('poster-placeholder');
-  }
-  return poster;
-}
-
+// One showtime on its movie's page. The whole card opens it. No title or
+// poster: the page header already says which movie this is.
 function buildCard(obj){
   const card = document.createElement('div');
-  card.className = 'card';
+  card.className = 'card is-link';
+  card.setAttribute('role', 'button');
+  card.setAttribute('tabindex', '0');
+  const open = () => navigate('#/showtime/' + encodeURIComponent(obj.id));
+  card.addEventListener('click', open);
+  card.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); open(); }
+  });
 
   const seats = normalizeSeats(obj.seats);
   const blockIds = Object.keys(seats).filter(k => seats[k].status === 'assigned').sort(compareSeatIds);
@@ -1438,19 +1833,13 @@ function buildCard(obj){
 
   const body = document.createElement('div');
   body.className = 'card-body';
-  body.appendChild(buildPosterEl(obj));
 
   const info = document.createElement('div');
   info.className = 'card-info';
 
-  const h3 = document.createElement('h3');
-  h3.textContent = obj.title || 'Untitled';
-  info.appendChild(h3);
-
   // Skipped entirely rather than left as an empty row when a showtime
-  // somehow has neither a date nor a time -- an empty div would still
-  // contribute its margin and open a gap under the title.
-  const whenText = [dateDisplay, timeDisplay].filter(Boolean).join(' \u00b7 ');
+  // somehow has neither a date nor a time.
+  const whenText = [dateDisplay, timeDisplay].filter(Boolean).join(' · ');
   if (whenText){
     const when = document.createElement('div');
     when.className = 'when';
@@ -1483,6 +1872,10 @@ function buildCard(obj){
   info.appendChild(availLine);
 
   body.appendChild(info);
+  const chevron = document.createElement('div');
+  chevron.className = 'card-chevron';
+  chevron.setAttribute('aria-hidden', 'true');
+  body.appendChild(chevron);
   card.appendChild(body);
 
   if (namedIds.length > 0){
@@ -1495,9 +1888,6 @@ function buildCard(obj){
       const paidTag = outstanding > 0
         ? '<span class="unpaid-tag">owes ' + escapeHtml(formatPrice(outstanding)) + '</span>'
         : '<span class="paid-tag">&#10003; paid</span>';
-      // One line under the name rather than a separate orders block:
-      // on the list you only want to know at a glance whether there's
-      // anything to buy. The full breakdown lives in the editor.
       const order = (s.concessions || []).length
         ? '<div class="concession-line">&#127871; ' + escapeHtml(concessionSummary(s.concessions)) +
           ' &mdash; ' + escapeHtml(formatPrice(concessionsTotal(s.concessions))) + '</div>'
@@ -1509,19 +1899,6 @@ function buildCard(obj){
     namedList.innerHTML = namedLines;
     card.appendChild(namedList);
   }
-
-  const actions = document.createElement('div');
-  actions.className = 'card-actions';
-
-  // Delete lives inside the editor (deleteBtn/deleteCurrent()), not
-  // here -- you have to open a showtime to delete it, so it's not one
-  // misplaced tap away from the list.
-  const editBtn = document.createElement('button');
-  editBtn.textContent = 'Edit';
-  editBtn.onclick = () => openExisting(obj.id);
-  actions.appendChild(editBtn);
-
-  card.appendChild(actions);
   return card;
 }
 
@@ -1547,72 +1924,44 @@ function formatTimeDisplay(t){
   }catch(e){ return t; }
 }
 
-// ---------------- EDITOR: NEW / OPEN ----------------
-function openNew(){
-  currentId = null;
-  ordersClosed = false;
-  document.getElementById('titleField').value = 'Movie Title';
-  document.getElementById('theaterField').textContent = 'AMC Metreon 16';
-  document.getElementById('showDate').value = todayISO();
-  document.getElementById('showTime').value = '19:00';
-  document.getElementById('screen').value = DEFAULT_SCREEN;
-  syncFormatOptions();
-  document.getElementById('price').value = '17.49';
-  document.getElementById('showInfo').value = '';
-  seatStates = {};
-  document.getElementById('deleteBtn').classList.add('hidden');
-  document.getElementById('saveStatus').textContent = '';
-  document.getElementById('posterFileInput').value = '';
-  document.getElementById('posterStatus').textContent = '';
-  refreshPosterPreview();
-  // Show the editor before building the grid -- buildSeatGrid measures
-  // row widths via offsetWidth, which reads 0 on anything still inside a
-  // display:none ancestor.
-  showEditor();
-  buildSeatGrid();
-}
-
-async function openExisting(id){
+// ---------------- ONE SHOWTIME ----------------
+async function openShowtime(id){
+  document.getElementById('seatmap').innerHTML = '';
+  let obj;
   try{
-    const res = await fetch('/api/showtimes/' + id);
+    const res = await fetch('/api/showtimes/' + encodeURIComponent(id));
     if (await handleAuthFailure(res)) return;
-    if (!res.ok){ alert(t('admin.notFound')); return; }
-    const data = await res.json();
-    const obj = data.showtime;
-    currentId = id;
-    ordersClosed = !!obj.ordersClosed;
-    document.getElementById('titleField').value = obj.title || 'Movie Title';
-    document.getElementById('theaterField').textContent = obj.theater || 'AMC Metreon 16';
-    document.getElementById('showDate').value = obj.date || todayISO();
-    document.getElementById('showTime').value = obj.time || '19:00';
-    document.getElementById('screen').value = obj.screen || DEFAULT_SCREEN;
-    syncFormatOptions(obj.format);
-    document.getElementById('price').value = (typeof obj.price === 'number') ? obj.price.toFixed(2) : '';
-    document.getElementById('showInfo').value = obj.info || '';
-    seatStates = normalizeSeats(obj.seats);
-    document.getElementById('deleteBtn').classList.remove('hidden');
-    document.getElementById('saveStatus').textContent = '';
-    document.getElementById('posterFileInput').value = '';
-    document.getElementById('posterStatus').textContent = '';
-    // The list response already carries posterUrl (see server's
-    // posterUrlForTitle) -- no need for a second round-trip on open.
-    const posterImg = document.getElementById('posterPreview');
-    if (obj.posterUrl){
-      posterImg.src = obj.posterUrl;
-      posterImg.classList.remove('hidden');
-    } else {
-      posterImg.classList.add('hidden');
-    }
-    // Same ordering reason as openNew() -- show before measuring.
-    showEditor();
-    buildSeatGrid();
+    if (res.status === 404){ alert(t('admin.notFound')); location.replace('#/movies'); return; }
+    if (!res.ok) throw new Error('failed');
+    obj = (await res.json()).showtime;
   }catch(e){
     alert(t('admin.openFailed'));
+    return;
   }
+  // The route may have moved on while this was loading.
+  if (parseRoute().id !== id) return;
+  currentId = id;
+  parentHash = '#/movie/' + encodeURIComponent(obj.movieId);
+  ordersClosed = !!obj.ordersClosed;
+  document.getElementById('editorTitle').textContent = obj.title || '';
+  document.getElementById('theaterField').value = obj.theater || '';
+  document.getElementById('showDate').value = obj.date || '';
+  document.getElementById('showTime').value = obj.time || '';
+  document.getElementById('screen').value = obj.screen || DEFAULT_SCREEN;
+  syncFormatOptions(obj.format);
+  document.getElementById('price').value = (typeof obj.price === 'number') ? obj.price.toFixed(2) : '';
+  document.getElementById('showInfo').value = obj.info || '';
+  seatStates = normalizeSeats(obj.seats);
+  saveFailed = null;
+  renderSavePill();
+  // Build after the view is showing -- buildSeatGrid measures row widths,
+  // which read 0 inside a display:none ancestor.
+  buildSeatGrid();
 }
 
 function setPrice(v){
   document.getElementById('price').value = v.toFixed(2);
+  queuePatch({ price: v }, true);
 }
 
 // ---------------- SEAT GRID ----------------
@@ -1736,6 +2085,7 @@ function seatTap(id){
     seatStates[id] = { status: 'assigned', name: '', paid: false, concessionsPaid: false, concessions: [] };
     renderSeat(id);
     updateSummary();
+    writeSeat(id);
     return;
   }
   openSeatEditor(id);
@@ -1819,32 +2169,35 @@ function applySeatEdit(){
   };
   renderSeat(editingSeatId);
   updateSummary();
+  writeSeat(editingSeatId);
   closeSeatEditor();
 }
 
 // Un-assigns just the friend's name, keeping the seat in your block
 // (green, available) so someone else can grab it.
+// The order goes with the name -- it belonged to the person whose name
+// is being removed (the server does the same; see setSeat).
 function clearNameFromEditor(){
   if (!editingSeatId) return;
-  // The explicit empty cart isn't decoration: the server treats a seat
-  // arriving with NO concessions key as "an older client that doesn't
-  // know about carts" and keeps whatever's on disk (see
-  // preserveConcessions in server.js). Sending [] is how this says
-  // "actually clear it" -- which is right, since the order belonged to
-  // the person whose name is being removed.
   seatStates[editingSeatId] = { status: 'assigned', name: '', paid: false, concessionsPaid: false, concessions: [] };
   renderSeat(editingSeatId);
   updateSummary();
+  writeSeat(editingSeatId);
   closeSeatEditor();
 }
 
 // Drops the seat out of your block entirely (e.g. you refunded the
 // ticket via AMC) -- back to "not in your block."
+// Saves straight away like everything else, so a seat with someone's
+// name on it asks first.
 function releaseSeatFromEditor(){
   if (!editingSeatId) return;
+  const cur = seatStates[editingSeatId];
+  if (cur && cur.name && !confirm(t('admin.seatEditor.releaseConfirm', { seat: editingSeatId, name: cur.name }))) return;
   delete seatStates[editingSeatId];
   renderSeat(editingSeatId);
   updateSummary();
+  writeSeat(editingSeatId);
   closeSeatEditor();
 }
 
@@ -1888,10 +2241,9 @@ function renderOrdersCloseBar(){
   document.getElementById('ordersCloseNote').textContent = t(ordersClosed ? 'admin.orders.noteClosed' : 'admin.orders.noteOpen');
 }
 
-// Writes straight away rather than waiting for Save Showtime: this is the
-// host saying "I'm at the counter now", and it must not ride along with a
-// seats object this page may have been holding since before somebody's
-// last order.
+// Not part of the save queue (see SAVING AS YOU GO): it asks first, and
+// it's the host saying "I'm at the counter now", so it has to take
+// effect -- or visibly fail -- right then, not behind other writes.
 async function toggleOrdersClosed(){
   if (!currentId) return;
   const next = !ordersClosed;
@@ -2011,53 +2363,190 @@ function renderOrders(){
     escapeHtml(formatPrice(Math.round((subtotal + tax) * 100) / 100)) + '</span></div></div>';
 }
 
-// ---------------- SAVE / DELETE ----------------
-async function saveCurrent(){
-  const statusEl = document.getElementById('saveStatus');
-  statusEl.textContent = t('admin.status.saving');
-  const payload = {
-    title: document.getElementById('titleField').value.trim() || 'Untitled',
-    theater: document.getElementById('theaterField').textContent.trim() || '',
-    date: document.getElementById('showDate').value,
-    time: document.getElementById('showTime').value,
-    format: document.getElementById('format').value,
-    screen: document.getElementById('screen').value,
-    price: document.getElementById('price').value,
-    info: document.getElementById('showInfo').value,
-    seats: seatStates
-  };
-  try{
-    const url = currentId ? ('/api/showtimes/' + currentId) : '/api/showtimes';
-    const method = currentId ? 'PUT' : 'POST';
-    const res = await fetch(url, {
-      method,
+// ---------------- SAVING AS YOU GO ----------------
+//
+// There's no Save button. A field saves on its own (PATCH one field), a
+// seat saves on its own (PUT/DELETE one seat), as each is changed.
+//
+// Writes go out one at a time, in the order they were made, so two
+// quick taps on the same seat can't land out of order. A write that
+// fails is kept -- under its seat or field, so a newer change to the same
+// thing replaces it rather than a retry later overwriting the newer one --
+// and the pill at the bottom turns into the retry button.
+let saveQueue = Promise.resolve();
+let writesInFlight = 0;
+const failedWrites = new Map();   // key -> run(), for writes that didn't make it
+let savedShowtimeId = null;       // set once something has saved in this editor
+
+let pendingPatch = {};            // typed but not sent yet (see queuePatch)
+let pendingPatchShowtime = null;
+let patchTimer = null;
+
+function enqueueWrite(key, run){
+  writesInFlight++;
+  renderSavePill();
+  const showtimeId = key.split(':')[0];
+  saveQueue = saveQueue.then(async () => {
+    try{
+      const res = await run();
+      if (await handleAuthFailure(res)) return;
+      if (!res.ok) throw new Error('status ' + res.status);
+      failedWrites.delete(key);
+      savedShowtimeId = showtimeId;
+    }catch(e){
+      failedWrites.set(key, run);
+    }finally{
+      writesInFlight--;
+      renderSavePill();
+    }
+  });
+  return saveQueue;
+}
+
+function retrySave(){
+  if (!failedWrites.size) return;
+  const writes = Array.from(failedWrites.entries());
+  failedWrites.clear();
+  writes.forEach(([key, run]) => enqueueWrite(key, run));
+}
+
+// Text fields wait until typing pauses (or the field loses focus) and
+// then send; pickers and buttons send straight away (`now`).
+function queuePatch(fields, now){
+  if (!currentId) return;
+  if (pendingPatchShowtime && pendingPatchShowtime !== currentId) flushPendingPatch();
+  pendingPatchShowtime = currentId;
+  Object.assign(pendingPatch, fields);
+  clearTimeout(patchTimer);
+  if (now) flushPendingPatch();
+  else patchTimer = setTimeout(flushPendingPatch, 700);
+  renderSavePill();
+}
+
+// One request per field, so a failed one only ever retries itself.
+function flushPendingPatch(){
+  clearTimeout(patchTimer);
+  const id = pendingPatchShowtime;
+  const fields = pendingPatch;
+  pendingPatch = {};
+  pendingPatchShowtime = null;
+  if (!id) return;
+  Object.keys(fields).forEach(field => {
+    const body = JSON.stringify({ [field]: fields[field] });
+    enqueueWrite(id + ':field:' + field, () => fetch('/api/showtimes/' + encodeURIComponent(id), {
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
+      body
+    }));
+  });
+}
+
+// Sends one seat as it is in seatStates now: in the block (with its name
+// and paid flags) or, if it's gone from seatStates, released.
+function writeSeat(seatId){
+  const id = currentId;
+  if (!id) return;
+  const s = seatStates[seatId];
+  const url = '/api/showtimes/' + encodeURIComponent(id) + '/seats/' + encodeURIComponent(seatId);
+  if (!s || s.status !== 'assigned'){
+    enqueueWrite(id + ':seat:' + seatId, () => fetch(url, { method: 'DELETE' }));
+    return;
+  }
+  const body = JSON.stringify({ name: s.name || '', paid: !!s.paid, concessionsPaid: !!s.concessionsPaid });
+  enqueueWrite(id + ':seat:' + seatId, () => fetch(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body
+  }));
+}
+
+function renderSavePill(){
+  const pill = document.getElementById('savePill');
+  const typing = Object.keys(pendingPatch).length > 0;
+  pill.classList.remove('is-error', 'is-saved');
+  if (failedWrites.size){
+    pill.textContent = t('admin.save.failed');
+    pill.classList.add('is-error');
+  } else if (writesInFlight || typing){
+    pill.textContent = t('admin.save.saving');
+  } else if (currentId && savedShowtimeId === currentId){
+    pill.textContent = t('admin.save.saved');
+    pill.classList.add('is-saved');
+  } else {
+    pill.classList.add('hidden');
+    return;
+  }
+  pill.classList.remove('hidden');
+}
+
+// Closing the tab mid-save would lose the change; the browser asks first.
+window.addEventListener('beforeunload', (e) => {
+  if (writesInFlight || failedWrites.size || Object.keys(pendingPatch).length){
+    flushPendingPatch();
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+
+// Waits for everything typed so far to reach the server.
+async function settleWrites(){
+  flushPendingPatch();
+  await saveQueue;
+}
+
+async function duplicateShowtime(){
+  if (!currentId) return;
+  await settleWrites();
+  try{
+    const res = await fetch('/api/showtimes/' + encodeURIComponent(currentId) + '/duplicate', { method: 'POST' });
     if (await handleAuthFailure(res)) return;
-    if (!res.ok){ statusEl.textContent = t('admin.status.saveFailed'); return; }
-    const data = await res.json();
-    currentId = data.showtime.id;
-    document.getElementById('deleteBtn').classList.remove('hidden');
-    statusEl.textContent = t('admin.status.saved');
-    setTimeout(() => { if (statusEl.textContent === t('admin.status.saved')) statusEl.textContent=''; }, 1500);
+    if (!res.ok) throw new Error('failed');
+    const copy = (await res.json()).showtime;
+    navigate('#/showtime/' + encodeURIComponent(copy.id));
   }catch(e){
-    statusEl.textContent = t('admin.status.saveFailed');
+    alert(t('admin.status.saveFailed'));
   }
 }
 
-async function deleteCurrent(){
+async function deleteShowtime(){
   if (!currentId) return;
   if (!confirm(t('admin.deleteConfirm'))) return;
+  const id = currentId;
+  await settleWrites();
   try{
-    const res = await fetch('/api/showtimes/' + currentId, { method: 'DELETE' });
+    const res = await fetch('/api/showtimes/' + encodeURIComponent(id), { method: 'DELETE' });
     if (await handleAuthFailure(res)) return;
     if (!res.ok) throw new Error('failed to delete');
-    backToList();
+    // Nothing left to retry against a showtime that's gone.
+    Array.from(failedWrites.keys()).filter(k => k.startsWith(id + ':')).forEach(k => failedWrites.delete(k));
+    currentId = null;
+    renderSavePill();
+    location.replace(parentHash);
   }catch(e){
     alert(t('admin.deleteFailed'));
   }
 }
+
+// The showtime's own fields, saved as they change.
+(function wireShowtimeFields(){
+  const byId = (id) => document.getElementById(id);
+  byId('theaterField').addEventListener('input', (e) => queuePatch({ theater: e.target.value }));
+  byId('theaterField').addEventListener('blur', flushPendingPatch);
+  byId('showDate').addEventListener('change', (e) => queuePatch({ date: e.target.value }, true));
+  byId('showTime').addEventListener('change', (e) => queuePatch({ time: e.target.value }, true));
+  byId('format').addEventListener('change', (e) => queuePatch({ format: e.target.value }, true));
+  byId('screen').addEventListener('change', (e) => {
+    // A different screen can mean a different list of formats.
+    syncFormatOptions();
+    queuePatch({ screen: e.target.value, format: byId('format').value }, true);
+    buildSeatGrid();
+  });
+  byId('price').addEventListener('input', (e) => { queuePatch({ price: e.target.value }); updateSummary(); });
+  byId('price').addEventListener('blur', flushPendingPatch);
+  byId('showInfo').addEventListener('input', (e) => queuePatch({ info: e.target.value }));
+  // Picking a suggestion fires change; send it then rather than waiting.
+  byId('showInfo').addEventListener('change', flushPendingPatch);
+})();
 
 // ---------------- SITE IMAGES (logo + link preview) ----------------
 // Shared by both upload controls -- they're otherwise identical apart
@@ -2111,69 +2600,6 @@ function loadOgPreview(){ return loadImagePreview('/api/og-image', 'ogPreview');
 function uploadOgImage(){ return uploadImage('/api/og-image', 'ogFileInput', 'ogStatus', loadOgPreview); }
 function loadLogoPreview(){ return loadImagePreview('/api/logo-image', 'logoPreview'); }
 function uploadLogo(){ return uploadImage('/api/logo-image', 'logoFileInput', 'logoStatus', loadLogoPreview); }
-
-// ---------------- POSTER ART (keyed by title, not by showtime) ----------------
-
-let posterPreviewTimer = null;
-// Debounced so typing a title doesn't fire a lookup on every keystroke --
-// only once things settle for a moment.
-function schedulePosterPreviewRefresh(){
-  clearTimeout(posterPreviewTimer);
-  posterPreviewTimer = setTimeout(refreshPosterPreview, 400);
-}
-
-async function refreshPosterPreview(){
-  const title = document.getElementById('titleField').value.trim();
-  const img = document.getElementById('posterPreview');
-  if (!title){ img.classList.add('hidden'); return; }
-  try{
-    const res = await fetch('/api/poster?title=' + encodeURIComponent(title));
-    if (await handleAuthFailure(res)) return;
-    if (!res.ok) return;
-    const data = await res.json();
-    if (data.url){
-      img.src = data.url;
-      img.classList.remove('hidden');
-    } else {
-      img.classList.add('hidden');
-    }
-  }catch(e){
-    // Non-fatal -- the upload control still works even if this fails.
-  }
-}
-
-async function uploadPoster(){
-  const title = document.getElementById('titleField').value.trim();
-  const input = document.getElementById('posterFileInput');
-  const statusEl = document.getElementById('posterStatus');
-  if (!title){
-    statusEl.textContent = t('admin.status.typeTitle');
-    return;
-  }
-  if (!input.files || !input.files[0]){
-    statusEl.textContent = t('admin.status.chooseImage');
-    return;
-  }
-  statusEl.textContent = t('admin.status.uploading');
-  const formData = new FormData();
-  formData.append('title', title);
-  formData.append('image', input.files[0]);
-  try{
-    const res = await fetch('/api/poster', { method: 'POST', body: formData });
-    if (await handleAuthFailure(res)) return;
-    if (!res.ok){
-      const data = await res.json().catch(() => ({}));
-      statusEl.textContent = data.error || t('admin.status.uploadFailed');
-      return;
-    }
-    input.value = '';
-    statusEl.textContent = t('admin.status.uploaded');
-    refreshPosterPreview();
-    setTimeout(() => { if (statusEl.textContent === t('admin.status.uploaded')) statusEl.textContent = ''; }, 1500);
-  }catch(e){
-    statusEl.textContent = t('admin.status.uploadFailed');
-  }
-}
 
 // ---------------- FRIEND PASSWORD ----------------
 async function loadSharedPassword(){
@@ -2645,7 +3071,8 @@ function populateScreenOptions(){
 // ---------------- INIT ----------------
 populateScreenOptions();
 syncFormatOptions();
-loadList();
+route();
+loadInfoSuggestions();
 loadSharedPassword();
 loadOgPreview();
 loadLogoPreview();

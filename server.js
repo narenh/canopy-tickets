@@ -10,13 +10,13 @@ const sharedPasswordStore = require('./lib/sharedPassword');
 const concessionMenuStore = require('./lib/concessionMenu');
 const { createTextSettingStore } = require('./lib/textSetting');
 const { createPasswordAuth } = require('./lib/auth');
-const { normalizeSeats, normalizeSeatEntry, isHostSeat, CONCESSION_TAX_RATE } = require('./lib/seats');
+const { normalizeSeats, isHostSeat, CONCESSION_TAX_RATE } = require('./lib/seats');
 
 const ogImageStore = createImageStore('og');
 const logoImageStore = createImageStore('logo');
 
 // Replaces the old HOST_VENMO env var: like the friend password, these are
-// admin-settable from the editor UI (below the showtimes list) instead of
+// admin-settable from the admin's Settings tab instead of
 // fixed at deploy time, and either/both/neither can be set -- the
 // reservation page only shows a pay button for the one(s) that are.
 const venmoHandleStore = createTextSettingStore('venmo-handle');
@@ -46,7 +46,7 @@ function requireEnvPassword(envVar, label) {
 const ADMIN_PASSWORD = requireEnvPassword('ADMIN_PASSWORD', 'admin');
 
 // Unlike ADMIN_PASSWORD, the friend/shared password is NOT an env var --
-// it's set from the admin editor UI (below the showtimes list) and
+// it's set from the admin's Settings tab and
 // persisted via sharedPasswordStore, so it can be rotated without a
 // redeploy (e.g. a fresh password per movie). If it's never been set,
 // friend login is simply off: the login check below only matches against
@@ -264,17 +264,22 @@ function renderHtmlPage(res, req, filePath) {
   );
 }
 
-// Poster art is looked up by title (see lib/posterStore.js), not stored
-// on the showtime itself -- so every showtime sharing a title
-// automatically gets the same poster the moment one's uploaded for it.
-// Returns null (not a broken-image URL) if nothing's been uploaded for
-// this exact title yet -- both admin.html and public.html treat a null
-// posterUrl as "no poster, don't reserve space differently for it."
-function posterUrlForTitle(title) {
-  if (!title) return null;
-  const meta = posterStore.getMetaByTitle(title);
+// A poster belongs to a movie (movies.poster_key, see lib/sqliteStore.js),
+// so every showtime of the movie shows it, and renaming the movie keeps
+// it. Returns null (not a broken-image URL) if the movie has none yet --
+// both admin.html and public.html treat a null posterUrl as "no poster".
+function posterUrlForKey(key) {
+  if (!key) return null;
+  const meta = posterStore.getMetaByKey(key);
   if (!meta) return null;
-  return `/poster-image?key=${posterStore.keyFor(title)}&v=${meta.uploadedAt}`;
+  return `/poster-image?key=${key}&v=${meta.uploadedAt}`;
+}
+
+// The JSON fallback store (see lib/store.js) predates movies, so it
+// has no poster keys: there, posters are still found by title.
+function posterUrlFor(showtime) {
+  if (showtime.posterKey) return posterUrlForKey(showtime.posterKey);
+  return showtime.title ? posterUrlForKey(posterStore.keyFor(showtime.title)) : null;
 }
 
 // Trims a showtime down to what a friend on the public/shared side should
@@ -313,7 +318,7 @@ function publicShowtimeView(s) {
     screen: s.screen || DEFAULT_SCREEN,
     price: s.price,
     info: s.info || '',
-    posterUrl: posterUrlForTitle(s.title),
+    posterUrl: posterUrlFor(s),
     // Set by the host when they go and place the order -- see the
     // orders-closed route below for why it isn't a clock.
     ordersClosed: !!s.ordersClosed,
@@ -444,61 +449,124 @@ app.post('/api/concession-menu/reset', adminAuth.requireAuth('/admin'), (req, re
   res.json({ ok: true, ...concessionMenuStore.reset(), taxRate: CONCESSION_TAX_RATE });
 });
 
-// ---------------- Showtimes API (admin auth required) ----------------
+// Image uploads (posters, logo, link preview): in memory, 5MB, images only.
+const siteImageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter(req, file, cb) {
+    const allowed = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
+    cb(null, allowed.includes(file.mimetype));
+  }
+});
+
+// ---------------- Movies & showtimes API (admin auth required) ----------------
+//
+// The editor saves as you go: a field at a time (PATCH a showtime) and a
+// seat at a time (PUT/DELETE one seat). It used to send the whole
+// showtime, seats and all, on Save -- which meant an editor opened before
+// a friend's order could write that order back off the seat. Writing one
+// seat can't touch any other, so that whole class of problem is gone.
 
 app.use('/api/showtimes', adminAuth.requireAuth('/admin'));
+app.use('/api/movies', adminAuth.requireAuth('/admin'));
+
+// Movies need the SQLite store; the JSON fallback (lib/store.js) only
+// exists to keep friends reserving if the migration ever fails.
+function requireSqlite(req, res, next) {
+  if (store.kind === 'sqlite') return next();
+  res.status(503).json({ error: 'the database is unavailable -- see the server log' });
+}
+app.use('/api/movies', requireSqlite);
 
 // Read-side fallback for showtimes saved before `screen` existed -- see
-// the DEFAULT_SCREEN comment above. Also attaches posterUrl (see
-// posterUrlForTitle) since the admin list needs it too, not just the
-// public one.
+// the DEFAULT_SCREEN comment above. Also attaches posterUrl.
 function withScreenFallback(item) {
-  return { ...item, screen: item.screen || DEFAULT_SCREEN, posterUrl: posterUrlForTitle(item.title) };
+  return { ...item, screen: item.screen || DEFAULT_SCREEN, posterUrl: posterUrlFor(item) };
 }
 
-// A friend's cart lives on the seat, and the admin editor saves the WHOLE
-// seats object -- so an editor page loaded before an order was placed
-// would write that order right back off the record on its next save.
-//
-// The editor does round-trip carts it knows about (see normalizeSeatEntry
-// in views/admin.html), so an incoming seat entry with no `concessions`
-// key at all means one of two things: a stale/older client that never
-// saw the cart, or a deliberate clear. The editor makes the deliberate
-// case explicit by sending `concessions: []`, which leaves "key absent"
-// meaning only "this client doesn't know", and that's the case we keep
-// the stored cart for.
-//
-// This narrows the window but doesn't close it: an editor that loaded
-// AFTER a cart existed and then saves stale contents still wins. Same
-// last-write-wins story the seat names already have here, and the same
-// reason it's acceptable -- one host, editing their own showtimes.
-//
-// `concessionsPaid` gets the same treatment for the same reason, and it
-// matters more: silently clearing it would tell someone who has already
-// sent the money that they still owe it.
-function preserveConcessions(incomingSeats, existingSeats) {
-  const out = {};
-  Object.keys(incomingSeats || {}).forEach((id) => {
-    const incoming = incomingSeats[id];
-    if (!incoming || typeof incoming !== 'object' || incoming.status !== 'assigned') {
-      out[id] = incoming;
-      return;
-    }
-    const knowsCart = Array.isArray(incoming.concessions);
-    const knowsSettled = typeof incoming.concessionsPaid === 'boolean';
-    if (knowsCart && knowsSettled) {
-      out[id] = incoming;
-      return;
-    }
-    const prior = normalizeSeatEntry(existingSeats && existingSeats[id]);
-    const assigned = prior && prior.status === 'assigned';
-    const merged = { ...incoming };
-    if (!knowsCart && assigned && prior.concessions.length) merged.concessions = prior.concessions;
-    if (!knowsSettled && assigned && prior.concessionsPaid) merged.concessionsPaid = true;
-    out[id] = merged;
-  });
-  return out;
+function movieView(m) {
+  return { ...m, posterUrl: posterUrlForKey(m.posterKey) };
 }
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const TIME_RE = /^\d{2}:\d{2}$/;
+const SEAT_ID_RE = /^[A-Za-z]{1,3}\d{1,3}$/;
+
+// Validates the showtime fields present in `body` and returns them in
+// stored form, or { error } for the first one that's wrong. Fields not in
+// `body` are left out, so the same function serves a one-field PATCH and
+// a whole new showtime.
+function showtimeFields(body) {
+  const out = {};
+  const has = (k) => Object.prototype.hasOwnProperty.call(body, k);
+  if (has('theater')) out.theater = String(body.theater || '').trim().slice(0, 200);
+  if (has('date')) {
+    const d = String(body.date || '');
+    if (d && !DATE_RE.test(d)) return { error: 'date must be YYYY-MM-DD' };
+    out.date = d;
+  }
+  if (has('time')) {
+    const t = String(body.time || '');
+    if (t && !TIME_RE.test(t)) return { error: 'time must be HH:MM' };
+    out.time = t;
+  }
+  if (has('format')) out.format = String(body.format || '').slice(0, 100);
+  if (has('screen')) out.screen = normalizeScreenInput(body.screen);
+  if (has('price')) out.price = parsePrice(body.price);
+  if (has('info')) out.info = normalizeInfoInput(body.info);
+  return { fields: out };
+}
+
+function sendResult(res, result, key) {
+  if (result.ok) return res.json(key ? { [key]: result[key] } : { ok: true });
+  const status = { not_found: 404, conflict: 409, has_showtimes: 409 }[result.reason] || 400;
+  res.status(status).json({ error: result.reason, reason: result.reason });
+}
+
+app.get('/api/movies', (req, res) => {
+  res.json({ movies: store.listMovies().map(movieView) });
+});
+
+app.get('/api/movies/:id', (req, res) => {
+  const movie = store.getMovie(req.params.id);
+  if (!movie) return res.status(404).json({ error: 'not found' });
+  res.json({ movie: { ...movieView(movie), showtimes: movie.showtimes.map(withScreenFallback) } });
+});
+
+app.post('/api/movies', (req, res) => {
+  const result = store.createMovie((req.body || {}).title);
+  if (!result.ok) return sendResult(res, result);
+  res.status(result.existed ? 200 : 201).json({ movie: movieView(result.movie), existed: result.existed });
+});
+
+app.patch('/api/movies/:id', (req, res) => {
+  const result = store.renameMovie(req.params.id, (req.body || {}).title);
+  if (!result.ok) return sendResult(res, result);
+  res.json({ movie: movieView(result.movie) });
+});
+
+app.delete('/api/movies/:id', (req, res) => {
+  sendResult(res, store.deleteMovie(req.params.id));
+});
+
+// A movie's own poster. Stored under a key made from the movie's id, so
+// it doesn't matter what the movie is called now or later.
+app.post('/api/movies/:id/poster', siteImageUpload.single('image'), (req, res) => {
+  const movie = store.getMovie(req.params.id);
+  if (!movie) return res.status(404).json({ error: 'not found' });
+  if (!req.file) return res.status(400).json({ error: 'choose a PNG, JPEG, WebP, or GIF image' });
+  const key = posterStore.keyFor(`movie:${movie.id}`);
+  posterStore.saveByKey(key, req.file.buffer, req.file.mimetype, movie.title);
+  res.json({ movie: movieView(store.setMoviePosterKey(movie.id, key)) });
+});
+
+app.post('/api/movies/:id/showtimes', (req, res) => {
+  const { fields, error } = showtimeFields(req.body || {});
+  if (error) return res.status(400).json({ error });
+  const result = store.createShowtime(req.params.id, fields);
+  if (!result.ok) return sendResult(res, result);
+  res.status(201).json({ showtime: withScreenFallback(result.showtime) });
+});
 
 app.get('/api/showtimes', (req, res) => {
   const items = store.listShowtimes().sort(byShowtime).map(withScreenFallback);
@@ -511,53 +579,41 @@ app.get('/api/showtimes/:id', (req, res) => {
   res.json({ showtime: withScreenFallback(item) });
 });
 
-app.post('/api/showtimes', async (req, res) => {
-  const body = req.body || {};
-  if (!body.seats || typeof body.seats !== 'object' || Array.isArray(body.seats)) {
-    return res.status(400).json({ error: 'seats must be an object' });
-  }
-  const id = crypto.randomUUID();
-  const now = Date.now();
-  const obj = {
-    id,
-    title: String(body.title || 'Untitled').slice(0, 200),
-    theater: String(body.theater || '').slice(0, 200),
-    date: String(body.date || '').slice(0, 20),
-    time: String(body.time || '').slice(0, 20),
-    format: String(body.format || '').slice(0, 100),
-    screen: normalizeScreenInput(body.screen),
-    price: parsePrice(body.price),
-    info: normalizeInfoInput(body.info),
-    seats: body.seats,
-    createdAt: now,
-    updatedAt: now
-  };
-  await store.saveShowtime(id, obj);
-  res.status(201).json({ showtime: obj });
+app.patch('/api/showtimes/:id', requireSqlite, (req, res) => {
+  const { fields, error } = showtimeFields(req.body || {});
+  if (error) return res.status(400).json({ error });
+  if (!Object.keys(fields).length) return res.status(400).json({ error: 'nothing to change' });
+  const result = store.patchShowtime(req.params.id, fields);
+  if (!result.ok) return sendResult(res, result);
+  res.json({ showtime: withScreenFallback(result.showtime) });
 });
 
-app.put('/api/showtimes/:id', async (req, res) => {
-  const existing = store.getShowtime(req.params.id);
-  if (!existing) return res.status(404).json({ error: 'not found' });
+app.post('/api/showtimes/:id/duplicate', requireSqlite, (req, res) => {
+  const result = store.duplicateShowtime(req.params.id);
+  if (!result.ok) return sendResult(res, result);
+  res.status(201).json({ showtime: withScreenFallback(result.showtime) });
+});
+
+// One seat in your block: who it's for and whether they've paid. Their
+// concession order isn't the editor's to change and stays on the seat
+// unless the name is cleared (see setSeat in lib/sqliteStore.js).
+app.put('/api/showtimes/:id/seats/:seatId', requireSqlite, (req, res) => {
+  if (!SEAT_ID_RE.test(req.params.seatId)) return res.status(400).json({ error: 'bad seat id' });
   const body = req.body || {};
-  const rawSeats =
-    body.seats && typeof body.seats === 'object' && !Array.isArray(body.seats) ? body.seats : existing.seats;
-  const seats = preserveConcessions(rawSeats, existing.seats);
-  const obj = {
-    ...existing,
-    title: String(body.title ?? existing.title).slice(0, 200),
-    theater: String(body.theater ?? existing.theater).slice(0, 200),
-    date: String(body.date ?? existing.date).slice(0, 20),
-    time: String(body.time ?? existing.time).slice(0, 20),
-    format: String(body.format ?? existing.format).slice(0, 100),
-    screen: body.screen !== undefined ? normalizeScreenInput(body.screen) : (existing.screen || DEFAULT_SCREEN),
-    price: body.price !== undefined ? parsePrice(body.price) : existing.price,
-    info: body.info !== undefined ? normalizeInfoInput(body.info) : (existing.info || ''),
-    seats,
-    updatedAt: Date.now()
-  };
-  await store.saveShowtime(req.params.id, obj);
-  res.json({ showtime: obj });
+  const result = store.setSeat(req.params.id, req.params.seatId, {
+    name: typeof body.name === 'string' ? body.name : '',
+    paid: !!body.paid,
+    concessionsPaid: !!body.concessionsPaid
+  });
+  if (!result.ok) return sendResult(res, result);
+  res.json({ showtime: withScreenFallback(result.showtime) });
+});
+
+app.delete('/api/showtimes/:id/seats/:seatId', requireSqlite, (req, res) => {
+  if (!SEAT_ID_RE.test(req.params.seatId)) return res.status(400).json({ error: 'bad seat id' });
+  const result = store.releaseSeat(req.params.id, req.params.seatId);
+  if (!result.ok) return sendResult(res, result);
+  res.json({ showtime: withScreenFallback(result.showtime) });
 });
 
 // Closing the cart is the host saying "I'm at the counter now" -- after
@@ -570,22 +626,14 @@ app.put('/api/showtimes/:id', async (req, res) => {
 // stored as bare local strings and this process runs somewhere
 // effectively UTC -- so the server couldn't have enforced it honestly
 // even if it wanted to. A flag it owns, it can.
-//
-// Its own endpoint rather than a field on the showtime save: this needs
-// to take effect the moment it's pressed, and it must not ride along with
-// a seats object the editor may have been holding since before someone's
-// last order.
-app.post('/api/showtimes/:id/orders-closed', async (req, res) => {
+app.post('/api/showtimes/:id/orders-closed', requireSqlite, (req, res) => {
   const { closed } = req.body || {};
   if (typeof closed !== 'boolean') {
     return res.status(400).json({ error: 'closed must be a boolean' });
   }
-  const existing = store.getShowtime(req.params.id);
-  if (!existing) return res.status(404).json({ error: 'not found' });
-
-  const obj = { ...existing, ordersClosed: closed, updatedAt: Date.now() };
-  await store.saveShowtime(req.params.id, obj);
-  res.json({ showtime: obj });
+  const result = store.patchShowtime(req.params.id, { ordersClosed: closed });
+  if (!result.ok) return sendResult(res, result);
+  res.json({ showtime: withScreenFallback(result.showtime) });
 });
 
 app.delete('/api/showtimes/:id', async (req, res) => {
@@ -995,15 +1043,6 @@ app.get('/reserve', (req, res) => res.redirect('/'));
 
 // ---------------- Site images (link-preview + logo) ----------------
 
-const siteImageUpload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
-  fileFilter(req, file, cb) {
-    const allowed = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
-    cb(null, allowed.includes(file.mimetype));
-  }
-});
-
 // Wires up the GET (admin metadata)/POST (admin upload)/GET (public,
 // no-auth file serve) trio for one named image store. The og-image and
 // logo-image endpoints are identical apart from which store/URLs they use.
@@ -1036,34 +1075,11 @@ function mountImageRoutes(urlName, imageStore) {
 mountImageRoutes('og-image', ogImageStore);
 mountImageRoutes('logo-image', logoImageStore);
 
-// ---------------- Poster art (looked up/uploaded by title) ----------------
+// ---------------- Poster art ----------------
 //
-// Unlike og-image/logo-image (one fixed slot each), a poster is keyed by
-// the showtime's title (see lib/posterStore.js) -- there's no fixed set
-// of endpoints to mount, just one lookup/upload pair that takes a title,
-// plus one serving route keyed by the opaque hash already embedded in
-// posterUrl (see posterUrlForTitle above) rather than needing the title
-// again.
-
-app.get('/api/poster', adminAuth.requireAuth('/admin'), (req, res) => {
-  const title = typeof req.query.title === 'string' ? req.query.title.trim() : '';
-  if (!title) return res.status(400).json({ error: 'title required' });
-  res.json({ url: posterUrlForTitle(title) });
-});
-
-app.post('/api/poster', adminAuth.requireAuth('/admin'), siteImageUpload.single('image'), (req, res) => {
-  const title = typeof req.body.title === 'string' ? req.body.title.trim() : '';
-  if (!title) return res.status(400).json({ error: 'title required' });
-  if (!req.file) {
-    return res.status(400).json({ error: 'choose a PNG, JPEG, WebP, or GIF image' });
-  }
-  posterStore.save(title, req.file.buffer, req.file.mimetype);
-  res.json({ ok: true, url: posterUrlForTitle(title) });
-});
-
-// No auth -- posters show up on the friend-facing public page too, same
-// reasoning as og-image/logo-image. `key` is the hash posterUrlForTitle
-// already computed; this route never needs the raw title.
+// Uploaded per movie (POST /api/movies/:id/poster above). Served with no
+// auth -- posters show on the friend-facing page too, same reasoning as
+// og-image/logo-image. `key` is the opaque hash already in posterUrl.
 app.get('/poster-image', (req, res) => {
   const key = typeof req.query.key === 'string' ? req.query.key : '';
   const meta = key && posterStore.getMetaByKey(key);

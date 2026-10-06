@@ -137,14 +137,31 @@ const COPY = {
 
   // ---------------- EDITOR (what the host sees) ----------------
   admin: {
-    listSubtitle: 'Seat blocks for your crew',
-    listLoadFailed: 'Could not load showtimes. Try again.',
-    listEmptyAll: 'No showtimes yet. Tap "+ New Showtime" to create your first seat block.',
-    listEmptyUpcoming: 'No upcoming showtimes. Tap "+ New Showtime" to create one.',
+    movies: {
+      none: 'No movies yet. Tap "+ Add movie" to start.',
+      noneUpcoming: 'Nothing coming up. Add a movie, or a showtime to one below.',
+      loadFailed: 'Could not load movies. Try again.',
+      openFailed: 'Could not open that movie.',
+      typeTitle: 'Type a title first.',
+      titleTaken: 'Another movie already has that title.',
+      noShowtimes: 'No showtimes yet',
+      noUpcomingShowtimes: 'No upcoming showtimes. Tap "+ Add showtime" to add one.',
+      showtimesOne: '{count} showtime',
+      showtimesMany: '{count} showtimes',
+      next: 'Next: {when}',
+      last: 'Last: {when}',
+      deleteConfirm: 'Delete "{title}"? It has no showtimes.'
+    },
+
+    // The pill at the bottom of a showtime while it saves.
+    save: {
+      saving: 'Saving…',
+      saved: 'All changes saved',
+      failed: "Couldn't save · Tap to retry"
+    },
 
     seatGrid: {
       help: 'Tap a yellow seat to add it to your block. Tap a green seat to assign it to a friend. Tap a red seat to edit, clear, or release it.',
-      fieldsHelp: 'Tap title/theater to rename; use pickers for date/time and the dropdowns for format and screen.',
       tipClaimed: '{seat} — {name} ({state})',
       tipAvailable: '{seat} — available',
       tipNotOurs: '{seat} — not in your block',
@@ -158,7 +175,8 @@ const COPY = {
       title: 'Seat {seat}',
       nameLabel: 'Assigned to (leave blank = available for a friend to claim)',
       concessionsPaid: 'Concessions paid ({amount} with tax)',
-      orderHead: 'Ordered from the reservation page'
+      orderHead: 'Ordered from the reservation page',
+      releaseConfirm: 'Release {seat}? {name} loses this seat and anything they ordered for it.'
     },
 
     seatSummary: {
@@ -213,7 +231,6 @@ const COPY = {
       uploaded: 'Uploaded.',
       uploadFailed: 'Upload failed. Try again.',
       chooseImage: 'Choose an image first.',
-      typeTitle: 'Type a title first.',
       friendLoginOff: 'Friend login turned off.'
     },
 
