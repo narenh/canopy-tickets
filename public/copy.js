@@ -152,10 +152,10 @@ const COPY = {
     // Seats reserved before profiles existed.
     existing: {
       heading: 'Are any of these yours?',
-      hint: 'Seats reserved before profiles. Tick yours and they join your showtimes.',
+      hint: "Seats reserved before profiles under your name, and any in movies you've unlocked. Tick yours and they join your showtimes.",
       submit: 'These are mine',
       skip: 'Not now',
-      none: "No unclaimed seats in the movies you've unlocked.",
+      none: "No unclaimed seats under your name. If yours is under a nickname, unlock its movie in All movies to see everyone's, then try again.",
       failed: "Couldn't save. Try again.",
       // Claiming always takes the movie's password, one movie at a time.
       pwHeading: 'Password for {title}',

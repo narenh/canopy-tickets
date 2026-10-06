@@ -3229,9 +3229,10 @@ async function copyCalendarFeed(){
 }
 
 // ---------------- "ARE THESE YOURS?" ----------------
-// Seats reserved before profiles existed carry a name and no owner. These
-// are the ones in movies unlocked here, grouped by the name on them;
-// names that start with your first name come first, already ticked.
+// Seats reserved before profiles existed carry a name and no owner. The
+// server sends the ones under your name in any movie, plus every one in
+// movies you've unlocked; grouped by the name on them, yours first and
+// already ticked.
 // Claiming always takes the movie's password, typed right then -- even
 // when you've unlocked the movie already. Ticked seats are claimed one
 // movie at a time, each with its own password.
@@ -3252,8 +3253,17 @@ async function openExisting(fromProfile){
     return;
   }
   existingSeats = seats;
-  const first = (me && me.firstName || '').toLowerCase();
-  const isLikely = (name) => !!first && name.toLowerCase().split(/\s+/)[0] === first;
+  // Same rule as seatNameMatches in server.js.
+  const first = (me && me.firstName || '').trim().toLowerCase();
+  const isExact = (name) => !!first && (name || '').trim().split(/\s+/)[0].toLowerCase() === first;
+  const isLikely = (name) => {
+    const a = (name || '').trim().split(/\s+/)[0].toLowerCase();
+    if (!a || !first) return false;
+    if (a === first) return true;
+    const short = a.length < first.length ? a : first;
+    const long = a.length < first.length ? first : a;
+    return short.length >= 3 && long.startsWith(short);
+  };
   const byName = new Map();
   seats.forEach(x => {
     if (!byName.has(x.name)) byName.set(x.name, []);
@@ -3271,7 +3281,9 @@ async function openExisting(fromProfile){
     byName.get(name).forEach(x => {
       const row = document.createElement('label');
       row.className = 'existing-seat';
-      row.innerHTML = '<input type="checkbox"' + (isLikely(name) ? ' checked' : '') +
+      // Pre-ticked only on an exact first-name match: "Bobby B" is shown
+      // to a Bob but may well be someone else.
+      row.innerHTML = '<input type="checkbox"' + (isExact(name) ? ' checked' : '') +
         ' data-showtime="' + escapeHtml(x.showtimeId) + '" data-seat="' + escapeHtml(x.seatId) + '" data-movie="' + escapeHtml(x.movieId) + '"><span>' +
         escapeHtml(x.title + ' \u00b7 ' + formatDateDisplay(x.date) + ' \u00b7 ' + formatTimeDisplay(x.time) + ' \u00b7 ' + x.seatId) +
         '</span>';

@@ -1188,10 +1188,28 @@ app.post('/api/public/showtimes/:id/claim', (req, res) => {
   res.json({ showtime: publicShowtimeView(result.showtime, req.person) });
 });
 
-// Seats reserved before profiles existed, in movies unlocked here, for
-// "are these yours?".
+// Does the name on an old seat look like this person? Its first word
+// against their first name, ignoring case; one may be the start of the
+// other ("Bob" / "Bobby") as long as the shorter is 3+ letters.
+function seatNameMatches(seatName, firstName) {
+  const a = String(seatName || '').trim().split(/\s+/)[0].toLowerCase();
+  const b = String(firstName || '').trim().toLowerCase();
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const [short, long] = a.length < b.length ? [a, b] : [b, a];
+  return short.length >= 3 && long.startsWith(short);
+}
+
+// Seats reserved before profiles existed, for "are these yours?": the
+// ones under your name in ANY movie -- someone just signed up has nothing
+// unlocked yet, and their old tickets are the first thing they need --
+// plus every one in the movies you've unlocked, for a seat under a
+// nickname. Claiming still takes each movie's password, so all this
+// shows of a locked movie is that a seat under your name exists.
 app.get('/api/public/claimable', (req, res) => {
-  res.json({ seats: store.claimableSeats(req.unlocked) });
+  const seats = store.claimableSeats()
+    .filter((x) => req.unlocked.has(x.movieId) || seatNameMatches(x.name, req.person.firstName));
+  res.json({ seats });
 });
 
 // Claims seats reserved before profiles, one movie per request, and
