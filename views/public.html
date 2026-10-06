@@ -4938,7 +4938,9 @@ function renderCartFoot(){
   // isn't one number.
   //
   // A ticket costs what it costs the moment the seat is claimed, so it
-  // can be settled straight away -- and the post-claim card offers to.
+  // can be settled straight away -- from the post-claim card and the pay
+  // button on My Showtimes, not from here. This is the concessions page,
+  // and it only ever asks for the food.
   //
   // A cart can't be settled until it stops moving, which is when the host
   // places the order at the cutoff. Before that the total on screen is a
@@ -4952,9 +4954,9 @@ function renderCartFoot(){
   // Everything still outstanding, draft food included -- what you'll end
   // up sending, so there are no surprises later.
   const owed = isHost ? 0 : Math.round(((ticketPaid ? 0 : ticketPrice) + concessionsOwed) * 100) / 100;
-  // What can actually be settled right now. Same as `owed` once orders
-  // have closed; before that it's the ticket alone.
-  const payable = isHost ? 0 : Math.round(((ticketPaid ? 0 : ticketPrice) + (cartLocked ? concessionsOwed : 0)) * 100) / 100;
+  // What this page lets you settle: the food, once orders have closed.
+  // Nothing before that -- the ticket is paid from My Showtimes.
+  const payable = isHost || !cartLocked ? 0 : concessionsOwed;
   const foodPending = concessionsOwed > 0 && !cartLocked;
 
   totals.innerHTML = '';
@@ -5018,8 +5020,7 @@ function renderCartFoot(){
   // apart in a Venmo feed; Cash App has no note param at all (see
   // buildCashAppLink).
   const payNote = (obj && obj.title ? obj.title : 'Movie') +
-    ' (' + formatDateShort(obj ? obj.date : '') + ', ' + cartSeatId + ')' +
-    (concessions > 0 ? ' + concessions' : '');
+    ' (' + formatDateShort(obj ? obj.date : '') + ', ' + cartSeatId + ') concessions';
   // Withheld while a write is in flight or has failed (the figure on the
   // button would be one the host hasn't got), and while a line is short
   // its pick, because that order isn't one they can actually place.
@@ -5131,8 +5132,10 @@ async function setCartPaid(patch){
 // once orders have closed and its total is final -- before that the
 // button is the ticket alone, and marking the food paid off a draft is
 // the thing this is carefully not doing.
+// Only ever offered for the food, once orders have closed (see payable in
+// renderCartFoot).
 function markCartPaid(){
-  setCartPaid({ ticket: true, concessions: cartLocked });
+  setCartPaid({ concessions: true });
 }
 
 function cartTotalRow(label, valueHtml, onUndo){

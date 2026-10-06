@@ -454,8 +454,10 @@ people's orders yourself. The seat editor overlay shows one seat's order
 too, read-only, so you can see what someone asked for while you're
 marking their seat paid.
 
-**Paying.** The cart's pay button covers whatever the seat still owes —
-the ticket, the concessions, or both. The buttons only appear when what's
+**Paying.** The ticket is paid from the pay button on My Showtimes (and
+the post-claim card). The concessions cart only ever asks for the food,
+and only once the host has closed orders — before that it shows what the
+seat owes but has no pay button. The buttons only appear when what's
 on screen matches what's been saved: pre-filling "pay $43.46" for an
 order the host hasn't actually received yet is the one way this screen
 could cost someone money, so making an edit hides them until you save.
@@ -463,8 +465,8 @@ could cost someone money, so making an edit hides them until you save.
 **Marking yourself paid.** A payment link hands off to Venmo or Cash App
 and nothing comes back — neither has a callback that could tell this app
 the money arrived — so somebody saying so is the only signal that exists.
-Under the pay buttons is **I've paid $X**, which settles whatever the
-seat can currently settle; the post-claim card offers the same thing as
+Beside the cart's pay button is **I've paid**, which marks the food
+settled; the post-claim card offers the same thing as
 **I've already paid** next to the pay links, since the moment you've just
 sent the money is the moment you remember to record it. Any friend can mark
 any seat and undo it again, same as they can edit any seat's cart, and
