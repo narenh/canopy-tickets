@@ -1718,7 +1718,7 @@
       <label class="claim-for-opt profile-allergy">
         <input type="checkbox" id="profileAList"><span data-copy="friend.profile.amcAList"></span>
       </label>
-      <button type="button" class="profile-row-btn" onclick="openFavorites()"><span data-copy="friend.profile.favorites"></span><span class="profile-row-chev" aria-hidden="true">&#8250;</span></button>
+      <button type="button" class="profile-row-btn" id="profileFavoritesBtn" onclick="openFavorites()"><span data-copy="friend.profile.favorites"></span><span class="profile-row-chev" aria-hidden="true">&#8250;</span></button>
       <div class="claim-error" id="profileError"></div>
       <!-- Name, photo and Venmo belong to the Canopy account, shared by
            every Canopy site, so they're changed there (href from
@@ -2281,7 +2281,8 @@ function renderMe(){
   document.getElementById('claimForMe').textContent = t('friend.claim.forMe', { name: me.shortName });
   document.getElementById('manageLink').classList.toggle('hidden', !me.isAdmin);
   renderCalBanner();
-  renderFavBanner();
+  // Both concessions banners: A-List members get neither.
+  renderUsualBanner();
   // Pay now and who shows as unpaid depend on who you are (see
   // buildMinePayRow, showsOwing).
   if (mineItems.length) renderMine();
@@ -2555,9 +2556,14 @@ function buildMineCard(item){
   if (item.unlocked){
     const orders = document.createElement('div');
     orders.className = 'mine-section mine-orders';
-    const ordersOpen = concessionsOpen(obj);
-    myIds.forEach(seatId => orders.appendChild(buildOrderBlock(obj, seatId, ordersOpen)));
-    card.appendChild(orders);
+    // An A-List member can't order: they only see an order placed
+    // before they ticked the box.
+    const ordersOpen = concessionsOpen(obj) && !concessionsOff();
+    const orderIds = concessionsOff()
+      ? myIds.filter(seatId => ((seats[seatId] || {}).concessions || []).length)
+      : myIds;
+    orderIds.forEach(seatId => orders.appendChild(buildOrderBlock(obj, seatId, ordersOpen)));
+    if (orderIds.length) card.appendChild(orders);
   }
 
   if (!item.unlocked){
@@ -3272,7 +3278,7 @@ function openSuccessOverlay(showtime, seatId){
 
   successSteps = [];
   if (canPay) successSteps.push('pay');
-  if (concessionMenu.length) successSteps.push('concessions');
+  if (concessionMenu.length && !concessionsOff()) successSteps.push('concessions');
   successStepTotal = successSteps.length;
 
   renderSuccessStep();
@@ -3474,7 +3480,19 @@ function renderProfileSheet(){
   document.getElementById('profilePeanut').checked = !!me.peanutAllergy;
   document.getElementById('profileAList').checked = !!me.amcAList;
   showPeanutHint();
+  syncProfileFavorites();
   document.getElementById('profileError').textContent = '';
+}
+
+// AMC A-List members order at the counter themselves, for the points, so
+// they get no concessions here: no cart, no Favorites, no banners about
+// them. Their saved favorites are kept for if they untick the box.
+function concessionsOff(){
+  return !!(me && me.amcAList);
+}
+
+function syncProfileFavorites(){
+  document.getElementById('profileFavoritesBtn').classList.toggle('hidden', concessionsOff());
 }
 
 // Where your name, photo and payment handles are changed.
@@ -3508,6 +3526,7 @@ async function saveProfileSetting(key, box){
     if (!res.ok){ failed(data.error); return; }
     me = data.person;
     renderMe();
+    syncProfileFavorites();
     // Who sits next to a peanut allergy changes what the list shows.
     if (key === 'peanutAllergy') loadList();
   }catch(e){
@@ -3536,7 +3555,7 @@ async function loadFavorites(){
 // The claim banner always shows on its own, so none of the others do
 // while it's up.
 function renderUsualBanner(){
-  document.getElementById('usualBanner').classList.toggle('hidden', !myFavorites.usualGone || showClaimBanner);
+  document.getElementById('usualBanner').classList.toggle('hidden', !myFavorites.usualGone || showClaimBanner || concessionsOff());
   renderFavBanner();
 }
 
@@ -3547,7 +3566,7 @@ function renderUsualBanner(){
 function renderFavBanner(){
   const none = !(myFavorites.favorites || []).length && !(myFavorites.usual || []).length;
   const show = !!me && favoritesLoaded && none && !me.favoritesPromptDone && !myFavorites.usualGone &&
-    mineItems.length > 0 && !showClaimBanner;
+    mineItems.length > 0 && !showClaimBanner && !concessionsOff();
   document.getElementById('favBanner').classList.toggle('hidden', !show);
 }
 
