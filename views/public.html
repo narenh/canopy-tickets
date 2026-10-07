@@ -308,8 +308,13 @@
   .mine-pay-btn.venmo-btn{background:var(--venmo);color:#fff;}
   .mine-pay-btn.cashapp-btn{background:var(--cashapp);color:#04240f;}
   /* Stands in for the pay buttons on an A-List swap, in the page's gold:
-     a note, not a link, as there's no number to text from here. */
-  .a-list-swap-note{
+     a link that starts the text when the host's number is known, else
+     just the note. */
+  .a-list-swap-note, .claim-actions .a-list-swap-note{
+    border:none;
+    width:auto;
+    text-decoration:none;
+    box-sizing:border-box;
     flex:1;
     display:flex;
     align-items:center;
@@ -1919,6 +1924,7 @@ let venmoHandle = null;    // loaded once from /api/public/config
 let cashappHandle = null;  // loaded once from /api/public/config
 let accountUrl = '';       // Canopy accounts, from /api/public/config
 let adminFirstName = '';   // who A-List members text for a swap, from /api/public/config
+let adminPhone = '';       // and the number they text, from /api/public/config
 
 // Bouncing to '/' on a 401 is normally a one-shot fix (signed out, so /
 // sends you on to sign in again). But if the page we land on still thinks
@@ -1958,6 +1964,7 @@ async function loadConfig(){
     concessionTaxRate = typeof data.concessionTaxRate === 'number' ? data.concessionTaxRate : 0;
     accountUrl = data.accountUrl || '';
     adminFirstName = data.adminFirstName || '';
+    adminPhone = data.adminPhone || '';
   }catch(e){
     // Non-fatal -- the claim flow just skips both pay links.
   }
@@ -2641,7 +2648,7 @@ function buildMinePayRow(obj, myIds){
   // Nor anything to give back from here: the admin's seats are theirs to
   // manage in the editor, so the row (and its ⋯) doesn't show for them.
   const releasable = me.isAdmin ? [] : myIds.filter(id => seats[id] && seats[id].canRelease);
-  const swapNote = swapping ? aListSwapNote() : null;
+  const swapNote = swapping ? aListSwapNote(obj) : null;
   if (!canPay && !releasable.length){
     if (swapNote) swapNote.classList.add('mine-swap-alone');
     return swapNote;
@@ -2771,9 +2778,19 @@ function aListSwapFor(showtime){
   return concessionsOff() && !!(showtime && showtime.aListSwap);
 }
 
-function aListSwapNote(){
-  const note = document.createElement('div');
+// Starts a text to the host, already asking, when their number is known
+// (it comes from their Canopy account). ?& keeps the body working in both
+// iOS and Android Messages.
+function aListSwapNote(showtime){
+  const note = document.createElement(adminPhone ? 'a' : 'div');
   note.className = 'a-list-swap-note';
+  if (adminPhone){
+    const body = t('friend.success.aListSwapText', {
+      title: showtime.title || 'the movie',
+      date: formatDateDisplay(showtime.date)
+    });
+    note.href = 'sms:' + adminPhone + '?&body=' + encodeURIComponent(body);
+  }
   note.textContent = adminFirstName
     ? t('friend.success.aListSwap', { name: adminFirstName })
     : t('friend.success.aListSwapNoName');
@@ -3368,7 +3385,7 @@ function renderSuccessStep(){
   }
 
   if (step === 'swap'){
-    actions.appendChild(aListSwapNote());
+    actions.appendChild(aListSwapNote(successShowtime));
     actions.appendChild(successButton('OK', '', advanceSuccessStep));
     return;
   }

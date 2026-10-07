@@ -252,6 +252,8 @@ const COPY = {
       // buttons, this instead. {name} is the host's first name.
       aListSwap: 'Text {name} to organize an A-List swap',
       aListSwapNoName: 'Text the host to organize an A-List swap',
+      // What that text says when it opens in Messages.
+      aListSwapText: 'Can we do an A-List swap for {title} on {date}?',
       payVenmoNoPrice: 'Pay via Venmo',
       payCashApp: 'Pay {amount} via Cash App',
       payCashAppNoPrice: 'Pay via Cash App',
