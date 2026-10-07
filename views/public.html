@@ -18,6 +18,12 @@
     --muted:#9a9a9a;
   }
   *{box-sizing:border-box;}
+  /* Room for the scrollbar is kept whether or not the page needs one. A
+     desktop scrollbar takes ~15px from the window, so without this the
+     centred column shifted sideways between a tab tall enough to scroll
+     and one that isn't -- and again when the cart's overflow:hidden
+     took the scrollbar away. */
+  html{scrollbar-gutter:stable;}
   body{
     margin:0;
     background:var(--bg);
