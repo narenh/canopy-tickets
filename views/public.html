@@ -1835,6 +1835,13 @@
 // t() at the point of use.
 applyCopy();
 
+// A photo that won't load (a former member's, gone with their Canopy
+// account) shows as an empty circle rather than a broken image.
+document.addEventListener('error', (e) => {
+  const img = e.target;
+  if (img && img.tagName === 'IMG' && /\/photo\//.test(img.src)) img.style.visibility = 'hidden';
+}, true);
+
 // Inline (not an emoji -- at seat-icon size, the wheelchair emoji renders
 // as a tiny broken-looking glyph on several platforms, easily mistaken
 // for a failed image load). Path data from svgrepo.com/svg/333986/handicap
