@@ -165,17 +165,18 @@ const COPY = {
 
     // The menu under your photo in the header.
     menu: {
-      editProfile: 'Edit profile',
+      editProfile: 'Movie preferences',
       favorites: 'Favorites',
       calendar: 'Calendar feed',
       claimExisting: 'Claim existing seats',
       signOut: 'Sign out'
     },
 
+    // Tickets' own settings. Who you are (name, photo, phone, payment
+    // handles) is your Canopy account's, linked from here.
     profile: {
-      heading: 'Edit profile',
-      // Links to the Canopy account's profile page, where these live.
-      accountLink: 'Edit your name, photo and Venmo at your Canopy account',
+      heading: 'Movie preferences',
+      accountLink: 'Your name, photo, phone and payment handles are in your Canopy account',
       peanutAllergy: 'Peanut allergy',
       peanutHint: 'Peanut items will be hidden for adjacent seats.',
       failed: "Couldn't save. Try again."

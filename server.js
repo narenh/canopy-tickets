@@ -787,9 +787,12 @@ function attachPerson(req, res, next) {
     try {
       const { person, created } = store.syncPerson(account, photoAtFrom(account.photoUrl));
       if (created) rememberFirstVisit(person.id);
-      if (!store.getAdminPersonId()) {
+      // A brand-new install's first person ever is its admin. Only then:
+      // if the admin were somehow unset on a database with people in it,
+      // the next friend to sign in must not become the admin.
+      if (created && !store.getAdminPersonId() && store.listPeople().length === 1) {
         store.setAdminPersonId(person.id);
-        console.warn(`[canopy-tickets] no admin yet: ${person.email} signed in first, so they're the admin now`);
+        console.warn(`[canopy-tickets] new install: ${person.email} is the first person here, so they're the admin`);
       }
       req.person = person;
       req.firstVisit = created;

@@ -224,10 +224,11 @@ from the request, with `trust proxy` on), or it's refused with a 403
 PATCH and DELETE, and the pages' fetches are all relative URLs, so tickets'
 own pages always pass. The calendar feed is a GET and stays cookie-less.
 
-**The profile sheet** (Edit profile in the menu under your photo) shows
-your name, photo and email, links to **Edit your name, photo and Venmo at
-your Canopy account** (`account.canopysf.com/profile`), and has the one
-setting that's tickets' own: **Peanut allergy**.
+**Movie preferences** (in the menu under your photo) shows
+your name, photo and email, links to your Canopy account for name, photo, phone and payment
+handles (`account.canopysf.com/profile`), and holds what's tickets' own:
+**Peanut allergy**. Settings only tickets cares about go here, never in
+the account service; anything every Canopy site would use goes there.
 
 **After the switch, everyone signs in once more**, at
 `account.canopysf.com`, with the same passkey they already had for
@@ -275,7 +276,7 @@ member (tickets made their row just now, and `/api/public/me` says
 name before profiles existed ("Are any of these yours?"); the same list
 is under **Claim existing seats** later.
 
-Tapping your photo in the header opens a menu: **Edit profile**,
+Tapping your photo in the header opens a menu: **Movie preferences**,
 **Calendar feed**, **Claim existing seats**, **Sign out**.
 
 ## The admin
@@ -292,8 +293,11 @@ and back). The admin is also the host (below).
   account service's admin, at `account.canopysf.com/admin`. Tickets' People
   tab is only tickets': who's here, for assigning seats, and who's a
   former member.
-- **A brand-new tickets database** (no `admin_person_id` yet) makes the
-  first person to sign in the admin, and logs who. The live database
+- **A brand-new tickets database** (no people at all, and no
+  `admin_person_id`) makes the very first person to sign in the admin,
+  and logs who. Only then: a database that has people but somehow lost
+  its admin stays without one, rather than handing the editor to
+  whichever friend signs in next. The live database
   already has its admin, so this only matters for a fresh install or
   running locally: sign in first yourself.
 - **A lost passkey** is the account service's business too: an email and
@@ -580,7 +584,7 @@ A few things worth knowing about how this actually works:
   options: a sauce the host has since deleted still shows as the pick on
   an order that chose it.
 - **Nobody sitting next to someone with a peanut allergy is offered peanut
-  items.** Anyone can tick **Peanut allergy** in Edit profile ("Peanut items
+  items.** Anyone can tick **Peanut allergy** in Movie preferences ("Peanut items
   will be hidden for adjacent seats."). When a neighbouring seat in the same
   row is their own (not a guest's they booked), peanut items quietly drop
   out of that seat's menu. The server works this out and only tells each
@@ -845,7 +849,7 @@ What everyone sees: the next time they open tickets, they're sent to
 `account.canopysf.com` once, sign in with the same passkey (one tap), and
 are back where they were, with their seats, unlocked movies and
 favorites as before. From then on their name, photo and Venmo are changed
-at their Canopy account (Edit profile links there), and show on tickets
+at their Canopy account (Movie preferences links there), and show on tickets
 the next time they visit it, within a minute. New people make an account
 there.
 
