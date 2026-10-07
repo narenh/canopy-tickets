@@ -191,6 +191,13 @@ function buildOgTags(req) {
 // which case the page just shows without one -- no broken-image icon).
 // Same cache-busting reasoning as the OG image: the URL changes on every
 // upload so browsers can't keep showing a stale cached logo.
+// Same-origin, cache-busted URL of the link-preview image, or '' if none
+// has been uploaded. The sign-in page uses it as its backdrop.
+function ogImageUrl() {
+  const meta = ogImageStore.getMeta();
+  return meta ? `/og-image?v=${meta.uploadedAt}` : '';
+}
+
 function buildLogoImgTag() {
   const meta = logoImageStore.getMeta();
   if (!meta) return '';
@@ -222,7 +229,7 @@ function buildLogoImgTag() {
 // back when sign-in was here. So a new vendored script belongs in this
 // list too.
 const INLINE_SCRIPTS = [
-  'copy.js', 'seat-layout.js'
+  'copy.js', 'seat-layout.js', 'vendor/simplewebauthn-browser-14.0.0/index.umd.min.js'
 ].map((name) => {
   // `</script` inside the source would end the inline tag early.
   const source = fs.readFileSync(path.join(__dirname, 'public', name), 'utf8').replace(/<\/script/gi, '<\\/script');
@@ -239,11 +246,17 @@ const INLINE_SCRIPTS = [
 // The page itself is sent `no-store`: it's rendered fresh server-side on
 // every request anyway (session-gated, never the same for two visitors).
 // (Cloudflare doesn't cache HTML, so this one is honored.)
-function renderHtmlPage(res, req, filePath) {
+//
+// `values` fills `__NAME__` placeholders, attribute-escaped (the sign-in
+// page's account URLs).
+function renderHtmlPage(res, req, filePath, values = {}) {
   const logoTag = buildLogoImgTag();
   let html = fs.readFileSync(filePath, 'utf8')
     .replace('<!-- OG_META -->', buildOgTags(req))
     .replaceAll('<!-- LOGO_IMG -->', () => logoTag);
+  Object.entries(values).forEach(([name, value]) => {
+    html = html.replaceAll(`__${name}__`, () => escapeAttr(value));
+  });
   INLINE_SCRIPTS.forEach(({ tag, inline }) => {
     // A function, so `$` in a script isn't read as a replacement pattern.
     html = html.replace(tag, () => inline);
@@ -1491,47 +1504,29 @@ function escapeAttr(value) {
   return String(value).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-// Signed out: a page that only sends the browser on to sign in, and back
-// to the page they asked for afterwards. Not a bare redirect, because this is what a
-// link-preview crawler gets for the shared link (it never has a cookie),
-// and the Open Graph tags have to be in it. The refresh is for a browser
-// with scripts off. The few words on it are here rather than in
-// public/copy.js: no page that loads copy.js is involved.
+// Signed out: tickets' own sign-in page (views/signin.html). Its passkey
+// button signs in right here, through the account service's sign-in
+// endpoints; "Continue with email" goes to the account service (new
+// people, a lost passkey) and comes back to the page they asked for. It's
+// also what a link-preview crawler gets for the shared link, so it
+// carries the Open Graph tags.
 //
-// With no CANOPY_ACCOUNT_KEY it can't send anyone anywhere: they'd come
-// back still signed out and go round in circles. It says so instead.
-function sendSignedOutPage(req, res) {
-  const signIn = CANOPY_ACCOUNT_KEY ? canopy.signInUrl(req) : null;
-  const body = signIn
-    ? `<p><a href="${escapeAttr(signIn)}">Sign in with your Canopy account</a></p>` +
-      `<script>location.replace(${JSON.stringify(signIn).replace(/</g, '\\u003c')});</script>`
-    : "<p>Signing in isn't working here right now. Try again later.</p>";
-  res.set('Content-Type', 'text/html; charset=utf-8');
-  res.set('Cache-Control', 'no-store');
-  res.send(`<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Canopy Tickets</title>
-  ${buildOgTags(req)}
-  ${signIn ? `<meta http-equiv="refresh" content="0;url=${escapeAttr(signIn)}">` : ''}
-  <style>
-    body{margin:0;background:#0b0b0c;color:#9a9a9a;font-family:-apple-system,BlinkMacSystemFont,sans-serif;text-align:center;padding:60px 20px;}
-    a{color:#c9a24b;}
-  </style>
-</head>
-<body>
-  ${body}
-</body>
-</html>`);
+// With no CANOPY_ACCOUNT_KEY, signing in can't work (they'd come back
+// still signed out), so the page is sent without the account URLs and
+// says so.
+function sendSignInPage(req, res) {
+  renderHtmlPage(res, req, path.join(__dirname, 'views', 'signin.html'), {
+    OG_IMAGE_URL: ogImageUrl(),
+    ACCOUNT_URL: CANOPY_ACCOUNT_KEY ? CANOPY_ACCOUNT_URL : '',
+    EMAIL_SIGNIN_URL: CANOPY_ACCOUNT_KEY ? canopy.signInUrl(req) : ''
+  });
 }
 
 app.get('/', attachPerson, (req, res) => {
   if (req.person) {
     return renderHtmlPage(res, req, path.join(__dirname, 'views', 'public.html'));
   }
-  sendSignedOutPage(req, res);
+  sendSignInPage(req, res);
 });
 
 // Signed in as someone else: back to the reservation page. Signed out:
@@ -1539,12 +1534,9 @@ app.get('/', attachPerson, (req, res) => {
 app.get('/admin', attachPerson, (req, res) => {
   if (isAdmin(req)) return renderHtmlPage(res, req, path.join(__dirname, 'views', 'admin.html'));
   if (req.person) return res.redirect('/');
-  sendSignedOutPage(req, res);
+  sendSignInPage(req, res);
 });
 
-// "Sign out" on the pages links here. Signing out is the account
-// service's: it signs this browser out of every Canopy site, then comes
-// back to /, which sends them on to sign in again.
 // Tickets' own sign-in from before Canopy accounts. A phone can keep the
 // old sign-in page open in a tab for days; its buttons still call these,
 // and the error it shows is whatever comes back -- so say what to do.
@@ -1552,6 +1544,9 @@ app.use(['/api/auth', '/api/me', '/api/signout'], (req, res) => {
   res.status(410).json({ error: 'sign-in has moved to Canopy accounts: reload this page', reason: 'moved' });
 });
 
+// "Sign out" on the pages links here. Signing out is the account
+// service's: it signs this browser out of every Canopy site, then comes
+// back to /, the sign-in page.
 app.get('/signout', (req, res) => {
   res.redirect(canopy.signOutUrl(req));
 });

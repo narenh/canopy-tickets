@@ -172,18 +172,24 @@ account service at `https://account.canopysf.com` (its own repo,
 tickets asks the account service, server to server, who it belongs to
 (`lib/canopyAccount.js`).
 
-- **Signed out**, `/` (or any page) sends the browser to
-  `account.canopysf.com` with `?return=` back here. The page that does
-  that is a few lines of HTML rather than a bare redirect, because it's
-  also what a link-preview crawler gets, and it carries the Open Graph
-  tags (see "Link-preview image & logo").
-- **Signing in or signing up** happens there: a passkey (Face ID / Touch
-  ID / the phone's screen lock), or an email and a 6-digit code. A new
-  email makes an account there, with name, photo and an optional Venmo.
-  Then the browser comes straight back to tickets.
+- **Signed out**, `/` and `/admin` show tickets' own sign-in page
+  (`views/signin.html`), with its logo, backdrop and Open Graph tags (a
+  link-preview crawler gets this page too; see "Link-preview image &
+  logo").
+- **Sign in with passkey** works right on that page. The page calls the
+  account service's two sign-in endpoints itself
+  (`/api/auth/login/options` and `/verify`, which allow Canopy pages to
+  call them across sites), the phone signs, and the session cookie that
+  comes back is the one every Canopy site reads. Then the page reloads,
+  signed in. The passkey library is vendored in
+  `public/vendor/simplewebauthn-browser-*` and inlined into the page.
+- **Continue with email** goes to `account.canopysf.com` with `?return=`
+  back here: an email and a 6-digit code there either signs in (with a
+  new passkey on this phone) or makes a new account, with name, photo and
+  an optional Venmo. Then the browser comes straight back to tickets.
 - **Sign out** in the profile menu goes to `/signout`, which hands over to
   the account service's sign-out. That signs the browser out of every
-  Canopy site, then comes back to `/`, which sends them on to sign in.
+  Canopy site, then comes back to `/`, the sign-in page.
 - **Same ids.** Everyone in tickets was imported into the account service
   with the id they had here, so tickets' `people` rows, seats, unlocks
   and favorites all still line up. Tickets keeps its `people` row for each

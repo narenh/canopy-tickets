@@ -21,6 +21,21 @@
 //   * Anything only a developer sees (thrown errors, console output).
 const COPY = {
 
+  // ---------------- SIGN IN (signed out, at / and /admin) ----------------
+  // The passkey runs here; email goes to the Canopy account service.
+  signin: {
+    tagline: 'Sign in with your passkey. New here, or no passkey on this phone? Continue with email.',
+    passkey: 'Sign in with passkey',
+    or: 'or',
+    email: 'Continue with email',
+    emailHint: 'Canopy Tickets uses your Canopy account. Email takes you to account.canopysf.com and back.',
+    unknownPasskey: "That passkey isn't linked to an account anymore. Continue with email to set up a new one.",
+    noPasskeys: "This browser can't use passkeys. Open this page in Safari or Chrome, or continue with email.",
+    unavailable: "Signing in isn't working here right now. Try again later.",
+    failed: 'Something went wrong. Try again.',
+    unreachable: 'Could not reach Canopy accounts. Try again.'
+  },
+
   // ---------------- RESERVATION PAGE (what friends see) ----------------
   friend: {
     // Above the All Movies grid.

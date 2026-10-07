@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<!-- viewport-fit=cover lets the backdrop draw under the notch and the
+     home indicator instead of iOS letterboxing it. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Canopy Tickets</title>
+<!-- OG_META -->
+<style>
+  :root{
+    --gold:#c9a24b;
+    --bg:#0b0b0d;
+    --muted:#9a9a9a;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:var(--bg);
+    color:#fff;
+    font-family:-apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    padding:20px;
+  }
+  .hidden{display:none !important;}
+  .card{
+    width:100%;
+    max-width:340px;
+    background:#151517;
+    border:1px solid #2a2a2a;
+    border-radius:14px;
+    padding:28px 24px;
+  }
+  .site-logo{
+    display:block;
+    max-height:56px;
+    max-width:100%;
+    width:auto;
+    height:auto;
+    margin:0 auto 14px;
+  }
+  /* When a logo was uploaded, the site name in it is enough -- drop the
+     redundant "Canopy Tickets" heading rather than show both. */
+  .site-logo ~ h1{display:none;}
+  h1{font-size:20px;margin:0 0 6px;text-align:center;}
+  h2{font-size:19px;margin:0 0 4px;text-align:center;}
+  p{
+    margin:0 0 20px;
+    color:var(--muted);
+    font-size:13px;
+    text-align:center;
+    line-height:1.4;
+  }
+  .for-email{margin-bottom:18px;}
+  .for-email button{
+    width:auto;
+    background:none;
+    color:var(--gold);
+    padding:0;
+    font-size:13px;
+    font-weight:600;
+  }
+  button{
+    width:100%;
+    background:var(--gold);
+    color:#241c07;
+    border:none;
+    border-radius:12px;
+    padding:12px;
+    font-size:15px;
+    font-weight:700;
+    cursor:pointer;
+  }
+  button:disabled{opacity:.5;cursor:not-allowed;}
+  /* The second way in, under "or": quieter than the passkey button. */
+  button.secondary{
+    background:#1e1e21;
+    color:#fff;
+    border:1px solid #3a3a3a;
+  }
+  .passkey-btn{display:flex;align-items:center;justify-content:center;gap:8px;}
+  .passkey-btn svg{width:20px;height:20px;flex:0 0 auto;}
+  .or{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    color:var(--muted);
+    font-size:12px;
+    margin:18px 0 14px;
+  }
+  .or::before, .or::after{content:"";flex:1;height:1px;background:rgba(255,255,255,.14);}
+  .hint{font-size:12px;margin:12px 0 0;}
+  .admin-setup-link{margin:16px 0 0;}
+  .admin-setup-link button{
+    width:auto;
+    background:none;
+    color:var(--muted);
+    padding:0;
+    font-size:12px;
+    font-weight:600;
+    text-decoration:underline;
+  }
+  .error{
+    color:#e2857a;
+    font-size:13px;
+    min-height:18px;
+    margin-bottom:6px;
+    text-align:center;
+  }
+
+  /* The link-preview image fills the screen behind a frosted-glass card.
+     cover on a fixed layer fills the height of a portrait phone and crops
+     the 16:9 image's sides; the dim keeps the card readable over a busy
+     frame. 100lvh rather than bottom:0: the large viewport is the height
+     with Safari's toolbars collapsed, so the image still reaches the
+     bottom edge behind a translucent toolbar. The page colour moves from
+     body to html, so the script can set it without body painting a solid
+     box over the backdrop (which sits at z-index -1). */
+  html.has-backdrop{background:var(--bg);}
+  html.has-backdrop body{background:transparent;}
+  body.has-backdrop::before{
+    content:"";
+    position:fixed;
+    top:0;
+    left:0;
+    right:0;
+    height:100lvh;
+    z-index:-1;
+    background:var(--backdrop) center / cover no-repeat, var(--bg);
+  }
+  body.has-backdrop::after{
+    content:"";
+    position:fixed;
+    top:0;
+    left:0;
+    right:0;
+    height:100lvh;
+    z-index:-1;
+    background:rgba(0,0,0,0.25);
+  }
+  /* iOS Safari 26 paints the strips behind its status bar and toolbar a
+     single solid colour it picks from the page -- a fixed bar touching
+     that edge if there is one, the page background if not -- and won't
+     show the image there. These two bars give it a colour to pick: each
+     is the average colour of the image's edge (set by the script below)
+     and fades into the image. */
+  .edge-tint{
+    position:fixed;
+    left:0;
+    right:0;
+    height:40px;
+    z-index:0;
+    pointer-events:none;
+    background-color:transparent;
+  }
+  .edge-tint.top{
+    top:0;
+    -webkit-mask-image:linear-gradient(to bottom, #000, transparent);
+    mask-image:linear-gradient(to bottom, #000, transparent);
+  }
+  .edge-tint.bottom{
+    bottom:0;
+    -webkit-mask-image:linear-gradient(to top, #000, transparent);
+    mask-image:linear-gradient(to top, #000, transparent);
+  }
+  body.has-backdrop .card{
+    background:rgba(21,21,23,0.45);
+    border-color:rgba(255,255,255,0.14);
+    -webkit-backdrop-filter:blur(20px) saturate(140%);
+    backdrop-filter:blur(20px) saturate(140%);
+    box-shadow:0 10px 40px rgba(0,0,0,0.35);
+  }
+  body.has-backdrop p{color:#d0d0d0;}
+</style>
+</head>
+<!-- Signed out. Sign-in is Canopy accounts', but the passkey half runs
+     right here: this page calls the account service's sign-in endpoints
+     itself (it allows that for Canopy pages), and the session cookie
+     that comes back is the one every Canopy site reads. Anything else --
+     an email code, a new account, a lost passkey -- is "Continue with
+     email", which goes to the account service and comes back here. -->
+<body data-backdrop="__OG_IMAGE_URL__" data-account="__ACCOUNT_URL__" data-email-signin="__EMAIL_SIGNIN_URL__">
+  <div class="edge-tint top" id="edgeTop" aria-hidden="true"></div>
+  <div class="edge-tint bottom" id="edgeBottom" aria-hidden="true"></div>
+
+  <div class="card">
+    <!-- LOGO_IMG -->
+    <h1>Canopy Tickets</h1>
+    <p data-copy="signin.tagline"></p>
+    <div class="error" id="signInError"></div>
+    <button type="button" class="passkey-btn" id="signInBtn">
+      <!-- A key: solid bow with a hole, blade down to the left, two teeth.
+           Solid rather than outlined so it still reads at 20px. -->
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M15.5 2.75a5.75 5.75 0 1 1-3.1 10.6l-1.15 1.15 1.4 1.4a1 1 0 0 1-1.42 1.42l-1.4-1.4-1.1 1.1 1.9 1.9a1 1 0 0 1-1.42 1.42l-1.9-1.9-2.6 2.6a1 1 0 0 1-1.42-1.42l7.3-7.3A5.75 5.75 0 0 1 15.5 2.75zm1.25 3a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z"/></svg>
+      <span data-copy="signin.passkey"></span>
+    </button>
+    <div class="or" data-copy="signin.or"></div>
+    <button type="button" class="secondary" id="emailBtn" data-copy="signin.email"></button>
+    <p class="hint" data-copy="signin.emailHint"></p>
+  </div>
+
+<script src="/copy.js"></script>
+<script src="/vendor/simplewebauthn-browser-14.0.0/index.umd.min.js"></script>
+<script>
+applyCopy();
+
+const ACCOUNT = document.body.getAttribute('data-account');
+const EMAIL_SIGNIN = document.body.getAttribute('data-email-signin');
+
+// ---------------- Backdrop ----------------
+// The link-preview image behind the card, when one has been uploaded.
+const BACKDROP = document.body.getAttribute('data-backdrop');
+if (BACKDROP && BACKDROP.charAt(0) === '/'){
+  document.body.style.setProperty('--backdrop', 'url("' + BACKDROP + '")');
+  document.body.classList.add('has-backdrop');
+  document.documentElement.classList.add('has-backdrop');
+  tintEdgesFrom(BACKDROP);
+}
+
+// Works out the colour along the top and bottom edges of the backdrop as
+// it's actually cropped on this screen (cover, centered), and hands each
+// to its .edge-tint bar -- and the bottom one to the page background too,
+// for a Safari that ignores the bars and only reads that. Scaled down to
+// a few dozen pixels first: an average doesn't need the full 4K image.
+function tintEdgesFrom(url){
+  const img = new Image();
+  img.onload = () => {
+    try{
+      const vw = window.innerWidth, vh = window.innerHeight;
+      const cw = 48, ch = Math.max(2, Math.round(cw * vh / vw));
+      const scale = Math.max(cw / img.naturalWidth, ch / img.naturalHeight);
+      const dw = img.naturalWidth * scale, dh = img.naturalHeight * scale;
+      const canvas = document.createElement('canvas');
+      canvas.width = cw;
+      canvas.height = ch;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, (cw - dw) / 2, (ch - dh) / 2, dw, dh);
+      // 0.75: the backdrop sits under a 25% black dim (body::after).
+      const edge = (y) => {
+        const d = ctx.getImageData(0, y, cw, 1).data;
+        const sum = [0, 0, 0];
+        for (let i = 0; i < d.length; i += 4){ sum[0] += d[i]; sum[1] += d[i + 1]; sum[2] += d[i + 2]; }
+        return 'rgb(' + sum.map(v => Math.round(v / cw * 0.75)).join(',') + ')';
+      };
+      const top = edge(0), bottom = edge(ch - 1);
+      document.getElementById('edgeTop').style.backgroundColor = top;
+      document.getElementById('edgeBottom').style.backgroundColor = bottom;
+      document.documentElement.style.backgroundColor = bottom;
+    }catch(e){
+      // Leave the default dark strips.
+    }
+  };
+  img.src = url;
+}
+
+// ---------------- Passkey ----------------
+// The server hands out a challenge, the phone signs it, the server checks
+// it -- here the server is the account service, called across sites with
+// the cookie included. SimpleWebAuthnBrowser does the phone half.
+// (Inlined by the server -- see INLINE_SCRIPTS in server.js. If it's
+// somehow missing, say so rather than leaving a dead button.)
+const { startAuthentication, browserSupportsWebAuthn } = window.SimpleWebAuthnBrowser || {
+  startAuthentication: () => Promise.reject(new Error('passkey library did not load -- reload the page')),
+  browserSupportsWebAuthn: () => true
+};
+
+async function accountPost(url, body){
+  const res = await fetch(ACCOUNT + url, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body || {})
+  });
+  const data = await res.json().catch(() => ({}));
+  return { res, data };
+}
+
+function detail(text){
+  return text ? ' (' + String(text).slice(0, 160) + ')' : '';
+}
+
+const errorEl = document.getElementById('signInError');
+const signInBtn = document.getElementById('signInBtn');
+
+if (!ACCOUNT){
+  // No CANOPY_ACCOUNT_KEY on the server: signing in can't work.
+  errorEl.textContent = t('signin.unavailable');
+  signInBtn.disabled = true;
+  document.getElementById('emailBtn').disabled = true;
+} else if (!browserSupportsWebAuthn()){
+  errorEl.textContent = t('signin.noPasskeys');
+  signInBtn.disabled = true;
+}
+
+signInBtn.addEventListener('click', async () => {
+  errorEl.textContent = '';
+  signInBtn.disabled = true;
+  try{
+    const start = await accountPost('/api/auth/login/options');
+    if (!start.res.ok){ errorEl.textContent = t('signin.failed') + detail(start.data.error || start.res.status); return; }
+    let response;
+    try{
+      response = await startAuthentication({ optionsJSON: start.data.options });
+    }catch(err){
+      // NotAllowedError is Cancel (or no passkey here): say nothing.
+      if (!(err && err.name === 'NotAllowedError')) errorEl.textContent = t('signin.failed') + detail(err && (err.name + ': ' + err.message));
+      return;
+    }
+    const { res, data } = await accountPost('/api/auth/login/verify', { response });
+    // Signed in: this same address now serves the signed-in page.
+    if (res.ok){ window.location.reload(); return; }
+    errorEl.textContent = data.reason === 'unknown_passkey' ? t('signin.unknownPasskey') : t('signin.failed') + detail(data.error || res.status);
+  }catch(err){
+    errorEl.textContent = t('signin.unreachable');
+  }finally{
+    signInBtn.disabled = false;
+  }
+});
+
+document.getElementById('emailBtn').addEventListener('click', () => {
+  window.location.href = EMAIL_SIGNIN;
+});
+</script>
+</body>
+</html>
