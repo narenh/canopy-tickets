@@ -19,6 +19,9 @@ const logoImageStore = createImageStore('logo');
 // reservation page only shows a pay button for the one(s) that are.
 const venmoHandleStore = createTextSettingStore('venmo-handle');
 const cashappHandleStore = createTextSettingStore('cashapp-handle');
+// The admin's phone, copied from their Canopy account whenever they visit
+// (see attachPerson): A-List members text it to set up a swap.
+const adminPhoneStore = createTextSettingStore('admin-phone');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -408,6 +411,12 @@ function publicShowtimeView(s, viewer, onlySeatIds, lookup) {
 // The admin is a person like any friend, signed in the same way, with
 // the same id as the account service's admin. Which person it is lives in
 // meta (admin_person_id); it's also the host (see lib/seats.js).
+
+// Written only when it changes, so the admin's visits don't each write.
+function rememberAdminPhone(phone) {
+  const value = typeof phone === 'string' ? phone.trim() : '';
+  if (value !== (adminPhoneStore.get() || '')) adminPhoneStore.set(value);
+}
 
 function adminFirstName() {
   const id = store.getAdminPersonId();
@@ -819,6 +828,7 @@ function attachPerson(req, res, next) {
         store.setAdminPersonId(person.id);
         console.warn(`[canopy-tickets] new install: ${person.email} is the first person here, so they're the admin`);
       }
+      if (person.id === store.getAdminPersonId()) rememberAdminPhone(account.phone);
       req.person = person;
       req.firstVisit = created;
       req.unlocked = store.personUnlockedMovieIds(person.id);
@@ -897,8 +907,9 @@ app.get('/api/public/config', (req, res) => {
     concessionTaxRate: CONCESSION_TAX_RATE,
     // Where name, photo and Venmo are changed (the profile sheet's link).
     accountUrl: CANOPY_ACCOUNT_URL,
-    // Who A-List members text to set up a swap.
-    adminFirstName: adminFirstName()
+    // Who A-List members text to set up a swap, and the number to text.
+    adminFirstName: adminFirstName(),
+    adminPhone: adminPhoneStore.get() || ''
   });
 });
 
