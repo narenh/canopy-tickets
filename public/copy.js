@@ -301,6 +301,8 @@ const COPY = {
   admin: {
     // Top right of the Ticket Manager: back to the friend side.
     backToApp: 'My Showtimes',
+    // A box under a showtime's info line; off for a new showtime.
+    aListSwap: 'Eligible for A-List swap',
     movies: {
       none: 'No movies yet. Tap "+ Add movie" to start.',
       noneUpcoming: 'Nothing coming up. Add a movie, or a showtime to one below.',

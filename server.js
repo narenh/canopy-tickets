@@ -541,6 +541,10 @@ function showtimeFields(body) {
   if (has('screen')) out.screen = normalizeScreenInput(body.screen);
   if (has('price')) out.price = parsePrice(body.price);
   if (has('info')) out.info = normalizeInfoInput(body.info);
+  if (has('aListSwap')) {
+    if (typeof body.aListSwap !== 'boolean') return { error: 'aListSwap must be a boolean' };
+    out.aListSwap = body.aListSwap;
+  }
   return { fields: out };
 }
 
@@ -1386,6 +1390,10 @@ app.put('/api/public/showtimes/:id/seats/:seatId/concessions', async (req, res) 
   const { items } = req.body || {};
   if (items !== undefined && !Array.isArray(items)) {
     return res.status(400).json({ error: 'items must be an array' });
+  }
+  // A-List members order at the counter themselves, for the points.
+  if (req.person.amcAList && items && items.length) {
+    return res.status(403).json({ error: 'concessions are off for AMC A-List members', reason: 'a_list' });
   }
 
   const result = await store.setSeatConcessions(req.params.id, req.params.seatId, items || []);

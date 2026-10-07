@@ -504,6 +504,8 @@
     padding:2px 2px;
   }
   #showInfo::placeholder{color:#666;}
+  .a-list-row{display:inline-flex;align-items:center;gap:8px;margin-top:12px;font-size:14px;color:#e8e8e8;cursor:pointer;}
+  .a-list-row input{width:17px;height:17px;margin:0;accent-color:var(--gold);}
   .card .showtime-info{
     color:var(--info-blue);
     font-size:14px;
@@ -1194,6 +1196,9 @@
                placeholder="Showtime info (optional)">
         <datalist id="infoSuggestions"></datalist>
       </div>
+      <label class="a-list-row">
+        <input type="checkbox" id="aListSwap"><span data-copy="admin.aListSwap"></span>
+      </label>
     </div>
 
     <div class="seatmap" id="seatmap"></div>
@@ -2129,6 +2134,7 @@ async function openShowtime(id){
   syncFormatOptions(obj.format);
   document.getElementById('price').value = (typeof obj.price === 'number') ? obj.price.toFixed(2) : '';
   document.getElementById('showInfo').value = obj.info || '';
+  document.getElementById('aListSwap').checked = !!obj.aListSwap;
   seatStates = normalizeSeats(obj.seats);
   saveFailed = null;
   renderSavePill();
@@ -2831,6 +2837,7 @@ async function deleteShowtime(){
   byId('showInfo').addEventListener('input', (e) => queuePatch({ info: e.target.value }));
   // Picking a suggestion fires change; send it then rather than waiting.
   byId('showInfo').addEventListener('change', flushPendingPatch);
+  byId('aListSwap').addEventListener('change', (e) => queuePatch({ aListSwap: e.target.checked }, true));
 })();
 
 // ---------------- SITE IMAGES (logo + link preview) ----------------
