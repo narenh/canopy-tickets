@@ -135,7 +135,7 @@ const COPY = {
       subscribe: 'Subscribe'
     },
 
-    // Your usual order and favorite items (profile menu -> Favorites).
+    // Your usual order and favorite items (Settings -> Favorite concessions).
     favorites: {
       heading: 'Favorites',
       hint: 'These show first whenever you add concessions.',
@@ -182,10 +182,9 @@ const COPY = {
     menu: {
       account: 'Canopy Account',
       manageAccount: 'Manage',
+      calendar: 'My Calendar Feed',
       settings: 'Settings',
-      favorites: 'Favorites',
-      calendar: 'Calendar feed',
-      claimExisting: 'Claim existing seats',
+      claimExisting: 'Claim Existing Seats',
       signOut: 'Sign out'
     },
 
@@ -197,6 +196,8 @@ const COPY = {
       accountLink: 'Canopy Account',
       peanutAllergy: 'Peanut allergy',
       peanutHint: 'Peanut items will be hidden for adjacent seats.',
+      amcAList: 'AMC A-List Member',
+      favorites: 'Favorite concessions',
       failed: "Couldn't save. Try again."
     },
 
