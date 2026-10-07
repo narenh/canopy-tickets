@@ -325,6 +325,16 @@
     <button type="button" class="secondary hidden" id="newPasskeyBtn" style="margin-top:10px" onclick="enrollAfterSetup('hasPasskeyError', 'newPasskeyBtn')" data-copy="welcome.newPasskey"></button>
   </div>
 
+  <!-- An email we haven't seen: new accounts are made at Canopy accounts
+       now (account.canopysf.com), not here. Only a brand-new install's
+       first admin, after the setup password, still signs up here. -->
+  <div class="card hidden" id="signupsMovedCard">
+    <h2 data-copy="welcome.signupsMovedHeading"></h2>
+    <p class="for-email"><span class="email-label"></span> &middot; <button type="button" onclick="backToEmail()">Change</button></p>
+    <p data-copy="welcome.signupsMovedHint"></p>
+    <button type="button" onclick="window.location.href = 'https://account.canopysf.com/'" data-copy="welcome.signupsMovedButton"></button>
+  </div>
+
   <!-- Step 2, for an email we haven't seen: name and photo, all required. -->
   <form class="card hidden" id="profileForm">
     <h2 data-copy="welcome.profileHeading"></h2>
@@ -513,7 +523,7 @@ if (!browserSupportsWebAuthn()){
 }
 
 // ---------------- Step 1: email ----------------
-const CARDS = ['adminSetupForm', 'emailForm', 'profileForm', 'setupForm', 'hasPasskeyCard'];
+const CARDS = ['adminSetupForm', 'emailForm', 'profileForm', 'setupForm', 'hasPasskeyCard', 'signupsMovedCard'];
 let canEnroll = false;   // the setup password was entered: no movie password needed
 function showCard(id){
   CARDS.forEach(c => document.getElementById(c).classList.toggle('hidden', c !== id));
@@ -532,7 +542,9 @@ document.getElementById('emailForm').addEventListener('submit', async (e) => {
     if (!res.ok){ errorEl.textContent = t('welcome.failed'); return; }
     email = data.email;
     canEnroll = !!data.canEnroll;
-    if (data.state === 'new'){
+    if (data.state === 'new' && !canEnroll){
+      showCard('signupsMovedCard');
+    } else if (data.state === 'new'){
       showCard('profileForm');
       document.getElementById('firstName').focus();
     } else if (data.state === 'setup'){

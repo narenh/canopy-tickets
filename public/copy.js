@@ -65,7 +65,11 @@ const COPY = {
     photoUnreadable: "Couldn't open that photo. If it's stored in iCloud, open it in Photos so it downloads, then try again — or pick another.",
     photoRequired: 'A profile picture is required.',
     nameRequired: 'Enter your first and last name.',
-    emailTaken: 'That email already has a profile. Go back and continue with it.'
+    emailTaken: 'That email already has a profile. Go back and continue with it.',
+    // A new email: accounts are made at Canopy accounts now.
+    signupsMovedHeading: 'New to Canopy?',
+    signupsMovedHint: "New accounts are made at account.canopysf.com now. Make yours there; Canopy Tickets will be using it soon.",
+    signupsMovedButton: 'Make a Canopy account'
   },
 
   // ---------------- RESERVATION PAGE (what friends see) ----------------

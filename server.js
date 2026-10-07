@@ -995,6 +995,13 @@ app.post('/api/auth/lookup', attachDevice(true), (req, res) => {
 app.post('/api/auth/register/new', attachDevice(true), async (req, res) => {
   const rp = requirePasskeyRp(req, res);
   if (!rp || !accountsOpen(req, res)) return;
+  // New profiles are made at Canopy accounts (account.canopysf.com) now,
+  // which tickets will sign in through: one made here would be missing
+  // from there. Only a brand-new install's first admin, after the setup
+  // password, still signs up here.
+  if (!hasAdminSetupGrant(req)) {
+    return res.status(403).json({ error: 'new accounts are made at account.canopysf.com', reason: 'signups_moved' });
+  }
   const body = req.body || {};
   const email = cleanEmail(body.email);
   if (!email) return res.status(400).json({ error: 'enter a valid email' });
