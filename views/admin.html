@@ -20,6 +20,10 @@
     --muted:#9a9a9a;
   }
   *{box-sizing:border-box;}
+  /* Room for the scrollbar is kept whether or not the page needs one, so
+     the centred column doesn't shift ~7px between a tab that scrolls
+     (Food & Drink) and one that doesn't. Same as views/public.html. */
+  html{scrollbar-gutter:stable;}
   body{
     margin:0;
     background:var(--bg);
