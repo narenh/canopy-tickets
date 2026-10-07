@@ -8,10 +8,8 @@ const { createImageStore } = require('./lib/uploadedImage');
 const posterStore = require('./lib/posterStore');
 const concessionMenuStore = require('./lib/concessionMenu');
 const { createTextSettingStore } = require('./lib/textSetting');
-const { createDeviceAuth } = require('./lib/deviceAuth');
-const photoStore = require('./lib/photoStore');
+const createCanopyAccount = require('./lib/canopyAccount');
 const { normalizeSeats, isHostSeat, CONCESSION_TAX_RATE } = require('./lib/seats');
-const webauthn = require('@simplewebauthn/server');
 
 const ogImageStore = createImageStore('og');
 const logoImageStore = createImageStore('logo');
@@ -29,55 +27,55 @@ const PORT = process.env.PORT || 3000;
 // container, so the request Express sees is plain HTTP. Trusting the
 // proxy makes req.protocol correctly report "https" from
 // X-Forwarded-Proto -- needed so the Open Graph tags below don't
-// accidentally advertise an http:// URL for a site that's actually https.
+// accidentally advertise an http:// URL for a site that's actually https,
+// and so "come back here after signing in" says https (the account
+// service won't send anyone back to an http address).
 app.set('trust proxy', true);
 
-function requireEnvPassword(envVar, label) {
-  let value = process.env[envVar];
-  if (!value) {
-    value = crypto.randomBytes(9).toString('base64url');
-    console.warn(`\n[canopy-tickets] ${envVar} not set. Generated a temporary ${label} password for this run:`);
-    console.warn(`[canopy-tickets]   ${value}`);
-    console.warn(`[canopy-tickets] Set ${envVar} in your environment to keep a stable password.\n`);
-  }
-  return value;
-}
-
-const ADMIN_PASSWORD = requireEnvPassword('ADMIN_PASSWORD', 'admin');
-
-// Each movie has its own password (set on the movie's page in the
-// admin), and friends sign in with passkeys.
-
-// This MUST be the same value on every process that ever serves this app
-// -- a random-per-process fallback (what this used to do) is actively
-// dangerous: any redeploy, restart, or additional replica gets its own
-// secret, so a cookie signed by one process fails verification on the
-// next request if it lands on another. That's not just "sessions don't
-// survive a restart" -- it manifests as random login/logout redirect
-// loops mid-session, because the page-serving check and an API call a
-// moment later can literally be answered by two different secrets.
+// ---------------- Canopy accounts ----------------
 //
-// If SESSION_SECRET isn't set, derive a stable one from ADMIN_PASSWORD
-// instead of generating randomness -- that's already required to be
-// stable across the deployment for login to work at all, so this can't
-// newly introduce an inconsistency. (The friend/shared password is
-// deliberately NOT part of this derivation -- it's meant to be rotated
-// freely without side effects, and doing so would log everyone out.)
-// Still recommend setting SESSION_SECRET explicitly (see README) so
-// changing ADMIN_PASSWORD later doesn't also silently invalidate every
-// existing session.
-const SESSION_SECRET =
-  process.env.SESSION_SECRET || crypto.createHash('sha256').update(`canopy-tickets:${ADMIN_PASSWORD}`).digest('hex');
-if (!process.env.SESSION_SECRET) {
-  console.warn(
-    '[canopy-tickets] SESSION_SECRET not set; derived a stable one from ADMIN_PASSWORD instead. ' +
-      'This works, but changing ADMIN_PASSWORD will also silently log everyone out -- set SESSION_SECRET ' +
-      'explicitly (e.g. `openssl rand -hex 32`) to decouple the two.'
-  );
+// Signing in and out, and everyone's name, photo and Venmo, belong to the
+// Canopy account service (account.canopysf.com), shared by every Canopy
+// site. Its cookie is for all of canopysf.com, so it reaches this site
+// too, and lib/canopyAccount.js asks the service who it belongs to.
+// Tickets keeps its own row per person (people, same id) for everything
+// that's tickets' business: seats, unlocks, favorites, the peanut setting.
+//
+// CANOPY_ACCOUNT_KEY is this site's key, from the account admin's Sites
+// tab. Without it nobody can be signed in, so the server says so loudly
+// and treats everyone as signed out rather than refusing to start.
+const CANOPY_ACCOUNT_URL = (process.env.CANOPY_ACCOUNT_URL || 'https://account.canopysf.com').replace(/\/+$/, '');
+const CANOPY_ACCOUNT_KEY = process.env.CANOPY_ACCOUNT_KEY || '';
+// With no key, the placeholder only feeds signInUrl/signOutUrl: attach
+// and people are swapped out below, so it's never sent anywhere.
+const canopy = createCanopyAccount({ url: CANOPY_ACCOUNT_URL, key: CANOPY_ACCOUNT_KEY || 'unset' });
+if (!CANOPY_ACCOUNT_KEY) {
+  console.error('\n[canopy-tickets] ****************************************************************');
+  console.error('[canopy-tickets] CANOPY_ACCOUNT_KEY is not set. NOBODY CAN SIGN IN until it is.');
+  console.error("[canopy-tickets] Make one in the account admin's Sites tab (site name: tickets),");
+  console.error('[canopy-tickets] set it in this server\'s environment and redeploy.');
+  console.error('[canopy-tickets] ****************************************************************\n');
+  canopy.attach = (req, res, next) => { req.person = null; next(); };
+  canopy.people = async () => { throw new Error('CANOPY_ACCOUNT_KEY is not set'); };
 }
 
-const deviceAuth = createDeviceAuth(SESSION_SECRET);
+app.disable('x-powered-by');
 
+// Anything that changes something (not GET, HEAD or OPTIONS) has to come
+// from one of this site's own pages. The account cookie goes to every
+// *.canopysf.com site, and its SameSite=Lax treats all of them as the
+// same site, so a page on any other Canopy subdomain could otherwise
+// send a signed-in POST here. Browsers put Origin on every POST, PUT,
+// PATCH and DELETE (the pages' fetches are all relative URLs), so a
+// missing one is refused too. `https://` + this host also counts, in
+// case the proxy in front ever reports the request as plain http.
+app.use((req, res, next) => {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
+  const origin = req.get('origin');
+  const host = req.get('host');
+  if (origin && (origin === `${req.protocol}://${host}` || origin === `https://${host}`)) return next();
+  res.status(403).json({ error: 'that request did not come from this site', reason: 'bad_origin' });
+});
 app.disable('x-powered-by');
 app.use(express.json());
 
@@ -160,8 +158,8 @@ function normalizeInfoInput(raw) {
 // shown by iMessage, Facebook, Instagram, etc. when tix.canopysf.com gets
 // shared. Same title/description everywhere on purpose -- there's one
 // link, this is its identity regardless of which page an anonymous
-// request happens to resolve to (in practice, always the login page,
-// since crawlers never carry a session cookie).
+// request happens to resolve to (in practice, always the signed-out page
+// that sends people on to sign in, since crawlers never carry a cookie).
 //
 // The image URL includes `?v=<uploadedAt>`, which changes every time a
 // new image is uploaded. That's a deliberate cache-bust: platforms like
@@ -187,13 +185,6 @@ function buildOgTags(req) {
     );
   }
   return tags.join('\n  ');
-}
-
-// Same-origin, cache-busted URL of the link-preview image, or '' if none
-// has been uploaded. The friend login page uses it as its backdrop.
-function ogImageUrl() {
-  const meta = ogImageStore.getMeta();
-  return meta ? `/og-image?v=${meta.uploadedAt}` : '';
 }
 
 // Builds the site logo <img>, or '' if none has been uploaded yet (in
@@ -227,11 +218,11 @@ function buildLogoImgTag() {
 // A versioned vendor path can't be the wrong version, but it can be
 // MISSING: a brand-new file asked for during a deploy can land on the old
 // container, 404, and that 404 is kept for the same four hours. That's
-// how the passkey library went missing on an iPhone the day it shipped
-// (the sign-in page's script then died before wiring up its buttons), so
-// it's inlined too. Cropper.js has been around long enough to stay a file.
+// how the passkey library went missing on an iPhone the day it shipped,
+// back when sign-in was here. So a new vendored script belongs in this
+// list too.
 const INLINE_SCRIPTS = [
-  'copy.js', 'seat-layout.js', 'photo-crop.js', 'vendor/simplewebauthn-browser-14.0.0/index.umd.min.js'
+  'copy.js', 'seat-layout.js'
 ].map((name) => {
   // `</script` inside the source would end the inline tag early.
   const source = fs.readFileSync(path.join(__dirname, 'public', name), 'utf8').replace(/<\/script/gi, '<\\/script');
@@ -252,9 +243,7 @@ function renderHtmlPage(res, req, filePath) {
   const logoTag = buildLogoImgTag();
   let html = fs.readFileSync(filePath, 'utf8')
     .replace('<!-- OG_META -->', buildOgTags(req))
-    // Every one: the sign-in page has a logo on more than one card.
-    .replaceAll('<!-- LOGO_IMG -->', () => logoTag)
-    .replace('__OG_IMAGE_URL__', ogImageUrl());
+    .replaceAll('<!-- LOGO_IMG -->', () => logoTag);
   INLINE_SCRIPTS.forEach(({ tag, inline }) => {
     // A function, so `$` in a script isn't read as a replacement pattern.
     html = html.replace(tag, () => inline);
@@ -286,8 +275,12 @@ function peopleLookup() {
   };
 }
 
+// Photos live at the account service. An <img> on this site loads them
+// from there: the browser sends the account cookie along, since it counts
+// account.canopysf.com as the same site. photoAt is the photo's ?v= there,
+// so the URL changes whenever the photo does.
 function photoUrlFor(person) {
-  return person && person.photoAt ? `/photo/${person.id}?v=${person.photoAt}` : null;
+  return person && person.photoAt ? `${CANOPY_ACCOUNT_URL}/photo/${person.id}?v=${person.photoAt}` : null;
 }
 
 // Trims a showtime down to what a friend on the public/shared side should
@@ -296,7 +289,7 @@ function photoUrlFor(person) {
 //
 // `viewer` is the signed-in person, so their own seats can say so.
 // `onlySeatIds`, when given, limits the seats to those (a movie this
-// device hasn't unlocked shows its viewer their own seats and nobody
+// person hasn't unlocked shows its viewer their own seats and nobody
 // else's).
 // A friend can give back a seat they reserved while all of these hold:
 // nothing on it is paid, they reserved it in the last 24 hours, and the
@@ -397,56 +390,18 @@ function publicShowtimeView(s, viewer, onlySeatIds, lookup) {
 
 // ---------------- Admin auth ----------------
 //
-// The admin is a profile like any friend's, and signs in the same way:
-// with its passkey. Which profile is the admin is stored in meta
-// (admin_person_id); it's also the host (see lib/seats.js).
-//
-// There is never an account without an admin. With no admin (a brand-new
-// install), the sign-in page at / is only the setup password
-// (ADMIN_PASSWORD), and the server refuses every other sign-in and
-// sign-up until it's been entered; whoever then signs up on that browser
-// is the admin. ADMIN_RECOVERY=1 reopens the setup password for an admin
-// who's lost their passkey -- it lets the admin's own profile add a new
-// one and nothing else -- and needs access to the server's settings to
-// turn on, which is the right bar for the keys to everything.
-
-const ADMIN_RECOVERY = process.env.ADMIN_RECOVERY === '1';
-const ADMIN_SETUP_MS = 15 * 60 * 1000;
-
-function adminSetupOpen() {
-  return ADMIN_RECOVERY || !store.getAdminPersonId();
-}
+// The admin is a person like any friend, signed in the same way, with
+// the same id as the account service's admin. Which person it is lives in
+// meta (admin_person_id); it's also the host (see lib/seats.js).
 
 function isAdmin(req) {
   return !!req.person && req.person.id === store.getAdminPersonId();
 }
 
-// This browser entered the setup password recently, and setup is open.
-function hasAdminSetupGrant(req) {
-  const at = req.device && req.device.admin_setup_at;
-  return adminSetupOpen() && !!at && Date.now() - at < ADMIN_SETUP_MS;
-}
-
-// The setup password lets a profile add a passkey without a movie
-// password: any profile on first run (it's about to be the admin), only
-// the admin's own in recovery.
-function canEnrollViaSetup(req, personId) {
-  if (!hasAdminSetupGrant(req)) return false;
-  const adminId = store.getAdminPersonId();
-  return !adminId || personId === adminId;
-}
-
-// No admin yet: nothing but the setup password until it's been entered
-// here. Sends the refusal itself and returns false.
-function accountsOpen(req, res) {
-  if (store.getAdminPersonId() || hasAdminSetupGrant(req)) return true;
-  res.status(403).json({ error: 'set up the admin account first', reason: 'setup_required' });
-  return false;
-}
-
 // For every admin API: signed in, as the admin.
 function requireAdmin(req, res, next) {
-  attachDevice(false)(req, res, () => {
+  attachPerson(req, res, (err) => {
+    if (err) return next(err);
     if (isAdmin(req)) return next();
     res.status(401).json({ error: 'unauthorized' });
   });
@@ -617,39 +572,31 @@ app.patch('/api/movies/:id', (req, res) => {
 });
 
 // ---------------- People (admin) ----------------
+//
+// Everyone tickets has a row for, to assign seats to. Names, photos and
+// accounts themselves are managed at the account service, not here.
+// Someone the account service no longer has is a former member: their
+// row and seats stay, marked as such. If it can't be reached, nobody is
+// marked rather than everybody.
 
 app.use('/api/people', requireAdmin);
 
-app.get('/api/people', (req, res) => {
+app.get('/api/people', async (req, res) => {
+  const people = store.listPeople();
+  let current = null;
+  try {
+    current = await canopy.people(people.map((p) => p.id));
+  } catch (err) {
+    console.warn(`[canopy-tickets] couldn't ask Canopy accounts who's still a member: ${err.message}`);
+  }
   res.json({
-    people: store.listPeople().map((p) => ({ ...p, photoUrl: photoUrlFor(p) })),
+    people: people.map((p) => {
+      const former = !!current && !current.has(p.id);
+      // A former member's photo went with their account.
+      return { ...p, former, photoUrl: former ? null : photoUrlFor(p) };
+    }),
     adminPersonId: store.getAdminPersonId()
   });
-});
-
-app.patch('/api/people/:id', (req, res) => {
-  const names = cleanNames(req.body || {});
-  if (names.error) return res.status(400).json({ error: names.error });
-  const result = store.renamePerson(req.params.id, names.firstName, names.lastName);
-  if (!result.ok) return sendResult(res, result);
-  res.json({ person: { ...result.person, photoUrl: photoUrlFor(result.person) } });
-});
-
-// Lost phone: their passkeys go and they're signed out everywhere. They
-// set up a new one with any movie's password, like the first time.
-app.post('/api/people/:id/reset-passkeys', (req, res) => {
-  // Your own would lock you out of here; that's ADMIN_RECOVERY's job.
-  if (req.params.id === store.getAdminPersonId()) return res.status(409).json({ error: 'not the admin', reason: 'is_admin' });
-  sendResult(res, store.resetPasskeys(req.params.id));
-});
-
-// Their seats stay reserved under the names on them; they just stop
-// belonging to anyone. For a typo'd duplicate, mostly.
-app.delete('/api/people/:id', (req, res) => {
-  if (req.params.id === store.getAdminPersonId()) return res.status(409).json({ error: 'not the admin', reason: 'is_admin' });
-  if (!store.deletePerson(req.params.id)) return res.status(404).json({ error: 'not found' });
-  try { photoStore.remove(req.params.id); } catch (e) {}
-  res.json({ ok: true });
 });
 
 app.delete('/api/movies/:id', (req, res) => {
@@ -759,24 +706,13 @@ app.delete('/api/showtimes/:id', async (req, res) => {
   res.json({ ok: true });
 });
 
-// ---------------- Friends: devices, sign-in, profiles ----------------
+// ---------------- Friends: who's signed in, and profiles ----------------
 //
-// Friends sign in with a passkey (WebAuthn: Face ID / Touch ID / the
-// phone's screen lock), and nothing else -- there are no friend passwords
-// to store or forget. The browser's device cookie is the session once a
-// passkey has been verified on it.
-//
-// Getting a first passkey:
-//   - a new email: name and photo, then the passkey; the profile is only
-//     created once the passkey exists;
-//   - an existing profile with no passkey (everyone, the first time after
-//     passkeys arrived, or after the admin resets theirs): the password
-//     of ANY movie first, then the passkey.
-// A profile that already has a passkey can only be signed into with it;
-// a lost phone is the admin's "Reset passkeys".
-//
-// Movie unlocks belong to the PERSON (person_unlocks) and follow them to
-// every device.
+// Who someone is comes from their Canopy account (see the top of this
+// file). Signing in, out, and changing a name, photo or Venmo all happen
+// at the account service; what's left here is tickets' own: movie
+// unlocks, which belong to the PERSON (person_unlocks) and follow them to
+// every device, and the peanut allergy setting.
 
 // Too many tries at something, per key, per window. In memory: a restart
 // forgives everyone, which is fine at this scale.
@@ -798,7 +734,7 @@ function attemptLimiter(max, windowMs) {
 }
 const unlockLimiter = attemptLimiter(8, 15 * 60 * 1000);
 const unlockIpLimiter = attemptLimiter(40, 15 * 60 * 1000);
-// Across everyone, per movie (or 'setup' for "any movie's password"): the
+// Across everyone, per movie: the
 // backstop when the per-person and per-address limits are dodged with
 // fresh profiles and addresses. Trips for everyone, which is the point.
 const movieGuessLimiter = attemptLimiter(100, 60 * 60 * 1000);
@@ -830,367 +766,95 @@ function sendGuessRefusal(res, outcome) {
   return res.status(403).json({ error: 'wrong password', reason: 'wrong_password' });
 }
 
-// Finds this browser's device (from its cookie), making one if `create`
-// is set. Puts req.device, req.person and req.unlocked (the person's
-// movie ids) on the request.
-function attachDevice(create) {
-  return (req, res, next) => {
-    req.unlocked = new Set();
+// Puts req.person (tickets' record of the signed-in visitor, or null) and
+// req.unlocked (their movie ids) on the request. Each visit brings
+// tickets' row up to date with their account: a new Canopy member gets
+// one made (req.firstVisit), and a new name, photo or Venmo is copied in
+// (lib/sqliteStore.js syncPerson). The account answer is cached for a
+// minute (lib/canopyAccount.js), so a change there shows here within one.
+//
+// A database with no admin yet (a brand-new install) makes the first
+// person to sign in the admin. On the live site the admin came across
+// with everyone else, so this never happens there.
+function attachPerson(req, res, next) {
+  canopy.attach(req, res, (err) => {
+    if (err) return next(err);
+    const account = req.person;
     req.person = null;
-    const cookie = deviceAuth.read(req);
-    let device = cookie ? store.getDevice(cookie.id) : null;
-    if (!device && create) device = store.createDevice();
-    if (!device) return next();
-    if (!cookie || cookie.id !== device.id || deviceAuth.needsRenewal(cookie)) {
-      deviceAuth.issue(res, device.id);
-      store.touchDevice(device.id);
+    req.unlocked = new Set();
+    req.firstVisit = false;
+    if (!account) return next();
+    try {
+      const { person, created } = store.syncPerson(account, photoAtFrom(account.photoUrl));
+      if (created) rememberFirstVisit(person.id);
+      if (!store.getAdminPersonId()) {
+        store.setAdminPersonId(person.id);
+        console.warn(`[canopy-tickets] no admin yet: ${person.email} signed in first, so they're the admin now`);
+      }
+      req.person = person;
+      req.firstVisit = created;
+      req.unlocked = store.personUnlockedMovieIds(person.id);
+    } catch (e) {
+      return next(e);
     }
-    req.device = device;
-    req.person = device.person_id ? store.getPerson(device.person_id) : null;
-    req.unlocked = req.person ? store.personUnlockedMovieIds(req.person.id) : new Set();
     next();
-  };
+  });
 }
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-function cleanEmail(raw) {
-  const email = String(raw || '').trim().toLowerCase().slice(0, 200);
-  return EMAIL_RE.test(email) ? email : null;
+// The ?v= on an account photoUrl (when the photo last changed), or null
+// for someone with no photo.
+function photoAtFrom(photoUrl) {
+  if (!photoUrl) return null;
+  try {
+    const v = Number(new URL(photoUrl).searchParams.get('v'));
+    return Number.isFinite(v) && v > 0 ? v : null;
+  } catch (e) {
+    return null;
+  }
 }
 
-function cleanNames(body) {
-  const firstName = String(body.firstName || '').trim().replace(/\s+/g, ' ').slice(0, 60);
-  const lastName = String(body.lastName || '').trim().replace(/\s+/g, ' ').slice(0, 60);
-  if (!firstName || !lastName) return { error: 'first and last name are both required' };
-  return { firstName, lastName };
+// A new Canopy member's first visit here is offered the seats reserved
+// under their name before profiles ("Are any of these yours?"). Their row
+// is usually made by the page load itself (GET /), a moment before the
+// page asks /api/public/me who it is, so that's remembered here until
+// /api/public/me reports it once. In memory: a restart in between just
+// means no prompt, and "Claim existing seats" is still in the menu.
+const FIRST_VISIT_MS = 10 * 60 * 1000;
+const firstVisits = new Map();
+function rememberFirstVisit(personId) {
+  const now = Date.now();
+  firstVisits.forEach((at, id) => { if (now - at > FIRST_VISIT_MS) firstVisits.delete(id); });
+  firstVisits.set(personId, now);
 }
-
-// A Venmo username: letters, digits, - or _, at most 30. A leading @ is
-// dropped in case one gets pasted in. Empty clears it (null); anything
-// else invalid is false.
-function cleanVenmo(raw) {
-  const v = String(raw == null ? '' : raw).trim().replace(/^@+/, '');
-  if (!v) return null;
-  return /^[A-Za-z0-9_-]{1,30}$/.test(v) ? v : false;
+function takeFirstVisit(personId) {
+  const at = firstVisits.get(personId);
+  firstVisits.delete(personId);
+  return !!at && Date.now() - at < FIRST_VISIT_MS;
 }
 
 function meView(req) {
   return {
     person: req.person ? { ...req.person, photoUrl: photoUrlFor(req.person), isAdmin: isAdmin(req) } : null,
-    unlockedMovieIds: Array.from(req.unlocked)
+    unlockedMovieIds: Array.from(req.unlocked),
+    firstVisit: !!req.firstVisit
   };
 }
 
-// The cropped photo the welcome page makes is a few dozen KB; this is
-// only a ceiling.
-const photoUpload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 3 * 1024 * 1024 },
-  fileFilter(req, file, cb) {
-    cb(null, ['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype));
-  }
-});
-
-app.get('/api/me', attachDevice(false), (req, res) => {
-  res.json(meView(req));
-});
-
-// ---------------- Passkeys ----------------
-
-const PASSKEY_RP_NAME = 'Canopy Tickets';
-const PASSKEY_CEREMONY_MS = 5 * 60 * 1000;
-
-// Passkeys belong to a domain (the "relying party"). Made for
-// canopysf.com, they work on tix.canopysf.com and any other subdomain, so
-// the app can move to another subdomain without everyone starting over.
-// PASSKEY_RP_ID overrides; anywhere else (localhost in development) uses
-// the page's own host. Null when this host can't use passkeys at all.
-//
-// The expected origin is always https outside localhost: browsers only
-// offer passkeys on secure pages, and behind Cloudflare and Coolify's
-// proxy req.protocol may well read http.
-function passkeyRp(req) {
-  const host = String(req.hostname || '').toLowerCase();
-  const rpID = process.env.PASSKEY_RP_ID ||
-    (host === 'canopysf.com' || host.endsWith('.canopysf.com') ? 'canopysf.com' : host);
-  if (!host || (host !== rpID && !host.endsWith('.' + rpID))) return null;
-  const local = host === 'localhost' || host === '127.0.0.1';
-  return { rpID, origin: `${local ? req.protocol : 'https'}://${req.get('host')}` };
-}
-
-function requirePasskeyRp(req, res) {
-  const rp = passkeyRp(req);
-  if (!rp) res.status(400).json({ error: 'passkeys are not available on this address' });
-  return rp;
-}
-
-async function registrationOptions(req, rp, { userId, email, displayName, existing }) {
-  return webauthn.generateRegistrationOptions({
-    rpName: PASSKEY_RP_NAME,
-    rpID: rp.rpID,
-    userID: new TextEncoder().encode(userId),
-    userName: email,
-    userDisplayName: displayName,
-    attestationType: 'none',
-    excludeCredentials: (existing || []).map((k) => ({ id: k.id, transports: k.transports })),
-    // Discoverable, so signing in needs no email: the phone offers the
-    // passkeys it has for this site.
-    authenticatorSelection: { residentKey: 'required', userVerification: 'preferred' }
-  });
-}
-
-// What the sign-in page should open with: the setup password while
-// there's no admin yet (or in recovery), unless this browser already
-// entered it.
-// adminExists false: the sign-in page is only the setup step. True with
-// adminSetup (recovery): a small "Admin setup" link friends can ignore.
-app.get('/api/auth/state', attachDevice(false), (req, res) => {
-  res.json({
-    adminExists: !!store.getAdminPersonId(),
-    adminSetup: adminSetupOpen(),
-    adminSetupGranted: hasAdminSetupGrant(req)
-  });
-});
-
-app.post('/api/auth/admin-setup', attachDevice(true), (req, res) => {
-  if (!adminSetupOpen()) return res.status(409).json({ error: 'there is already an admin', reason: 'closed' });
-  const password = String((req.body || {}).password || '');
-  const outcome = checkMovieGuess(req, req.device.id, 'admin-setup', () => checkPassword(password, ADMIN_PASSWORD));
-  if (outcome !== 'ok') return sendGuessRefusal(res, outcome);
-  store.grantAdminSetup(req.device.id);
-  res.json({ ok: true });
-});
-
-// A passkey just checked out for personId: sign this browser in. On
-// first run (the setup password entered here, no admin yet) they're the
-// admin now; in recovery the admin stays who it was.
-function finishSignIn(req, personId) {
-  const granted = hasAdminSetupGrant(req);
-  store.signInDevice(req.device.id, personId);
-  if (granted) {
-    store.takeAdminSetup(req.device.id);
-    if (!store.getAdminPersonId()) store.setAdminPersonId(personId);
-  }
-  req.person = store.getPerson(personId);
-  req.unlocked = store.personUnlockedMovieIds(personId);
-}
-
-// What's on the other end of an email. 'new': no profile yet. 'setup': a
-// profile with no passkey (first time since passkeys, or reset by the
-// admin) -- takes any movie's password. 'passkey': sign in with it.
-app.post('/api/auth/lookup', attachDevice(true), (req, res) => {
-  if (!accountsOpen(req, res)) return;
-  const email = cleanEmail((req.body || {}).email);
-  if (!email) return res.status(400).json({ error: 'enter a valid email' });
-  const person = store.getPersonByEmail(email);
-  if (!person) return res.json({ state: 'new', email });
-  const state = store.passkeysOf(person.id).length ? 'passkey' : 'setup';
-  // After the setup password, an existing profile can add a passkey with
-  // no movie password -- and even if it has one (a lost phone, in recovery).
-  res.json({ state, email, firstName: person.firstName, canEnroll: canEnrollViaSetup(req, person.id) });
-});
-
-// A new profile: its details wait on this browser until the passkey
-// exists (register/verify creates both). The photo is uploaded after.
-app.post('/api/auth/register/new', attachDevice(true), async (req, res) => {
-  const rp = requirePasskeyRp(req, res);
-  if (!rp || !accountsOpen(req, res)) return;
-  // New profiles are made at Canopy accounts (account.canopysf.com) now,
-  // which tickets will sign in through: one made here would be missing
-  // from there. Only a brand-new install's first admin, after the setup
-  // password, still signs up here.
-  if (!hasAdminSetupGrant(req)) {
-    return res.status(403).json({ error: 'new accounts are made at account.canopysf.com', reason: 'signups_moved' });
-  }
-  const body = req.body || {};
-  const email = cleanEmail(body.email);
-  if (!email) return res.status(400).json({ error: 'enter a valid email' });
-  const names = cleanNames(body);
-  if (names.error) return res.status(400).json({ error: names.error });
-  if (store.getPersonByEmail(email)) return res.status(409).json({ error: 'that email already has a profile', reason: 'conflict' });
-  // Optional; checked now so a bad one is said before the passkey prompt.
-  const venmo = cleanVenmo(body.venmoHandle);
-  if (venmo === false) return res.status(400).json({ error: 'a Venmo username is letters, numbers, - and _ only', reason: 'bad_venmo' });
-  const id = crypto.randomUUID();
-  const options = await registrationOptions(req, rp, {
-    userId: id, email, displayName: `${names.firstName} ${names.lastName}`
-  });
-  store.setPending(req.device.id, {
-    challenge: options.challenge, kind: 'register', profile: { id, email, ...names, venmo }
-  });
-  res.json({ options });
-});
-
-// First passkey for an existing profile: proves membership with the
-// password of any movie (the movie is unlocked for them once the passkey
-// is made).
-app.post('/api/auth/register/setup', attachDevice(true), async (req, res) => {
-  const rp = requirePasskeyRp(req, res);
-  if (!rp || !accountsOpen(req, res)) return;
-  const body = req.body || {};
-  const person = store.getPersonByEmail(cleanEmail(body.email) || '');
-  if (!person) return res.status(404).json({ error: 'not found' });
-  const viaSetup = canEnrollViaSetup(req, person.id);
-  const existing = store.passkeysOf(person.id);
-  if (existing.length && !viaSetup) {
-    return res.status(409).json({ error: 'this profile already has a passkey', reason: 'has_passkey' });
-  }
-  let movie = null;
-  if (!viaSetup) {
-    const password = String(body.moviePassword || '');
-    const outcome = checkMovieGuess(req, req.device.id, 'setup', () => {
-      movie = store.listMovies().find((m) => m.password && checkPassword(password, m.password)) || null;
-      return !!movie;
-    });
-    if (outcome !== 'ok') return sendGuessRefusal(res, outcome);
-  }
-  const options = await registrationOptions(req, rp, {
-    userId: person.id, email: person.email, displayName: `${person.firstName} ${person.lastName}`, existing
-  });
-  store.setPending(req.device.id, {
-    challenge: options.challenge, kind: 'register', personId: person.id,
-    profile: { unlockMovieId: movie ? movie.id : null, viaSetup }
-  });
-  res.json({ options });
-});
-
-app.post('/api/auth/register/verify', attachDevice(true), async (req, res) => {
-  const rp = requirePasskeyRp(req, res);
-  // Checked again here: the setup password may have expired since.
-  if (!rp || !accountsOpen(req, res)) return;
-  const pending = store.takePending(req.device.id);
-  if (!pending || pending.kind !== 'register' || Date.now() - pending.at > PASSKEY_CEREMONY_MS) {
-    return res.status(400).json({ error: 'start again', reason: 'expired' });
-  }
-  let result;
-  try {
-    result = await webauthn.verifyRegistrationResponse({
-      response: (req.body || {}).response,
-      expectedChallenge: pending.challenge,
-      expectedOrigin: rp.origin,
-      expectedRPID: rp.rpID,
-      requireUserVerification: false
-    });
-  } catch (e) {
-    return res.status(400).json({ error: 'that passkey could not be verified', reason: 'not_verified' });
-  }
-  if (!result.verified) return res.status(400).json({ error: 'that passkey could not be verified', reason: 'not_verified' });
-  const cred = {
-    ...result.registrationInfo.credential,
-    deviceType: result.registrationInfo.credentialDeviceType,
-    backedUp: result.registrationInfo.credentialBackedUp
-  };
-
-  let personId;
-  if (pending.personId) {
-    // Someone else may have set one up in the meantime. (After the setup
-    // password, adding another is the point.)
-    const viaSetup = !!(pending.profile && pending.profile.viaSetup) && canEnrollViaSetup(req, pending.personId);
-    if (!viaSetup && store.passkeysOf(pending.personId).length) {
-      return res.status(409).json({ error: 'this profile already has a passkey', reason: 'has_passkey' });
-    }
-    store.addPasskey(pending.personId, cred);
-    personId = pending.personId;
-    if (pending.profile && pending.profile.unlockMovieId) store.unlockMovieForPerson(personId, pending.profile.unlockMovieId);
-  } else if (pending.profile && pending.profile.email) {
-    const made = store.createPersonWithPasskey(pending.profile, cred);
-    if (!made.ok) return res.status(409).json({ error: 'that email already has a profile', reason: 'conflict' });
-    personId = made.person.id;
-  } else {
-    return res.status(400).json({ error: 'start again', reason: 'expired' });
-  }
-  finishSignIn(req, personId);
-  res.status(201).json(meView(req));
-});
-
-// Sign in: no email -- the phone offers whichever passkey it has here.
-app.post('/api/auth/login/options', attachDevice(true), async (req, res) => {
-  const rp = requirePasskeyRp(req, res);
-  if (!rp || !accountsOpen(req, res)) return;
-  const options = await webauthn.generateAuthenticationOptions({ rpID: rp.rpID, userVerification: 'preferred' });
-  store.setPending(req.device.id, { challenge: options.challenge, kind: 'login' });
-  res.json({ options });
-});
-
-app.post('/api/auth/login/verify', attachDevice(true), async (req, res) => {
-  const rp = requirePasskeyRp(req, res);
-  if (!rp || !accountsOpen(req, res)) return;
-  const pending = store.takePending(req.device.id);
-  if (!pending || pending.kind !== 'login' || Date.now() - pending.at > PASSKEY_CEREMONY_MS) {
-    return res.status(400).json({ error: 'start again', reason: 'expired' });
-  }
-  const response = (req.body || {}).response;
-  const passkey = store.getPasskey(response && response.id);
-  // Deleted by a reset, or made for a profile that's since gone.
-  if (!passkey) return res.status(400).json({ error: 'that passkey is no longer linked to a profile', reason: 'unknown_passkey' });
-  let result;
-  try {
-    result = await webauthn.verifyAuthenticationResponse({
-      response,
-      expectedChallenge: pending.challenge,
-      expectedOrigin: rp.origin,
-      expectedRPID: rp.rpID,
-      credential: { id: passkey.id, publicKey: passkey.publicKey, counter: passkey.counter, transports: passkey.transports },
-      requireUserVerification: false
-    });
-  } catch (e) {
-    return res.status(400).json({ error: 'that passkey could not be verified', reason: 'not_verified' });
-  }
-  if (!result.verified) return res.status(400).json({ error: 'that passkey could not be verified', reason: 'not_verified' });
-  store.usePasskey(passkey.id, result.authenticationInfo.newCounter);
-  finishSignIn(req, passkey.personId);
-  res.json(meView(req));
-});
-
-app.patch('/api/profile', attachDevice(false), (req, res) => {
+// Only what's tickets' own. Name, photo and Venmo are changed at the
+// account service (the profile sheet links there).
+app.patch('/api/profile', attachPerson, (req, res) => {
   if (!req.person) return res.status(401).json({ error: 'unauthorized' });
   const body = req.body || {};
-  const names = cleanNames(body);
-  if (names.error) return res.status(400).json({ error: names.error });
-  // Optional, and only touched when sent.
   if (body.peanutAllergy !== undefined && typeof body.peanutAllergy !== 'boolean') {
     return res.status(400).json({ error: 'peanutAllergy must be a boolean' });
   }
-  let venmo;
-  if (body.venmoHandle !== undefined) {
-    venmo = cleanVenmo(body.venmoHandle);
-    if (venmo === false) return res.status(400).json({ error: 'a Venmo username is letters, numbers, - and _ only', reason: 'bad_venmo' });
-  }
-  req.person = store.renamePerson(req.person.id, names.firstName, names.lastName).person;
-  if (venmo !== undefined) req.person = store.setPersonVenmo(req.person.id, venmo);
   if (body.peanutAllergy !== undefined) req.person = store.setPersonPeanutAllergy(req.person.id, body.peanutAllergy);
   res.json(meView(req));
 });
 
-app.post('/api/profile/photo', attachDevice(false), photoUpload.single('photo'), (req, res) => {
-  if (!req.person) return res.status(401).json({ error: 'unauthorized' });
-  if (!req.file) return res.status(400).json({ error: 'choose a photo' });
-  photoStore.save(req.person.id, req.file.buffer);
-  req.person = store.setPersonPhoto(req.person.id, Date.now());
-  res.json(meView(req));
-});
-
-// Signs the person out of this browser. Their unlocks are theirs and go
-// with them.
-app.post('/api/signout', attachDevice(false), (req, res) => {
-  if (req.device) store.setDevicePerson(req.device.id, null);
-  res.json({ ok: true });
-});
-
-// Photos are for signed-in friends and the host, not the open web.
-app.get('/photo/:personId', attachDevice(false), (req, res) => {
-  if (!req.person) return res.status(404).end();
-  let file = null;
-  try { file = photoStore.pathFor(req.params.personId); } catch (e) {}
-  if (!file) return res.status(404).end();
-  res.set('Content-Type', 'image/jpeg');
-  res.set('Cache-Control', 'private, max-age=86400');
-  res.sendFile(file);
-});
-
 // ---------------- Public API (signed-in friends) ----------------
 
-app.use('/api/public', attachDevice(false), (req, res, next) => {
+app.use('/api/public', attachPerson, (req, res, next) => {
   if (!req.person) return res.status(401).json({ error: 'unauthorized' });
   next();
 });
@@ -1199,11 +863,18 @@ app.get('/api/public/config', (req, res) => {
   res.json({
     venmoHandle: venmoHandleStore.get(),
     cashappHandle: cashappHandleStore.get(),
-    concessionTaxRate: CONCESSION_TAX_RATE
+    concessionTaxRate: CONCESSION_TAX_RATE,
+    // Where name, photo and Venmo are changed (the profile sheet's link).
+    accountUrl: CANOPY_ACCOUNT_URL
   });
 });
 
-app.get('/api/public/me', (req, res) => res.json(meView(req)));
+// firstVisit: their row was made on this request or the page load just
+// before it (see rememberFirstVisit). Reported once.
+app.get('/api/public/me', (req, res) => {
+  if (takeFirstVisit(req.person.id)) req.firstVisit = true;
+  res.json(meView(req));
+});
 
 // Every movie with something scheduled, locked or not -- a locked one is
 // its poster and title and nothing else.
@@ -1806,26 +1477,73 @@ app.get('/api/amc-test', requireAdmin, async (req, res) => {
 
 // ---------------- Pages ----------------
 //
-// / is where everyone signs in, the admin included (and the first-run
-// setup password): the reservation page for a browser someone's signed in
-// on, otherwise the welcome page. /admin is just a shortcut to the editor
-// for the admin's session; anyone else is sent to /.
+// / is the reservation page for anyone signed in to Canopy accounts, the
+// admin included. /admin is the editor, for the admin. Signing in happens
+// at the account service, which sends people back here afterwards.
 //
-// admin.html, public.html and welcome.html live outside /public so they
-// can never be fetched directly, bypassing the checks below.
-app.get('/', attachDevice(false), (req, res) => {
+// admin.html and public.html live outside /public so they can never be
+// fetched directly, bypassing the checks below.
+
+function escapeAttr(value) {
+  return String(value).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Signed out: a page that only sends the browser on to sign in, and back
+// to the page they asked for afterwards. Not a bare redirect, because this is what a
+// link-preview crawler gets for the shared link (it never has a cookie),
+// and the Open Graph tags have to be in it. The refresh is for a browser
+// with scripts off. The few words on it are here rather than in
+// public/copy.js: no page that loads copy.js is involved.
+//
+// With no CANOPY_ACCOUNT_KEY it can't send anyone anywhere: they'd come
+// back still signed out and go round in circles. It says so instead.
+function sendSignedOutPage(req, res) {
+  const signIn = CANOPY_ACCOUNT_KEY ? canopy.signInUrl(req) : null;
+  const body = signIn
+    ? `<p><a href="${escapeAttr(signIn)}">Sign in with your Canopy account</a></p>` +
+      `<script>location.replace(${JSON.stringify(signIn).replace(/</g, '\\u003c')});</script>`
+    : "<p>Signing in isn't working here right now. Try again later.</p>";
+  res.set('Content-Type', 'text/html; charset=utf-8');
+  res.set('Cache-Control', 'no-store');
+  res.send(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Canopy Tickets</title>
+  ${buildOgTags(req)}
+  ${signIn ? `<meta http-equiv="refresh" content="0;url=${escapeAttr(signIn)}">` : ''}
+  <style>
+    body{margin:0;background:#0b0b0c;color:#9a9a9a;font-family:-apple-system,BlinkMacSystemFont,sans-serif;text-align:center;padding:60px 20px;}
+    a{color:#c9a24b;}
+  </style>
+</head>
+<body>
+  ${body}
+</body>
+</html>`);
+}
+
+app.get('/', attachPerson, (req, res) => {
   if (req.person) {
     return renderHtmlPage(res, req, path.join(__dirname, 'views', 'public.html'));
   }
-  // The signed-out case is the one that actually matters for link
-  // previews: a crawler hitting the shared URL never has a cookie, so
-  // this is the response it sees.
-  renderHtmlPage(res, req, path.join(__dirname, 'views', 'welcome.html'));
+  sendSignedOutPage(req, res);
 });
 
-app.get('/admin', attachDevice(false), (req, res) => {
+// Signed in as someone else: back to the reservation page. Signed out:
+// sign in, then straight back here.
+app.get('/admin', attachPerson, (req, res) => {
   if (isAdmin(req)) return renderHtmlPage(res, req, path.join(__dirname, 'views', 'admin.html'));
-  res.redirect('/');
+  if (req.person) return res.redirect('/');
+  sendSignedOutPage(req, res);
+});
+
+// "Sign out" on the pages links here. Signing out is the account
+// service's: it signs this browser out of every Canopy site, then comes
+// back to /, which sends them on to sign in again.
+app.get('/signout', (req, res) => {
+  res.redirect(canopy.signOutUrl(req));
 });
 
 // /reserve was the old dedicated friend-facing URL -- keep it working as
@@ -1851,9 +1569,9 @@ function mountImageRoutes(urlName, imageStore) {
     res.json({ ok: true, uploadedAt: meta.uploadedAt, url: `/${urlName}?v=${meta.uploadedAt}` });
   });
 
-  // No auth -- the login page shows the logo (and link-preview crawlers
-  // fetch the OG image) with no session, so both have to be reachable by
-  // anyone.
+  // No auth -- link-preview crawlers fetch the OG image with no
+  // session, and the logo is no more private than that, so both are
+  // reachable by anyone.
   app.get(`/${urlName}`, (req, res) => {
     const meta = imageStore.getMeta();
     if (!meta) return res.status(404).end();

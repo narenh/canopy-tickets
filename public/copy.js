@@ -21,57 +21,6 @@
 //   * Anything only a developer sees (thrown errors, console output).
 const COPY = {
 
-  // ---------------- LOGIN (the host's, at /admin) ----------------
-  login: {
-    adminTagline: 'Enter the admin password to manage showtimes.',
-    wrongPassword: 'Wrong password.',
-    failed: 'Something went wrong. Try again.',
-    unreachable: 'Could not reach the server. Try again.'
-  },
-
-  // ---------------- WELCOME (friends signing in, at /) ----------------
-  welcome: {
-    tagline: 'Sign in with your passkey, or enter your email to get started.',
-    // First run: the setup password is ADMIN_PASSWORD from the server's settings.
-    adminSetupHeading: 'Set up your admin account',
-    adminSetupHint: 'Enter the setup password to set up your admin account.',
-    adminSetupLink: 'Admin setup',
-    back: 'Back',
-    wrongSetupPassword: "That isn't the setup password.",
-    taglineAdmin: 'Now sign in with your passkey, or enter your email to create your profile. That account becomes the admin.',
-    setupHintAdmin: 'Save a passkey on this phone to finish setting up your admin account.',
-    newPasskey: 'Set up a new passkey',
-    signIn: 'Sign in with passkey',
-    or: 'or',
-    continueEmail: 'Continue with email',
-    signUpHint: "Next, your phone will offer to save a passkey for Canopy Tickets. That's how you'll sign in.",
-    welcomeBack: 'Welcome back, {name}',
-    setupHint: "Sign-in now uses passkeys. Enter the password for any movie you've been invited to, then save a passkey on this phone.",
-    setupButton: 'Continue',
-    hasPasskeyHint: 'This profile already has a passkey. Sign in with it below. Lost it? Ask the host to reset it.',
-    wrongMoviePassword: "That isn't the password for any movie.",
-    tooMany: 'Too many tries. Wait a few minutes.',
-    passkeyExists: 'This phone already has a passkey for that profile. Sign in with it instead.',
-    hasPasskeyNow: 'This profile already has a passkey. Go back and sign in with it.',
-    unknownPasskey: "That passkey isn't linked to a profile anymore. Continue with your email to set up a new one.",
-    expired: 'That took too long. Try again.',
-    noPasskeys: "This browser can't use passkeys. Open this page in Safari or Chrome.",
-    badEmail: "That doesn't look like an email address.",
-    failed: 'Something went wrong. Try again.',
-    unreachable: 'Could not reach the server. Try again.',
-    profileHeading: 'Create Profile',
-    cropHint: 'Pinch and drag to fit your face in the circle.',
-    photoLoading: 'Loading photo… (one stored in iCloud can take a moment)',
-    photoUnreadable: "Couldn't open that photo. If it's stored in iCloud, open it in Photos so it downloads, then try again — or pick another.",
-    photoRequired: 'A profile picture is required.',
-    nameRequired: 'Enter your first and last name.',
-    emailTaken: 'That email already has a profile. Go back and continue with it.',
-    // A new email: accounts are made at Canopy accounts now.
-    signupsMovedHeading: 'New to Canopy?',
-    signupsMovedHint: "New accounts are made at account.canopysf.com now. Make yours there; Canopy Tickets will be using it soon.",
-    signupsMovedButton: 'Make a Canopy account'
-  },
-
   // ---------------- RESERVATION PAGE (what friends see) ----------------
   friend: {
     // Above the All Movies grid.
@@ -225,8 +174,8 @@ const COPY = {
 
     profile: {
       heading: 'Edit profile',
-      venmoPlaceholder: 'Venmo username',
-      badVenmo: 'A Venmo username is letters, numbers, - and _ only.',
+      // Links to the Canopy account's profile page, where these live.
+      accountLink: 'Edit your name, photo and Venmo at your Canopy account',
       peanutAllergy: 'Peanut allergy',
       peanutHint: 'Peanut items will be hidden for adjacent seats.',
       failed: "Couldn't save. Try again."
@@ -352,18 +301,14 @@ const COPY = {
     },
 
     people: {
-      none: 'Nobody has set up a profile yet.',
+      none: 'Nobody has signed in yet.',
       loadFailed: 'Could not load people. Try again.',
       seatsOne: '{count} Reservation',
       seatsMany: '{count} Reservations',
-      deleteConfirm: 'Delete {name} ({email})? Their seats stay reserved under the same names; they just stop being linked to a profile.',
-      noPasskey: 'No Passkey',
-      passkeysOne: '{count} Passkey',
-      passkeysMany: '{count} Passkeys',
-      resetPasskeys: 'Reset passkeys',
-      resetConfirm: "Reset {name}'s passkeys? They'll be signed out everywhere and set up a new passkey with any movie's password, like the first time.",
       // On the admin's own row (you; also the host, whose seats owe nothing).
-      adminTag: 'Admin'
+      adminTag: 'Admin',
+      // Their Canopy account has been deleted. Their seats stay theirs.
+      formerTag: 'Former member'
     },
 
     // The pill at the bottom of a showtime while it saves.
@@ -458,7 +403,7 @@ const COPY = {
 
     payBlurb: "Shown as pay buttons to friends right after they claim a seat. Fill in either, both, or neither -- a button only shows up for the one(s) you've set.",
     ogBlurb: "Shown when this site's link is shared in iMessage, Facebook, Instagram, etc.",
-    logoBlurb: 'Shown on the login screen and at the top of this and the reservation page. PNG with a transparent background works best.',
+    logoBlurb: 'Shown at the top of this and the reservation page. PNG with a transparent background works best.',
 
     deleteConfirm: 'Delete this showtime? This cannot be undone.',
     deleteFailed: 'Could not delete. Try again.',
@@ -469,8 +414,8 @@ const COPY = {
     auditoriumUnnamed: 'Auditorium {number}'
   },
 
-  // Shown on both pages when the session is gone and bouncing to the
-  // login screen has already been tried once.
+  // Shown on both pages when you've been signed out and sending you to
+  // sign in again has already been tried once.
   sessionTrouble: 'Session trouble &mdash; <a href="{home}" style="color:#c9a24b;">click here to sign in again</a>.'
 };
 

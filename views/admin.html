@@ -234,38 +234,9 @@
     padding:1px 7px;
   }
   .person-meta{color:var(--muted);font-size:12.5px;margin-top:3px;overflow-wrap:anywhere;}
-  .person-edit{margin-top:10px;}
-  .person-edit-row{display:flex;gap:8px;margin-bottom:8px;}
-  .person-edit-row input{
-    flex:1;
-    min-width:0;
-    background:#0f0f10;
-    color:#fff;
-    border:1px solid #3a3a3a;
-    border-radius:10px;
-    padding:8px 10px;
-    font-size:16px;
-  }
-  .person-edit-actions{display:flex;gap:8px;flex-wrap:wrap;}
-  /* A quiet "more" (three dots) rather than a full button: it only opens
-     the row's editing. */
-  .person-row .pe-open{
-    flex:0 0 auto;
-    width:32px;
-    height:32px;
-    margin:-4px -4px 0 0;
-    padding:0;
-    background:none;
-    border:none;
-    border-radius:50%;
-    color:var(--muted);
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    cursor:pointer;
-  }
-  .person-row .pe-open:hover{background:#222226;color:#ddd;}
-  .person-row .pe-open svg{width:18px;height:18px;display:block;}
+  /* Their Canopy account is gone; the row stays for their seats. */
+  .host-tag.former-tag{color:#ddd;background:#3a3a3e;}
+  .person-row.former .person-name{color:#aaa;}
   .person-email{color:#bbb;font-size:13px;margin-top:2px;overflow-wrap:anywhere;}
   /* Only takes room when it has something to say (a rename's result). */
   #movieTitleStatus{min-height:0;margin-top:4px;}
@@ -1111,8 +1082,8 @@
         <!-- LOGO_IMG -->
         <h1>Ticket Manager</h1>
       </div>
-      <!-- Signed in as yourself with your passkey -- signing out is on the
-           friend side's menu. This just goes back there. -->
+      <!-- Signed in with your Canopy account -- signing out is on the
+           friend side's menu (/signout). This just goes back there. -->
       <a class="logout-link" href="/" data-copy="admin.backToApp"></a>
     </div>
     <nav class="tabs">
@@ -1507,10 +1478,10 @@ function normalizeSeats(rawSeats){
   return out;
 }
 
-// Bouncing to '/admin' on a 401 is normally a one-shot fix (session expired,
-// go log in again). But if the page we land on still thinks we're
-// authed while the API disagrees (e.g. right after a redeploy handed out
-// a new session secret), that bounce repeats forever. Refuse to redirect
+// Bouncing to '/admin' on a 401 is normally a one-shot fix (signed out,
+// so /admin sends you on to sign in and back). But if the page we land on
+// still thinks we're signed in while the API disagrees, that bounce
+// repeats forever. Refuse to redirect
 // more than once in a few seconds -- show a manual link instead of
 // hammering the server or the browser's redirect-loop detector.
 function handleAuthFailure(res){
@@ -1897,88 +1868,29 @@ async function loadPeople(){
   }
 }
 
-// One person: photo, full name, email, then reservations and passkeys.
-// The three dots open the name fields and actions in place.
+// One person: photo, full name, email, then reservations. Read-only:
+// names, photos and accounts are changed at the account service, and
+// this list is for seat assignment.
 function buildPersonRow(p){
   const row = document.createElement('div');
-  row.className = 'person-row';
+  row.className = 'person-row' + (p.former ? ' former' : '');
   const photo = p.photoUrl ? '<img class="person-photo" src="' + escapeHtml(p.photoUrl) + '" alt="">' : '<div class="person-photo"></div>';
   row.innerHTML = photo +
-    '<div class="person-main"><div class="person-name"></div><div class="person-email"></div><div class="person-meta"></div>' +
-    '<div class="person-edit hidden"><div class="person-edit-row">' +
-    '<input type="text" class="pe-first" maxlength="60" placeholder="First name">' +
-    '<input type="text" class="pe-last" maxlength="60" placeholder="Last name"></div>' +
-    '<div class="person-edit-actions"><button type="button" class="pe-save">Save</button>' +
-    '<button type="button" class="pe-cancel">Cancel</button>' +
-    '<button type="button" class="pe-reset"></button>' +
-    '<button type="button" class="delete-btn pe-delete">Delete</button></div>' +
-    '<div class="og-status pe-status"></div></div></div>' +
-    '<button type="button" class="pe-open" aria-label="Edit"><svg viewBox="0 0 24 24" aria-hidden="true">' +
-    '<circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor"/><circle cx="19" cy="12" r="2" fill="currentColor"/></svg></button>';
-  // The admin (you): tagged, and neither deletable nor resettable from
-  // here -- either would lock you out. A lost passkey is ADMIN_RECOVERY.
-  const isAdmin = p.id === adminPersonId;
-  row.querySelector('.person-name').textContent = p.firstName + ' ' + p.lastName;
-  if (isAdmin){
+    '<div class="person-main"><div class="person-name"></div><div class="person-email"></div><div class="person-meta"></div></div>';
+  const name = row.querySelector('.person-name');
+  name.textContent = p.firstName + ' ' + p.lastName;
+  const tags = [];
+  if (p.id === adminPersonId) tags.push(['host-tag', t('admin.people.adminTag')]);
+  if (p.former) tags.push(['host-tag former-tag', t('admin.people.formerTag')]);
+  tags.forEach(([cls, text]) => {
     const tag = document.createElement('span');
-    tag.className = 'host-tag';
-    tag.textContent = t('admin.people.adminTag');
-    row.querySelector('.person-name').appendChild(tag);
-    row.querySelector('.pe-delete').classList.add('hidden');
-  }
-  // Lost phone: their passkeys go and they set up a new one with any
-  // movie's password. Nothing to reset for someone who has none.
-  const resetBtn = row.querySelector('.pe-reset');
-  resetBtn.textContent = t('admin.people.resetPasskeys');
-  resetBtn.classList.toggle('hidden', !p.passkeyCount || isAdmin);
-  resetBtn.addEventListener('click', async () => {
-    if (!confirm(t('admin.people.resetConfirm', { name: p.firstName + ' ' + p.lastName }))) return;
-    try{
-      const res = await fetch('/api/people/' + encodeURIComponent(p.id) + '/reset-passkeys', { method: 'POST' });
-      if (await handleAuthFailure(res)) return;
-      if (!res.ok) throw new Error('failed');
-    }catch(e){
-      alert(t('admin.status.saveFailed'));
-    }
-    loadPeople();
+    tag.className = cls;
+    tag.textContent = text;
+    name.appendChild(tag);
   });
   row.querySelector('.person-email').textContent = p.email;
-  row.querySelector('.person-meta').textContent = [
-    t(p.seatCount === 1 ? 'admin.people.seatsOne' : 'admin.people.seatsMany', { count: p.seatCount }),
-    t(p.passkeyCount ? (p.passkeyCount === 1 ? 'admin.people.passkeysOne' : 'admin.people.passkeysMany') : 'admin.people.noPasskey', { count: p.passkeyCount })
-  ].join(' \u00b7 ');
-  const edit = row.querySelector('.person-edit');
-  row.querySelector('.pe-first').value = p.firstName;
-  row.querySelector('.pe-last').value = p.lastName;
-  row.querySelector('.pe-open').addEventListener('click', () => edit.classList.toggle('hidden'));
-  row.querySelector('.pe-cancel').addEventListener('click', () => edit.classList.add('hidden'));
-  row.querySelector('.pe-save').addEventListener('click', async () => {
-    const statusEl = row.querySelector('.pe-status');
-    statusEl.textContent = t('admin.status.saving');
-    try{
-      const res = await fetch('/api/people/' + encodeURIComponent(p.id), {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ firstName: row.querySelector('.pe-first').value, lastName: row.querySelector('.pe-last').value })
-      });
-      if (await handleAuthFailure(res)) return;
-      if (!res.ok){ statusEl.textContent = t('admin.status.saveFailed'); return; }
-      loadPeople();
-    }catch(e){
-      statusEl.textContent = t('admin.status.saveFailed');
-    }
-  });
-  row.querySelector('.pe-delete').addEventListener('click', async () => {
-    if (!confirm(t('admin.people.deleteConfirm', { name: p.firstName + ' ' + p.lastName, email: p.email }))) return;
-    try{
-      const res = await fetch('/api/people/' + encodeURIComponent(p.id), { method: 'DELETE' });
-      if (await handleAuthFailure(res)) return;
-      if (!res.ok) throw new Error('failed');
-      loadPeople();
-    }catch(e){
-      alert(t('admin.deleteFailed'));
-    }
-  });
+  row.querySelector('.person-meta').textContent =
+    t(p.seatCount === 1 ? 'admin.people.seatsOne' : 'admin.people.seatsMany', { count: p.seatCount });
   return row;
 }
 

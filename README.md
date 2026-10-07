@@ -3,16 +3,18 @@
 A small tool for tracking AMC seat blocks you've bought so friends can
 claim seats.
 
-- Sign in at **`/`** with your passkey and **Manage** (or `/admin`) opens the editor — add
+- Everyone signs in with their **Canopy account**
+  (`account.canopysf.com`), the same one every Canopy site uses: see
+  "Signing in" below. Signed in as the admin, **Manage** (or `/admin`)
+  opens the editor — add
   movies and their showtimes, pick which seats you actually bought on a
   real AMC seat map, give each movie a password, assign seats to specific
   friends, and mark them paid. Friends can mark themselves paid too, for
   tickets and concessions alike.
-- At **`/`**, friends sign in with their **email**. A new email sets up a
-  profile: first and last name and a photo, all required (friends see
-  each other as "Matt G"). Then two tabs: **My Showtimes** (their seats,
-  and guests they booked) and **All Movies**. A movie is locked until its
-  **password** is typed in, once per phone; after that they see its
+- At **`/`**, friends get two tabs: **My Showtimes** (their seats,
+  and guests they booked) and **All Movies**. Friends see each other as
+  "Matt G", with the name and photo from their Canopy account. A movie is locked until its
+  **password** is typed in, once per person; after that they see its
   showtimes, pick an open seat off a seat map, reserve it for themselves
   or for someone they're bringing, and get a one-tap Venmo and/or Cash App
   link pre-filled with the price (whichever you've set up — see "Payment
@@ -24,9 +26,9 @@ claim seats.
   pay link then covers the ticket and the snacks together, and the editor
   gives you a summed shopping list to take to the counter.
 
-The domain root is the only link you hand out, and everyone — you
-included — signs in there. See "Friends: sign-in and movie passwords"
-and "The admin" below.
+The domain root is the only link you hand out. Someone who isn't signed
+in is sent to `account.canopysf.com` to sign in (or make an account),
+and comes straight back. See "Signing in" and "The admin" below.
 
 **Seat maps currently only cover AMC Metreon (San Francisco) — IMAX
 (Auditorium 16) and Dolby Cinema (Auditorium 13).** Other screens/theaters
@@ -38,12 +40,13 @@ files and images (see "Storage & backups" below).
 
 ## How it works
 
-- `server.js` — Express app: passkey sign-in (friends and the admin
-  alike), first-run admin setup (`ADMIN_PASSWORD`), profiles and photos,
-  per-movie unlocks, and the JSON
-  APIs for both sides. `GET /` serves the reservation page to a browser
-  someone's signed in on and the sign-in page to anyone else; `GET /admin`
-  serves the editor to the admin's session and redirects anyone else to `/`.
+- `server.js` — Express app: who's signed in (`attachPerson`, asking
+  Canopy accounts), the Origin check, per-movie unlocks, and the JSON
+  APIs for both sides. `GET /` serves the reservation page to someone
+  signed in, and anyone else a tiny page that sends them on to sign in;
+  `GET /admin` serves the editor to the admin, sends anyone else signed in
+  to `/`, and anyone signed out to sign in and back. `GET /signout` hands
+  over to the account service's sign-out.
 - `lib/store.js` — persistence: movies, showtimes, seats and people live
   in one SQLite file, `data/canopy.db` (`lib/sqliteStore.js`; see
   "Storage & backups" below). `claimSeat` does the friend-facing claim in one
@@ -54,10 +57,9 @@ files and images (see "Storage & backups" below).
   (`"amc-metreon-16"`) via a fallback in `server.js` if unset.
   `setSeatConcessions` does the same read-check-write dance for a friend
   editing a reserved seat's concession order.
-- `lib/deviceAuth.js` — the friend side's cookie: a signed id for this
-  browser, good for a year from the last visit.
-- `lib/photoStore.js` — profile photos (already cropped to 512px by the
-  browser), served only to signed-in friends and the host.
+- `lib/canopyAccount.js` — the account service's
+  `client/canopy-account.js`, copied in unchanged apart from its header
+  comment. To update it, copy that file in again.
 - `lib/concessionMenu.js` — persistence for the concession menu: one
   global list of `{id, name, price, note, optionGroup}` plus the option
   groups items choose from (see "Concessions" below for why it isn't per
@@ -102,8 +104,9 @@ files and images (see "Storage & backups" below).
   (rename in place), poster (tap to replace) and showtimes; a showtime
   opens the seat-map editor, which also shows what friends have ordered,
   per seat plus a summed shopping list. **Food & Drink**: the concessions menu
-  editor. **People**: everyone who's set up a profile (fix a name, delete a
-  typo'd one). **Settings**: payment handles, logo and link-preview image.
+  editor. **People**: everyone who's signed in here, for seat assignment
+  (photo, name, email, reservations), with anyone whose Canopy account is
+  gone marked **Former member**. **Settings**: payment handles, logo and link-preview image.
   A movie's page also has its password, which saves as you type. The screen is in the URL hash (`#/movie/<id>`,
   `#/showtime/<id>`, ...), so back and reload work. There's no Save
   button on a showtime: each field and each seat saves as it's changed,
@@ -127,9 +130,6 @@ files and images (see "Storage & backups" below).
   not part of the block. Your own reserved seats (and your
   guests') on the list are also the way into that seat's concession cart
   (see "Concessions" below); other people's are just who's sitting there.
-- `views/welcome.html` — the friend door: email, and for a new one, name
-  and photo. `public/photo-crop.js` frames the photo (Cropper.js 1.x,
-  vendored in `public/vendor/`).
 - `public/copy.js` — every sentence the app says, in one object. See
   "Editing the copy" below.
 
@@ -158,35 +158,91 @@ Three things are deliberately *not* in there: one- and two-word button
 labels (Save, Close, Edit, Reserve, Skip), which read better next to the
 buttons they name; the concessions menu, which is data — edit it in the
 menu editor, or `lib/concessionMenu.js` for the built-in list it starts
-from; and anything only a developer sees.
+from; and anything only a developer sees. The one other page, the
+few words a signed-out visitor sees for a moment on the way to sign in,
+is in `sendSignedOutPage()` in `server.js`.
 
-## Friends: sign-in and movie passwords
+## Signing in
 
-**Friends sign in with a passkey** (Face ID / Touch ID / the phone's
-screen lock) — no friend passwords to store, guess or forget. Passkeys are
-made for `canopysf.com` (override with `PASSKEY_RP_ID`), so they keep
-working if the app moves to another subdomain; on any other host
-(localhost in development) they're made for that host. The server keeps
-only each passkey's public key (`passkeys` table); the browser half is
-SimpleWebAuthn, vendored in `public/vendor/simplewebauthn-browser-*`.
+**Tickets has no sign-in of its own.** People, passkeys, sign-in and
+sign-out, and everyone's name, photo and Venmo belong to the Canopy
+account service at `https://account.canopysf.com` (its own repo,
+`canopy-account-service`). Its cookie, `canopy_session`, is set for all of
+`canopysf.com`, so the browser sends it to `tix.canopysf.com` too, and
+tickets asks the account service, server to server, who it belongs to
+(`lib/canopyAccount.js`).
 
-- **Sign in:** "Sign in with passkey" — no email; the phone offers the
-  passkey it has for the site. iCloud Keychain / Google Password Manager
-  sync it to the person's other devices.
-- **New email:** first and last name and a photo (all required), then the
-  phone saves a passkey. The profile is only created once the passkey
-  exists.
-- **Existing profile with no passkey** (everyone, the first time after
-  passkeys arrived, or after a reset): the password of **any** movie, then
-  the passkey. That movie gets unlocked for them too.
-- **Profile that already has a passkey:** only the passkey gets in. A lost
-  phone (or a switch to a phone that doesn't have it) is **Reset passkeys**
-  in the admin's People tab: their passkeys are deleted, they're signed
-  out everywhere, and they set up again with any movie's password.
+- **Signed out**, `/` (or any page) sends the browser to
+  `account.canopysf.com` with `?return=` back here. The page that does
+  that is a few lines of HTML rather than a bare redirect, because it's
+  also what a link-preview crawler gets, and it carries the Open Graph
+  tags (see "Link-preview image & logo").
+- **Signing in or signing up** happens there: a passkey (Face ID / Touch
+  ID / the phone's screen lock), or an email and a 6-digit code. A new
+  email makes an account there, with name, photo and an optional Venmo.
+  Then the browser comes straight back to tickets.
+- **Sign out** in the profile menu goes to `/signout`, which hands over to
+  the account service's sign-out. That signs the browser out of every
+  Canopy site, then comes back to `/`, which sends them on to sign in.
+- **Same ids.** Everyone in tickets was imported into the account service
+  with the id they had here, so tickets' `people` rows, seats, unlocks
+  and favorites all still line up. Tickets keeps its `people` row for each
+  person as its own record (see `syncPerson` in `lib/sqliteStore.js`).
+  On each visit it's brought up to date from the account: a new Canopy
+  member gets a row, and a new email, name, photo or Venmo is copied in.
+  A rename keeps the old rule: their own seats follow it, guests' seats
+  keep the guest's name.
+- **Changes show on tickets the next time that person visits tickets.**
+  The account service's answer for each visitor is cached for **60
+  seconds**, so a new name or photo (or a sign-out elsewhere) can take up
+  to a minute to show here. If the account service can't be reached, a
+  cached answer up to 15 minutes old stands in; past that, pages answer
+  503 "Canopy accounts could not be reached".
+- **Photos load straight from the account service**:
+  `https://account.canopysf.com/photo/<id>?v=<photo time>` in an `<img>`.
+  The browser sends the account cookie along, because it counts
+  `account.canopysf.com` as the same site as `tix.canopysf.com`, so
+  tickets never fetches or stores a photo itself.
+- **Nobody is ever deleted here.** Someone deleted at the account service
+  is a former member: their row, seats and history stay, and the admin's
+  People tab marks them.
 
-Once signed in, the session is the browser's device cookie (a year from
-the last visit). Your profile — name, photo, optional Venmo username —
-is yours to edit whenever you're signed in.
+**What you'll need for it:** two settings, `CANOPY_ACCOUNT_URL` (default
+`https://account.canopysf.com`) and `CANOPY_ACCOUNT_KEY`, this site's key
+from the account admin's **Sites** tab (site name `tickets`). Without the
+key, the server logs a loud warning at startup and treats everyone as
+signed out; the page says signing in isn't working rather than sending
+people round in circles.
+
+**The Origin check.** The account cookie goes to every `*.canopysf.com`
+site, so on its own it can't tell a request from tickets' pages from one
+made by a page on another Canopy subdomain. So anything here that
+changes something (not GET, HEAD or OPTIONS) has to carry an `Origin`
+header for tickets' own address (`https://tix.canopysf.com`, worked out
+from the request, with `trust proxy` on), or it's refused with a 403
+(`"reason": "bad_origin"`). Browsers send `Origin` on every POST, PUT,
+PATCH and DELETE, and the pages' fetches are all relative URLs, so tickets'
+own pages always pass. The calendar feed is a GET and stays cookie-less.
+
+**The profile sheet** (Edit profile in the menu under your photo) shows
+your name, photo and email, links to **Edit your name, photo and Venmo at
+your Canopy account** (`account.canopysf.com/profile`), and has the one
+setting that's tickets' own: **Peanut allergy**.
+
+**After the switch, everyone signs in once more**, at
+`account.canopysf.com`, with the same passkey they already had for
+tickets (one tap: passkeys belong to `canopysf.com`, not to either site).
+Tickets' old sign-in cookie does nothing any more. Someone who never made
+a passkey here, or whose phone doesn't have it, uses their email and a
+code there instead.
+
+**What's left of tickets' old sign-in.** The `devices` and `passkeys`
+tables are still in `canopy.db`, unread and unwritten. They weren't
+dropped and the schema version didn't change, so nothing about the
+switch is irreversible. Profile photos tickets used to store are still in
+`DATA_DIR/photos/` on the volume too, and nothing reads them either.
+
+## Movie passwords
 
 **Movie passwords** gate everything inside a movie:
 
@@ -202,8 +258,8 @@ is yours to edit whenever you're signed in.
 - **Claiming a seat reserved before profiles always takes that movie's
   password, typed in the claim itself**, even if it's unlocked. Seats
   picked across several movies ask for one password at a time.
-- **Wrong movie passwords are limited**: 8 tries per movie per person (or
-  browser, for first-time setup), 40 per network address, per 15 minutes,
+- **Wrong movie passwords are limited**: 8 tries per movie per person,
+  40 per network address, per 15 minutes,
   and 100 per movie per hour across everyone, as a backstop. The address
   is Cloudflare's `CF-Connecting-IP` when present — `X-Forwarded-For`
   keeps whatever the visitor sent first, so it can't be trusted for this.
@@ -212,40 +268,36 @@ A movie without a password can't be unlocked by anyone; the admin's
 movie grid flags those. Changing a movie's password doesn't re-lock
 people who already unlocked it.
 
-Unlocks belong to the account, not the browser: a friend types each
-movie's password once. After setting up a new profile, a friend is
-offered the seats reserved under their name before profiles existed
-("Are any of these yours?"); the same list is under **Claim existing
-seats** later.
+Unlocks belong to the person, not the browser: a friend types each
+movie's password once. On their first visit to tickets as a Canopy
+member (tickets made their row just now, and `/api/public/me` says
+`firstVisit` once), a friend is offered the seats reserved under their
+name before profiles existed ("Are any of these yours?"); the same list
+is under **Claim existing seats** later.
 
 Tapping your photo in the header opens a menu: **Edit profile**,
 **Calendar feed**, **Claim existing seats**, **Sign out**.
 
 ## The admin
 
-The admin is a profile like any friend's — same passkey, same sign-in —
-marked in `meta` as `admin_person_id`. Everyone signs in at `/`;
-signed in as the admin, the tab bar has **Manage** at its right end, and
-`/admin` is just a shortcut to it (anyone else is sent to `/`). The admin
-is also the host (below).
+The admin is a person like any friend, with the same Canopy account and
+the same sign-in, marked in `meta` as `admin_person_id`. That's the same
+id as the account service's admin. Signed in as the admin, the tab bar
+has **Manage** at its right end, and `/admin` is a shortcut to it
+(anyone else signed in is sent to `/`, and anyone signed out to sign in
+and back). The admin is also the host (below).
 
-- **There is never an account without an admin.** On a brand-new
-  install the sign-in page at `/` is only "Enter the setup password to
-  set up your admin account" (`ADMIN_PASSWORD`), and the server refuses
-  every other sign-up and sign-in until it's been entered. Whoever then
-  signs up on that browser, within 15 minutes, is the admin and lands in
-  the editor.
-- **After that** the setup password does nothing: there's no password
-  login to the editor at all.
-- **Lost your passkey?** Set `ADMIN_RECOVERY=1` in the server's settings
-  and redeploy. The sign-in page shows a small **Admin setup** link; after
-  the setup password, your email offers **Set up a new passkey**. It only
-  ever adds a passkey to the admin's own profile — it can't make anyone
-  else the admin or get into anyone else's account. Remove the setting afterwards.
-  It takes access to the server's settings, which is the right bar for
-  the keys to everything.
-- In People, the admin's row is tagged **Admin** and can't be deleted or
-  have its passkeys reset from there — either would lock you out.
+- **Accounts aren't managed here.** Renaming someone, resetting a lost
+  passkey, sending a setup link or deleting an account all happen in the
+  account service's admin, at `account.canopysf.com/admin`. Tickets' People
+  tab is only tickets': who's here, for assigning seats, and who's a
+  former member.
+- **A brand-new tickets database** (no `admin_person_id` yet) makes the
+  first person to sign in the admin, and logs who. The live database
+  already has its admin, so this only matters for a fresh install or
+  running locally: sign in first yourself.
+- **A lost passkey** is the account service's business too: an email and
+  a code there makes a new one.
 
 ## Calendar feed
 
@@ -611,8 +663,8 @@ block. An old seat claimed into an account keeps its reservation time.
 
 The admin's Settings tab has two image uploads:
 
-- **Site Logo** — shown on the login screen and at the top of the editor
-  and reservation pages. Assumes a PNG, ideally with a transparent
+- **Site Logo** — shown at the top of the editor and reservation pages.
+  (The sign-in page is the account service's, with its own logo.) Assumes a PNG, ideally with a transparent
   background.
 - **Link Preview Image** — becomes the image shown when the site's link is
   shared in iMessage, Facebook, Instagram, etc. Title/description for that
@@ -626,11 +678,10 @@ A few things worth knowing about how these actually work:
   persistent volume (see below) to survive a redeploy.
 - The Open Graph/Twitter meta tags (for the link-preview image) only
   matter on the page an unauthenticated request sees, because crawlers
-  never carry your login cookie. In practice that's always the login
-  page, and that's exactly where the tags are (also mirrored on the
-  editor/reservation pages for consistency, but that's cosmetic). The
-  logo works the same way -- injected server-side into whichever page a
-  request resolves to.
+  never carry anyone's cookie. In practice that's always the signed-out
+  page that sends people on to sign in, and that's exactly where the tags
+  are (also mirrored on the editor/reservation pages for consistency, but
+  that's cosmetic). The logo is injected server-side the same way.
 - **On caching**: you already know Meta/Apple cache scraped previews per
   URL. There's no way to force that cache to expire from this app's side
   — but both image URLs include `?v=<upload time>`, which changes every
@@ -642,18 +693,35 @@ A few things worth knowing about how these actually work:
 
 ## Running locally
 
+Tickets needs the account service running too (the
+`canopy-account-service` repo). Both on `localhost`, on different ports:
+cookies aren't kept per port, so signing in on one counts on the other,
+and outside production the account service is happy to send people back
+to an `http://localhost` address.
+
 ```bash
+# in canopy-account-service
 npm install
-ADMIN_PASSWORD=whatever npm start
+ADMIN_PASSWORD=whatever PORT=4100 npm start
 ```
 
-Then visit `http://localhost:3000`: enter `ADMIN_PASSWORD` as the
-setup password and set up your profile and passkey — that account is the
-admin. Add a movie and give it a password (and, optionally, set
-Venmo/Cash App handles), then sign up at `http://localhost:3000` in
-another browser to see the friend side. If you don't set
-`ADMIN_PASSWORD`, the server generates a random one and prints it to the
-console on startup.
+Visit `http://localhost:4100`, enter `ADMIN_PASSWORD` as the setup
+password and make the first account (that's its admin). In its admin's
+**Sites** tab, add a site called `tickets` and copy the key. Then:
+
+```bash
+# in canopy-tickets
+npm install
+CANOPY_ACCOUNT_URL=http://localhost:4100 CANOPY_ACCOUNT_KEY=cnp_... npm start
+```
+
+Visit `http://localhost:3000`. You're sent to the account service to sign
+in and straight back. On a new database the first person to sign in is
+tickets' admin, so do that first yourself. Add a movie and give it a
+password (and, optionally, set Venmo/Cash App handles), then make another
+account at `http://localhost:4100` in another browser to see the friend
+side. With no `SMTP_HOST`, the account service prints sign-in codes in
+its own console.
 
 ## Deploying with Docker
 
@@ -666,13 +734,14 @@ on this same `Dockerfile`).
 
 ```bash
 cp .env.example .env
-# edit .env -- at minimum set ADMIN_PASSWORD, ideally SESSION_SECRET too
+# edit .env -- set CANOPY_ACCOUNT_KEY (and CANOPY_ACCOUNT_URL if it isn't
+# https://account.canopysf.com)
 docker compose up -d --build
 ```
 
-Visit `http://localhost:3000`, enter `ADMIN_PASSWORD` as the setup
-password to make your admin account, and add a movie with a password. The `canopy-data` named volume declared in
-`docker-compose.yml` is what persists the database, photos, the
+Visit it, sign in (the first person to sign in on a new database is the
+admin), and add a movie with a password. The `canopy-data` named volume declared in
+`docker-compose.yml` is what persists the database, the
 concessions menu, and uploaded images across restarts and rebuilds — don't remove it (`docker compose down -v` would
 wipe it).
 
@@ -688,8 +757,7 @@ docker build -t canopy-tickets .
 docker run -d \
   --name canopy-tickets \
   -p 3000:3000 \
-  -e ADMIN_PASSWORD=change-me \
-  -e SESSION_SECRET=$(openssl rand -hex 32) \
+  -e CANOPY_ACCOUNT_KEY=cnp_... \
   -v canopy-data:/app/data \
   canopy-tickets
 ```
@@ -702,6 +770,8 @@ an empty slate.
 Either way, put this behind whatever reverse proxy/TLS setup you'd
 normally use to get a real domain in front of it (Caddy, nginx, Traefik,
 Coolify, etc.) — the app itself just listens on plain HTTP on `PORT`.
+The domain has to be under `canopysf.com`, or the account cookie never
+reaches it and nobody can sign in.
 
 ## Deploying on Coolify
 
@@ -715,21 +785,20 @@ as static files instead of actually running the Node server.
 1. In the Coolify resource settings, change the build pack from **Static**
    to **Dockerfile**.
 2. Set environment variables:
-   - `ADMIN_PASSWORD` — the setup password: entered once, on first run,
-     to make your admin account (after that you sign in with a passkey).
-     Keep it to yourself; it's also what `ADMIN_RECOVERY` asks for.
-     (There's no env var for movie passwords or for Venmo/Cash App — set
+   - `CANOPY_ACCOUNT_KEY` — this site's key for the account service, from
+     the account admin's **Sites** tab (site name `tickets`). It's shown
+     once, when it's made; **New key** there replaces it, and the old one
+     stops working right away.
+   - `CANOPY_ACCOUNT_URL` — leave unset: it defaults to
+     `https://account.canopysf.com`. It has to be the public address, not
+     Coolify's internal one, because browsers are sent there to sign in
+     and load photos from it.
+   - (There's no env var for movie passwords or for Venmo/Cash App — set
      those from the editor after deploying.)
-   - `ADMIN_RECOVERY` — leave unset. `1` lets the admin add a new passkey
-     after losing theirs (see "The admin"); remove it again afterwards.
-   - `SESSION_SECRET` — a long random string (e.g. `openssl rand -hex 32`).
-     Recommended, not strictly required: if unset, one is derived
-     deterministically from `ADMIN_PASSWORD` instead of being randomized,
-     so sessions still survive restarts/redeploys/extra replicas either
-     way. Set it explicitly so that changing `ADMIN_PASSWORD` later
-     doesn't also silently log everyone out.
+   - `ADMIN_PASSWORD`, `ADMIN_RECOVERY` and `SESSION_SECRET` are from
+     before Canopy accounts and do nothing now. Delete them.
 3. Add a **persistent volume** — this is where `canopy.db` (showtimes,
-   seats, friends' profiles and concession orders), profile photos, the
+   seats, tickets' record of each person, and concession orders), the
    concessions menu, the Venmo/Cash App handles, and the uploaded
    logo/link-preview images all live.
    Without it, every redeploy gives the container a brand-new, empty
@@ -747,10 +816,44 @@ as static files instead of actually running the Node server.
 5. In Coolify's **Domains** settings for this resource, make sure the
    domain you actually want to hand out is bound as the app's URL — since
    the domain root is the link friends get, and `/admin` on the same
-   domain is the editor.
-6. Deploy. Visit `<app URL>`, enter your `ADMIN_PASSWORD` as the
-   setup password, set up your profile and passkey (that's the admin), then
-   add a movie, give it a password, and add its showtimes.
+   domain is the editor. It has to be under `canopysf.com`
+   (`https://tix.canopysf.com`): the account cookie only reaches
+   `canopysf.com` and its subdomains.
+6. Deploy. The log should **not** have the `CANOPY_ACCOUNT_KEY is not
+   set` warning. Visit `<app URL>`: you're sent to the account service to
+   sign in, and back.
+
+### Switching over from tickets' own sign-in
+
+In this order:
+
+1. **The account service is live with everyone in it**, imported from
+   tickets with the same ids (its README, "Importing from tickets").
+   Tickets' admin is its admin.
+2. **Make tickets' key.** At `account.canopysf.com/admin`, **Sites**, add a
+   site named `tickets`, and copy the key it shows (only shown once).
+3. **Set tickets' environment** in Coolify: add `CANOPY_ACCOUNT_KEY` with
+   that key. Delete `ADMIN_PASSWORD`, `ADMIN_RECOVERY` and
+   `SESSION_SECRET`.
+4. **Deploy tickets.** Check the log for the startup line with the right
+   showtime count, and no `CANOPY_ACCOUNT_KEY` warning.
+5. **Check it** in a private window: `tix.canopysf.com` sends you to
+   `account.canopysf.com`; your passkey signs you in and you're back on
+   tickets, with **Manage** in the tab bar.
+
+What everyone sees: the next time they open tickets, they're sent to
+`account.canopysf.com` once, sign in with the same passkey (one tap), and
+are back where they were, with their seats, unlocked movies and
+favorites as before. From then on their name, photo and Venmo are changed
+at their Canopy account (Edit profile links there), and show on tickets
+the next time they visit it, within a minute. New people make an account
+there.
+
+Going back is a redeploy of the previous commit, with `ADMIN_PASSWORD`
+and `SESSION_SECRET` set again: its `devices` and `passkeys` tables are
+untouched. Anyone who joined through Canopy accounts in between has a
+`people` row but no passkey there, so they'd set one up there with any
+movie's password.
 
 ### Confirming persistence actually works
 
@@ -765,7 +868,7 @@ Check this in Coolify's deployment logs right after a redeploy. If it says
 actually attached (Storages tab is empty, wrong destination path, or it
 was added but the resource hasn't been redeployed since) — fix that and
 redeploy again; nothing else changes. The same volume is also what makes
-profiles, photos, payment handles, the concessions menu, and uploaded
+tickets' people records, payment handles, the concessions menu, and uploaded
 images survive a redeploy, so this check covers all of it.
 
 ## Storage & backups
@@ -782,7 +885,8 @@ once under commit `f50b354`, which still has the earlier upgrade steps,
 and it's brought up to date.
 
 `showtimes.json`, `shared-password.json` and `backups/pre-sqlite-*/` may
-still be on the volume from before SQLite. Nothing reads them any more.
+still be on the volume from before SQLite, and `photos/` from before
+Canopy accounts. Nothing reads them any more.
 
 **Backups.** Two layers:
 

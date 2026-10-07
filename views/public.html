@@ -854,52 +854,12 @@
   .claim-for{display:flex;flex-direction:column;gap:8px;margin-bottom:12px;}
   .claim-for-opt{display:flex;align-items:center;gap:10px;font-size:15px;cursor:pointer;}
   .claim-for-opt input{width:18px;height:18px;margin:0;accent-color:var(--gold);}
-  .name-row{display:flex;gap:8px;}
-  .name-row input{min-width:0;}
   .profile-top{display:flex;align-items:center;gap:14px;margin-bottom:14px;}
-  .profile-photo{position:relative;flex:0 0 auto;cursor:pointer;}
-  .profile-photo .avatar{width:72px;height:72px;border:2px solid var(--gold);}
-  .profile-photo input{position:absolute;inset:0;opacity:0;cursor:pointer;}
-  /* Same badge as the sign-up page's photo picker. */
-  .profile-photo .photo-badge{
-    position:absolute;
-    right:-2px;
-    bottom:-2px;
-    width:28px;
-    height:28px;
-    border-radius:50%;
-    background:var(--gold);
-    border:3px solid #151517;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    pointer-events:none;
-  }
-  .profile-photo .photo-badge svg{width:12px;height:12px;display:block;}
-  /* Lined up on the text baseline: centred, the @ (which hangs below
-     the line) sat visibly lower than the name. */
-  .venmo-field{
-    display:flex;
-    align-items:baseline;
-    background:#0f0f10;
-    border:1px solid #3a3a3a;
-    border-radius:10px;
-    padding:0 12px;
-    margin-bottom:14px;
-    cursor:text;
-  }
-  .venmo-field:focus-within{border-color:#5a5a5a;}
-  .venmo-at{color:var(--muted);font-size:16px;flex:0 0 auto;}
-  .claim-card .venmo-field input[type="text"]{
-    border:none;
-    background:none;
-    padding:10px 0 10px 2px;
-    margin:0;
-    outline:none;
-    flex:1;
-    min-width:0;
-  }
+  .profile-top .avatar{width:72px;height:72px;border:2px solid var(--gold);flex:0 0 auto;}
+  .profile-name{font-weight:700;font-size:16px;}
   .profile-email{margin:0;overflow-wrap:anywhere;}
+  .profile-account{margin:0 0 16px;}
+  .profile-account a{color:var(--gold);}
   .profile-allergy{margin-bottom:14px;}
   .profile-allergy-hint{margin:-8px 0 14px 28px;}
   .existing-card{max-height:85vh;display:flex;flex-direction:column;}
@@ -1715,27 +1675,18 @@
     <div class="claim-card">
       <div class="claim-title" data-copy="friend.profile.heading"></div>
       <div class="profile-top">
-        <!-- Tap to pick and frame a new photo; saves straight away. -->
-        <label class="profile-photo" title="Change photo">
-          <img class="avatar" id="profilePhoto" alt="">
-          <span class="photo-badge" aria-hidden="true">
-            <svg viewBox="0 0 14 14"><path d="M2 12l.6-3L9.4 2.2a1.4 1.4 0 0 1 2 0l.4.4a1.4 1.4 0 0 1 0 2L5 11.4z" fill="#241c07"/></svg>
-          </span>
-          <input type="file" id="profilePhotoInput" accept="image/*" aria-label="Change photo">
-        </label>
-        <div class="claim-sub profile-email" id="profileEmail"></div>
+        <img class="avatar" id="profilePhoto" alt="">
+        <div>
+          <div class="profile-name" id="profileName"></div>
+          <div class="claim-sub profile-email" id="profileEmail"></div>
+        </div>
       </div>
-      <div class="name-row">
-        <input type="text" id="profileFirst" placeholder="First name" autocomplete="given-name" maxlength="60">
-        <input type="text" id="profileLast" placeholder="Last name" autocomplete="family-name" maxlength="60">
-      </div>
-      <!-- The @ is part of the box, not the input, so it's plain without
-           any help text that you don't type it. -->
-      <label class="venmo-field">
-        <span class="venmo-at" aria-hidden="true">@</span>
-        <input type="text" id="profileVenmo" maxlength="30"
-          autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Venmo username">
-      </label>
+      <!-- Name, photo and Venmo belong to the Canopy account, shared by
+           every Canopy site, so they're changed there (href from
+           /api/public/config). Only the peanut setting is tickets' own. -->
+      <p class="claim-sub profile-account">
+        <a id="profileAccountLink" href="#" data-copy="friend.profile.accountLink"></a>
+      </p>
       <label class="claim-for-opt profile-allergy">
         <input type="checkbox" id="profilePeanut"><span data-copy="friend.profile.peanutAllergy"></span>
       </label>
@@ -1877,9 +1828,6 @@
 
 <script src="/copy.js"></script>
 <script src="/seat-layout.js"></script>
-<!-- For changing your profile photo (the profile sheet). -->
-<script src="/vendor/cropperjs-1.6.3/cropper.min.js"></script>
-<script src="/photo-crop.js"></script>
 <script>
 
 // Fills the [data-copy] elements in the markup above from public/copy.js.
@@ -1915,11 +1863,11 @@ let seatEls = {};          // seatId -> DOM element, populated by buildSeatmap
 let concessionTaxRate = 0;
 let venmoHandle = null;    // loaded once from /api/public/config
 let cashappHandle = null;  // loaded once from /api/public/config
+let accountUrl = '';       // Canopy accounts, from /api/public/config
 
-// Bouncing to '/' on a 401 is normally a one-shot fix (session expired,
-// go log in again). But if the page we land on still thinks we're
-// authed while the API disagrees (e.g. right after a redeploy handed out
-// a new session secret), that bounce repeats forever. Refuse to redirect
+// Bouncing to '/' on a 401 is normally a one-shot fix (signed out, so /
+// sends you on to sign in again). But if the page we land on still thinks
+// we're signed in while the API disagrees, that bounce repeats forever. Refuse to redirect
 // more than once in a few seconds -- show a manual link instead of
 // hammering the server or the browser's redirect-loop detector.
 function handleAuthFailure(res){
@@ -1937,11 +1885,11 @@ function handleAuthFailure(res){
   return true;
 }
 
-// Signs this browser out. Unlocked movies are the person's and go with
-// them; the passkey is how they get back in.
-async function signOut(){
-  try{ await fetch('/api/signout', { method: 'POST' }); }catch(e){}
-  window.location.href = '/';
+// Signs this browser out of Canopy accounts, and so of every Canopy site
+// (see /signout in server.js). Unlocked movies are the person's and go
+// with them.
+function signOut(){
+  window.location.href = '/signout';
 }
 
 async function loadConfig(){
@@ -1953,6 +1901,7 @@ async function loadConfig(){
     venmoHandle = data.venmoHandle || null;
     cashappHandle = data.cashappHandle || null;
     concessionTaxRate = typeof data.concessionTaxRate === 'number' ? data.concessionTaxRate : 0;
+    accountUrl = data.accountUrl || '';
   }catch(e){
     // Non-fatal -- the claim flow just skips both pay links.
   }
@@ -2272,12 +2221,16 @@ async function loadList(){
   }
 }
 
+// Their first visit to tickets as a Canopy member (see INIT below).
+let firstVisit = false;
 async function loadMe(){
   try{
     const res = await fetch('/api/public/me');
     if (await handleAuthFailure(res)) return;
     if (!res.ok) return;
-    me = (await res.json()).person;
+    const data = await res.json();
+    me = data.person;
+    firstVisit = !!data.firstVisit;
     renderMe();
   }catch(e){}
 }
@@ -3449,20 +3402,14 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') closeMeMenu();
 });
 
-// Typing or pasting an @ does nothing -- the box already shows one.
-document.getElementById('profileVenmo').addEventListener('input', (e) => {
-  const v = e.target.value.replace(/@/g, '');
-  if (v !== e.target.value) e.target.value = v;
-});
-
 // The note under the box says what ticking it does, once it's ticked.
 function showPeanutHint(){
   document.getElementById('profilePeanutHint').classList.toggle('hidden', !document.getElementById('profilePeanut').checked);
 }
 document.getElementById('profilePeanut').addEventListener('change', showPeanutHint);
 
-// Signed in with a passkey is who you are, so your profile is always
-// yours to edit.
+// Your name, photo and Venmo are shown here and changed at your Canopy
+// account; the peanut setting is changed here.
 function openProfile(){
   if (!me) return;
   renderProfileSheet();
@@ -3471,12 +3418,9 @@ function openProfile(){
 }
 
 function renderProfileSheet(){
+  document.getElementById('profileName').textContent = me.firstName + ' ' + me.lastName;
   document.getElementById('profileEmail').textContent = me.email;
-  document.getElementById('profileFirst').value = me.firstName;
-  document.getElementById('profileLast').value = me.lastName;
-  const venmo = document.getElementById('profileVenmo');
-  venmo.value = me.venmo || '';
-  venmo.placeholder = t('friend.profile.venmoPlaceholder');
+  document.getElementById('profileAccountLink').href = (accountUrl || 'https://account.canopysf.com') + '/profile';
   document.getElementById('profilePeanut').checked = !!me.peanutAllergy;
   showPeanutHint();
   document.getElementById('profileError').textContent = '';
@@ -3489,8 +3433,8 @@ function closeProfile(){
   overlayClosed();
 }
 
-// Your name, photo, Venmo username and peanut allergy can be changed
-// from any browser you're signed in on -- no movie needs to be unlocked.
+// The peanut allergy setting can be changed from any browser you're
+// signed in on -- no movie needs to be unlocked.
 async function saveProfile(){
   const errorEl = document.getElementById('profileError');
   errorEl.textContent = '';
@@ -3498,16 +3442,10 @@ async function saveProfile(){
     const res = await fetch('/api/profile', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        firstName: document.getElementById('profileFirst').value,
-        lastName: document.getElementById('profileLast').value,
-        venmoHandle: document.getElementById('profileVenmo').value,
-        peanutAllergy: document.getElementById('profilePeanut').checked
-      })
+      body: JSON.stringify({ peanutAllergy: document.getElementById('profilePeanut').checked })
     });
     if (await handleAuthFailure(res)) return;
     const data = await res.json().catch(() => ({}));
-    if (data.reason === 'bad_venmo'){ errorEl.textContent = t('friend.profile.badVenmo'); return; }
     if (!res.ok){ errorEl.textContent = data.error || t('friend.profile.failed'); return; }
     me = data.person;
     renderMe();
@@ -3517,39 +3455,6 @@ async function saveProfile(){
     errorEl.textContent = t('friend.profile.failed');
   }
 }
-
-document.getElementById('profilePhotoInput').addEventListener('change', async (e) => {
-  const input = e.target;
-  const file = input.files && input.files[0];
-  if (!file) return;
-  const errorEl = document.getElementById('profileError');
-  errorEl.textContent = '';
-  let result;
-  try{
-    result = await cropProfilePhoto(file, t('welcome.cropHint'), t('welcome.photoLoading'));
-  }catch(err){
-    errorEl.textContent = t('welcome.photoUnreadable');
-    return;
-  }finally{
-    // Cleared only once the photo's been read (picking the same one again
-    // should still work) -- not while the phone may still be fetching it.
-    input.value = '';
-  }
-  if (!result) return;
-  const form = new FormData();
-  form.append('photo', result.blob, 'photo.jpg');
-  try{
-    const res = await fetch('/api/profile/photo', { method: 'POST', body: form });
-    if (await handleAuthFailure(res)) return;
-    if (!res.ok){ errorEl.textContent = t('friend.profile.failed'); return; }
-    me = (await res.json()).person;
-    renderMe();
-    document.getElementById('profilePhoto').src = me.photoUrl;
-    loadList();
-  }catch(err){
-    errorEl.textContent = t('friend.profile.failed');
-  }
-});
 
 // ---------------- FAVORITES ----------------
 // Your usual order and favorite items, each { itemId, option } -- an item
@@ -5159,13 +5064,12 @@ function cartTotalRow(label, valueHtml, onUndo){
 
 // ---------------- INIT ----------------
 // A reload keeps its history entry, so put back the view it names once
-// there's a list to find it in. Straight after setting up a profile,
-// offer the seats reserved under your name before profiles existed.
+// there's a list to find it in. On your first visit to tickets (a new
+// Canopy member: /api/public/me says firstVisit, once), offer the seats
+// reserved under your name before profiles existed.
 loadMe().then(loadList).then(() => {
   if (navState().canopyView !== 'grid') applyNavState(navState());
-  let isNew = false;
-  try{ isNew = sessionStorage.getItem('canopy_new_profile') === '1'; sessionStorage.removeItem('canopy_new_profile'); }catch(e){}
-  if (isNew) openExisting(false);
+  if (firstVisit) openExisting(false);
 });
 loadConfig(); // populates venmoHandle for the post-claim pay link
 loadConcessionMenu(); // so the post-claim overlay knows whether to offer concessions
