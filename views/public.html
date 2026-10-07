@@ -122,6 +122,15 @@
     cursor:pointer;
   }
   .me-menu button:hover, .me-menu button:focus-visible{background:#2a2a2e;outline:none;}
+  .me-menu svg.me-menu-icon{width:18px;height:18px;flex:0 0 auto;margin:-2px 10px -2px 0;vertical-align:middle;color:var(--muted);}
+  /* Who you're signed in as, atop the menu: not an item itself, though
+     its Manage link is. */
+  .me-menu-who{display:flex;align-items:center;gap:10px;padding:10px 10px 12px;border-bottom:1px solid #2a2a2e;margin-bottom:4px;}
+  .me-menu-who .avatar{width:34px;height:34px;flex:0 0 auto;}
+  .me-menu-who-name{font-weight:700;font-size:14.5px;color:#eee;overflow-wrap:anywhere;}
+  .me-menu-who-sub{font-size:12px;color:var(--muted);margin-top:1px;white-space:nowrap;}
+  .me-menu .me-menu-who-sub a{display:inline;padding:0;font-size:12px;color:var(--gold);text-decoration:none;border-radius:4px;}
+  .me-menu .me-menu-who-sub a:hover, .me-menu .me-menu-who-sub a:focus-visible{text-decoration:underline;outline:none;}
   .me-menu .me-menu-signout{color:#e2857a;border-top:1px solid #2a2a2e;border-radius:0 0 8px 8px;margin-top:4px;padding-top:13px;}
   .tabs{
     display:flex;
@@ -854,12 +863,10 @@
   .claim-for{display:flex;flex-direction:column;gap:8px;margin-bottom:12px;}
   .claim-for-opt{display:flex;align-items:center;gap:10px;font-size:15px;cursor:pointer;}
   .claim-for-opt input{width:18px;height:18px;margin:0;accent-color:var(--gold);}
-  .profile-top{display:flex;align-items:center;gap:14px;margin-bottom:14px;}
-  .profile-top .avatar{width:72px;height:72px;border:2px solid var(--gold);flex:0 0 auto;}
-  .profile-name{font-weight:700;font-size:16px;}
-  .profile-email{margin:0;overflow-wrap:anywhere;}
-  .profile-account{margin:0 0 16px;}
-  .profile-account a{color:var(--gold);}
+  .profile-title{margin-bottom:14px;}
+  .profile-account{margin:0 0 16px;padding-top:12px;border-top:1px solid #2a2a2e;}
+  .profile-account a{color:var(--gold);text-decoration:none;}
+  .profile-account a:hover, .profile-account a:focus-visible{text-decoration:underline;}
   .profile-allergy{margin-bottom:14px;}
   .profile-allergy-hint{margin:-8px 0 14px 28px;}
   .existing-card{max-height:85vh;display:flex;flex-direction:column;}
@@ -1479,15 +1486,22 @@
         <!-- LOGO_IMG -->
         <h1>Canopy Tickets</h1>
       </div>
-      <!-- Who's signed in; opens a small menu: edit profile, claim seats
-           reserved before profiles, sign out. -->
+      <!-- Who's signed in; opens a small menu: your Canopy account,
+           settings, claim seats reserved before profiles, sign out. -->
       <div class="me-wrap">
         <button type="button" class="me-btn" id="meBtn" onclick="toggleMeMenu()" aria-label="Your profile" aria-haspopup="menu" aria-expanded="false">
           <span class="me-name" id="meName"></span>
           <img class="avatar" id="meAvatar" alt="">
         </button>
         <div class="me-menu hidden" id="meMenu" role="menu">
-          <button type="button" role="menuitem" onclick="closeMeMenu(); openProfile()" data-copy="friend.menu.editProfile"></button>
+          <div class="me-menu-who">
+            <img class="avatar" id="meMenuAvatar" alt="">
+            <div>
+              <div class="me-menu-who-name" id="meMenuName"></div>
+              <div class="me-menu-who-sub"><span data-copy="friend.menu.account"></span> · <a role="menuitem" id="meMenuAccountLink" href="#"><span data-copy="friend.menu.manageAccount"></span> ↗</a></div>
+            </div>
+          </div>
+          <button type="button" role="menuitem" onclick="closeMeMenu(); openProfile()"><svg class="me-menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span data-copy="friend.menu.settings"></span></button>
           <button type="button" role="menuitem" onclick="closeMeMenu(); openFavorites()" data-copy="friend.menu.favorites"></button>
           <button type="button" role="menuitem" onclick="closeMeMenu(); openCalendarFeed()" data-copy="friend.menu.calendar"></button>
           <button type="button" role="menuitem" onclick="closeMeMenu(); openExisting(true)" data-copy="friend.menu.claimExisting"></button>
@@ -1673,27 +1687,21 @@
   <!-- ===================== PROFILE ===================== -->
   <div class="claim-overlay hidden" id="profileOverlay">
     <div class="claim-card">
-      <div class="claim-title" data-copy="friend.profile.heading"></div>
-      <div class="profile-top">
-        <img class="avatar" id="profilePhoto" alt="">
-        <div>
-          <div class="profile-name" id="profileName"></div>
-          <div class="claim-sub profile-email" id="profileEmail"></div>
-        </div>
-      </div>
-      <!-- Name, photo and Venmo belong to the Canopy account, shared by
-           every Canopy site, so they're changed there (href from
-           /api/public/config). Only the peanut setting is tickets' own. -->
-      <p class="claim-sub profile-account">
-        <a id="profileAccountLink" href="#" data-copy="friend.profile.accountLink"></a>
-      </p>
+      <div class="claim-title profile-title" data-copy="friend.profile.heading"></div>
       <label class="claim-for-opt profile-allergy">
         <input type="checkbox" id="profilePeanut"><span data-copy="friend.profile.peanutAllergy"></span>
       </label>
       <div class="claim-sub profile-allergy-hint hidden" id="profilePeanutHint" data-copy="friend.profile.peanutHint"></div>
+      <!-- Name, photo and Venmo belong to the Canopy account, shared by
+           every Canopy site, so they're changed there (href from
+           /api/public/config). Only the peanut setting is tickets' own. -->
+      <p class="claim-sub profile-account">
+        <span data-copy="friend.profile.accountNote"></span>
+        <a id="profileAccountLink" href="#"><span data-copy="friend.profile.accountLink"></span> ↗</a>
+      </p>
       <div class="claim-error" id="profileError"></div>
       <div class="claim-actions">
-        <button type="button" class="claim-submit-btn" id="profileSave" onclick="saveProfile()">Save</button>
+        <button type="button" id="profileSave" onclick="saveProfile()">Save</button>
         <button type="button" id="profileCancel" onclick="closeProfile()">Cancel</button>
       </div>
     </div>
@@ -3395,6 +3403,10 @@ function toggleMeMenu(){
 }
 function openMeMenu(){
   if (!me) return;
+  document.getElementById('meMenuName').textContent = me.firstName + ' ' + me.lastName;
+  const avatar = document.getElementById('meMenuAvatar');
+  if (me.photoUrl) avatar.src = me.photoUrl;
+  document.getElementById('meMenuAccountLink').href = accountProfileUrl();
   document.getElementById('meMenu').classList.remove('hidden');
   document.getElementById('meBtn').setAttribute('aria-expanded', 'true');
 }
@@ -3415,8 +3427,8 @@ function showPeanutHint(){
 }
 document.getElementById('profilePeanut').addEventListener('change', showPeanutHint);
 
-// Your name, photo and Venmo are shown here and changed at your Canopy
-// account; the peanut setting is changed here.
+// Tickets' own settings. Your name, photo and Venmo are changed at your
+// Canopy account, linked from here and from the top of the menu.
 function openProfile(){
   if (!me) return;
   renderProfileSheet();
@@ -3425,14 +3437,15 @@ function openProfile(){
 }
 
 function renderProfileSheet(){
-  document.getElementById('profileName').textContent = me.firstName + ' ' + me.lastName;
-  document.getElementById('profileEmail').textContent = me.email;
-  document.getElementById('profileAccountLink').href = (accountUrl || 'https://account.canopysf.com') + '/profile';
+  document.getElementById('profileAccountLink').href = accountProfileUrl();
   document.getElementById('profilePeanut').checked = !!me.peanutAllergy;
   showPeanutHint();
   document.getElementById('profileError').textContent = '';
-  const photo = document.getElementById('profilePhoto');
-  if (me.photoUrl) photo.src = me.photoUrl;
+}
+
+// Where your name, photo and payment handles are changed.
+function accountProfileUrl(){
+  return (accountUrl || 'https://account.canopysf.com') + '/profile';
 }
 
 function closeProfile(){
