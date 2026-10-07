@@ -307,6 +307,18 @@
   }
   .mine-pay-btn.venmo-btn{background:var(--venmo);color:#fff;}
   .mine-pay-btn.cashapp-btn{background:var(--cashapp);color:#04240f;}
+  /* Stands in for the pay buttons on an A-List swap: a note, not a link. */
+  .a-list-swap-note{
+    border:1px solid #4a3f22;
+    background:#1d1a12;
+    color:#e8d9b0;
+    border-radius:12px;
+    padding:10px 12px;
+    font-size:14px;
+    font-weight:600;
+    text-align:center;
+    margin:2px 0 4px;
+  }
   .mine-pay-more{
     flex:0 0 auto;
     width:48px;
@@ -1902,6 +1914,7 @@ let concessionTaxRate = 0;
 let venmoHandle = null;    // loaded once from /api/public/config
 let cashappHandle = null;  // loaded once from /api/public/config
 let accountUrl = '';       // Canopy accounts, from /api/public/config
+let adminFirstName = '';   // who A-List members text for a swap, from /api/public/config
 
 // Bouncing to '/' on a 401 is normally a one-shot fix (signed out, so /
 // sends you on to sign in again). But if the page we land on still thinks
@@ -1940,6 +1953,7 @@ async function loadConfig(){
     cashappHandle = data.cashappHandle || null;
     concessionTaxRate = typeof data.concessionTaxRate === 'number' ? data.concessionTaxRate : 0;
     accountUrl = data.accountUrl || '';
+    adminFirstName = data.adminFirstName || '';
   }catch(e){
     // Non-fatal -- the claim flow just skips both pay links.
   }
@@ -2601,10 +2615,17 @@ function seatPayable(obj, seat){
 function buildMinePayRow(obj, myIds){
   if (!me) return null;
   const seats = obj.seats || {};
+  // On an A-List swap your own ticket isn't paid for here: you text the
+  // host instead. Your guests' tickets still are.
+  const swap = aListSwapFor(obj);
+  const swapping = swap && !me.isAdmin && myIds.some(id => seats[id] && !seats[id].guest && seatPayable(obj, seats[id]).ticket > 0);
   // The admin is the one being paid -- their guests settle up with them
   // directly, so there's nobody for them to send money to.
   const owing = me.isAdmin ? [] : myIds
-    .map(id => ({ id, pay: seatPayable(obj, seats[id]) }))
+    .map(id => {
+      const pay = seatPayable(obj, seats[id]);
+      return { id, pay: swap && seats[id] && !seats[id].guest ? { ...pay, ticket: 0 } : pay };
+    })
     .filter(x => x.pay.ticket + x.pay.food > 0);
   const amount = Math.round(owing.reduce((n, x) => n + x.pay.ticket + x.pay.food, 0) * 100) / 100;
   const note = (obj.title || 'Movie') + ' (' + formatDateShort(obj.date) + ', ' + owing.map(x => x.id).join(', ') + ')' +
@@ -2615,7 +2636,8 @@ function buildMinePayRow(obj, myIds){
   // Nor anything to give back from here: the admin's seats are theirs to
   // manage in the editor, so the row (and its ⋯) doesn't show for them.
   const releasable = me.isAdmin ? [] : myIds.filter(id => seats[id] && seats[id].canRelease);
-  if (!canPay && !releasable.length) return null;
+  const swapNote = swapping ? aListSwapNote() : null;
+  if (!canPay && !releasable.length) return swapNote;
 
   const vars = { amount: formatPrice(amount) };
   const payLink = (href, className, label) => {
@@ -2728,7 +2750,26 @@ function buildMinePayRow(obj, myIds){
     menu.classList.remove('hidden');
     document.addEventListener('click', onOutside, true);
   });
-  return row;
+  if (!swapNote) return row;
+  const both = document.createElement('div');
+  both.appendChild(swapNote);
+  both.appendChild(row);
+  return both;
+}
+
+// AMC A-List members get into a swap-eligible showtime on their own
+// A-List, so they text the host to set that up rather than paying.
+function aListSwapFor(showtime){
+  return concessionsOff() && !!(showtime && showtime.aListSwap);
+}
+
+function aListSwapNote(){
+  const note = document.createElement('div');
+  note.className = 'a-list-swap-note';
+  note.textContent = adminFirstName
+    ? t('friend.success.aListSwap', { name: adminFirstName })
+    : t('friend.success.aListSwapNoName');
+  return note;
 }
 
 // One of your orders on My Showtimes. Nothing in it yet: a single
@@ -3275,9 +3316,12 @@ function openSuccessOverlay(showtime, seatId){
   // Nobody for the host to pay, so don't offer to send them money.
   const isHost = !!(seat && seat.host);
   const canPay = !isHost && !!(buildVenmoLink(showtime.price, '') || buildCashAppLink(showtime.price));
+  // Your own seat on an A-List swap: text the host instead of paying.
+  const swap = !isHost && aListSwapFor(showtime) && !(seat && seat.guest);
 
   successSteps = [];
-  if (canPay) successSteps.push('pay');
+  if (swap) successSteps.push('swap');
+  else if (canPay) successSteps.push('pay');
   if (concessionMenu.length && !concessionsOff()) successSteps.push('concessions');
   successStepTotal = successSteps.length;
 
@@ -3313,6 +3357,12 @@ function renderSuccessStep(){
   // someone that "Skip" moves on rather than closing the card.
   if (successStepTotal > 1){
     stepEl.textContent = t('friend.success.step', { n: successStepTotal - successSteps.length + 1, total: successStepTotal });
+  }
+
+  if (step === 'swap'){
+    actions.appendChild(aListSwapNote());
+    actions.appendChild(successButton('OK', '', advanceSuccessStep));
+    return;
   }
 
   if (step === 'pay'){
