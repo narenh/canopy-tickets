@@ -177,9 +177,12 @@ const COPY = {
       manage: 'Manage'
     },
 
-    // The menu under your photo in the header.
+    // The menu under your photo in the header. It opens on who you're
+    // signed in as, with a link to your Canopy account.
     menu: {
-      editProfile: 'Movie preferences',
+      account: 'Canopy Account',
+      manageAccount: 'Manage',
+      settings: 'Settings',
       favorites: 'Favorites',
       calendar: 'Calendar feed',
       claimExisting: 'Claim existing seats',
@@ -189,8 +192,9 @@ const COPY = {
     // Tickets' own settings. Who you are (name, photo, phone, payment
     // handles) is your Canopy account's, linked from here.
     profile: {
-      heading: 'Movie preferences',
-      accountLink: 'Your name, photo, phone and payment handles are in your Canopy account',
+      heading: 'Settings',
+      accountNote: 'Name and photo:',
+      accountLink: 'Canopy Account',
       peanutAllergy: 'Peanut allergy',
       peanutHint: 'Peanut items will be hidden for adjacent seats.',
       failed: "Couldn't save. Try again."
