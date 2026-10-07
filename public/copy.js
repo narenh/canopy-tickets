@@ -248,6 +248,10 @@ const COPY = {
       unnamedShowtime: 'this showtime',
       step: 'Step {n} of {total}',
       payVenmo: 'Pay {amount} via Venmo',
+      // An A-List member's own seat on a swap-eligible showtime: no pay
+      // buttons, this instead. {name} is the host's first name.
+      aListSwap: 'Text {name} to organize an A-List swap',
+      aListSwapNoName: 'Text the host to organize an A-List swap',
       payVenmoNoPrice: 'Pay via Venmo',
       payCashApp: 'Pay {amount} via Cash App',
       payCashAppNoPrice: 'Pay via Cash App',

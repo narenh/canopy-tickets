@@ -397,6 +397,8 @@ function publicShowtimeView(s, viewer, onlySeatIds, lookup) {
     // Set by the host when they go and place the order -- see the
     // orders-closed route below for why it isn't a clock.
     ordersClosed: !!s.ordersClosed,
+    // A-List members swap into this one rather than paying for the ticket.
+    aListSwap: !!s.aListSwap,
     seats: blockSeats
   };
 }
@@ -406,6 +408,12 @@ function publicShowtimeView(s, viewer, onlySeatIds, lookup) {
 // The admin is a person like any friend, signed in the same way, with
 // the same id as the account service's admin. Which person it is lives in
 // meta (admin_person_id); it's also the host (see lib/seats.js).
+
+function adminFirstName() {
+  const id = store.getAdminPersonId();
+  const admin = id ? store.getPerson(id) : null;
+  return admin ? admin.firstName : '';
+}
 
 function isAdmin(req) {
   return !!req.person && req.person.id === store.getAdminPersonId();
@@ -888,7 +896,9 @@ app.get('/api/public/config', (req, res) => {
     cashappHandle: cashappHandleStore.get(),
     concessionTaxRate: CONCESSION_TAX_RATE,
     // Where name, photo and Venmo are changed (the profile sheet's link).
-    accountUrl: CANOPY_ACCOUNT_URL
+    accountUrl: CANOPY_ACCOUNT_URL,
+    // Who A-List members text to set up a swap.
+    adminFirstName: adminFirstName()
   });
 });
 
