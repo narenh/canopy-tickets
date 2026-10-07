@@ -1518,7 +1518,9 @@ function sendSignInPage(req, res) {
   renderHtmlPage(res, req, path.join(__dirname, 'views', 'signin.html'), {
     OG_IMAGE_URL: ogImageUrl(),
     ACCOUNT_URL: CANOPY_ACCOUNT_KEY ? CANOPY_ACCOUNT_URL : '',
-    EMAIL_SIGNIN_URL: CANOPY_ACCOUNT_KEY ? canopy.signInUrl(req) : ''
+    // ?email: the account page shows only the email step, since choosing
+    // email here already says "new, or no passkey on this phone".
+    EMAIL_SIGNIN_URL: CANOPY_ACCOUNT_KEY ? `${canopy.signInUrl(req)}&email` : ''
   });
 }
 
