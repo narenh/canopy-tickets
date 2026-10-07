@@ -1545,6 +1545,13 @@ app.get('/admin', attachPerson, (req, res) => {
 // "Sign out" on the pages links here. Signing out is the account
 // service's: it signs this browser out of every Canopy site, then comes
 // back to /, which sends them on to sign in again.
+// Tickets' own sign-in from before Canopy accounts. A phone can keep the
+// old sign-in page open in a tab for days; its buttons still call these,
+// and the error it shows is whatever comes back -- so say what to do.
+app.use(['/api/auth', '/api/me', '/api/signout'], (req, res) => {
+  res.status(410).json({ error: 'sign-in has moved to Canopy accounts: reload this page', reason: 'moved' });
+});
+
 app.get('/signout', (req, res) => {
   res.redirect(canopy.signOutUrl(req));
 });
