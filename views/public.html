@@ -307,18 +307,22 @@
   }
   .mine-pay-btn.venmo-btn{background:var(--venmo);color:#fff;}
   .mine-pay-btn.cashapp-btn{background:var(--cashapp);color:#04240f;}
-  /* Stands in for the pay buttons on an A-List swap: a note, not a link. */
+  /* Stands in for the pay buttons on an A-List swap, in the page's gold:
+     a note, not a link, as there's no number to text from here. */
   .a-list-swap-note{
-    border:1px solid #4a3f22;
-    background:#1d1a12;
-    color:#e8d9b0;
-    border-radius:12px;
-    padding:10px 12px;
+    flex:1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:var(--gold);
+    color:#241c07;
+    border-radius:20px;
+    padding:10px 14px;
     font-size:14px;
-    font-weight:600;
+    font-weight:700;
     text-align:center;
-    margin:2px 0 4px;
   }
+  .mine-swap-alone{margin:2px 0 4px;}
   .mine-pay-more{
     flex:0 0 auto;
     width:48px;
@@ -2616,7 +2620,8 @@ function buildMinePayRow(obj, myIds){
   if (!me) return null;
   const seats = obj.seats || {};
   // On an A-List swap your own ticket isn't paid for here: you text the
-  // host instead. Your guests' tickets still are.
+  // host instead, and that note takes the pay button's place. Your
+  // guests' tickets can still be paid from the ⋯.
   const swap = aListSwapFor(obj);
   const swapping = swap && !me.isAdmin && myIds.some(id => seats[id] && !seats[id].guest && seatPayable(obj, seats[id]).ticket > 0);
   // The admin is the one being paid -- their guests settle up with them
@@ -2637,7 +2642,10 @@ function buildMinePayRow(obj, myIds){
   // manage in the editor, so the row (and its ⋯) doesn't show for them.
   const releasable = me.isAdmin ? [] : myIds.filter(id => seats[id] && seats[id].canRelease);
   const swapNote = swapping ? aListSwapNote() : null;
-  if (!canPay && !releasable.length) return swapNote;
+  if (!canPay && !releasable.length){
+    if (swapNote) swapNote.classList.add('mine-swap-alone');
+    return swapNote;
+  }
 
   const vars = { amount: formatPrice(amount) };
   const payLink = (href, className, label) => {
@@ -2659,8 +2667,9 @@ function buildMinePayRow(obj, myIds){
   };
 
   const row = document.createElement('div');
-  row.className = 'mine-pay' + (canPay ? '' : ' no-pay');
-  if (canPay){
+  row.className = 'mine-pay' + (canPay || swapNote ? '' : ' no-pay');
+  if (swapNote) row.appendChild(swapNote);
+  else if (canPay){
     row.appendChild(venmo
       ? payLink(venmo, 'mine-pay-btn venmo-btn', t('friend.success.payVenmo', vars))
       : payLink(cash, 'mine-pay-btn cashapp-btn', t('friend.success.payCashApp', vars)));
@@ -2682,12 +2691,15 @@ function buildMinePayRow(obj, myIds){
   // The menu's normal contents; a release swaps them for its confirmation.
   function fillMenu(){
     menu.innerHTML = '';
-    if (venmo && cash){
-      const alt = payLink(cash, '', t('friend.success.payCashApp', vars));
+    // Whichever pay links aren't already the main button.
+    const inMenu = [];
+    if (swapNote && venmo) inMenu.push(payLink(venmo, '', t('friend.success.payVenmo', vars)));
+    if (cash && (swapNote || venmo)) inMenu.push(payLink(cash, '', t('friend.success.payCashApp', vars)));
+    inMenu.forEach(alt => {
       alt.setAttribute('role', 'menuitem');
       alt.addEventListener('click', () => closeMenu());
       menu.appendChild(alt);
-    }
+    });
     if (canPay){
       menu.appendChild(menuButton(t('friend.success.alreadyPaid'), async () => {
         closeMenu();
@@ -2750,11 +2762,7 @@ function buildMinePayRow(obj, myIds){
     menu.classList.remove('hidden');
     document.addEventListener('click', onOutside, true);
   });
-  if (!swapNote) return row;
-  const both = document.createElement('div');
-  both.appendChild(swapNote);
-  both.appendChild(row);
-  return both;
+  return row;
 }
 
 // AMC A-List members get into a swap-eligible showtime on their own
