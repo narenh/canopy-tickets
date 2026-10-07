@@ -725,7 +725,7 @@ app.delete('/api/showtimes/:id', async (req, res) => {
 // file). Signing in, out, and changing a name, photo or Venmo all happen
 // at the account service; what's left here is tickets' own: movie
 // unlocks, which belong to the PERSON (person_unlocks) and follow them to
-// every device, and the peanut allergy setting.
+// every device, and the peanut allergy and AMC A-List settings.
 
 // Too many tries at something, per key, per window. In memory: a restart
 // forgives everyone, which is fine at this scale.
@@ -861,10 +861,13 @@ function meView(req) {
 app.patch('/api/profile', attachPerson, (req, res) => {
   if (!req.person) return res.status(401).json({ error: 'unauthorized' });
   const body = req.body || {};
-  if (body.peanutAllergy !== undefined && typeof body.peanutAllergy !== 'boolean') {
-    return res.status(400).json({ error: 'peanutAllergy must be a boolean' });
+  for (const key of ['peanutAllergy', 'amcAList']) {
+    if (body[key] !== undefined && typeof body[key] !== 'boolean') {
+      return res.status(400).json({ error: `${key} must be a boolean` });
+    }
   }
   if (body.peanutAllergy !== undefined) req.person = store.setPersonPeanutAllergy(req.person.id, body.peanutAllergy);
+  if (body.amcAList !== undefined) req.person = store.setPersonAmcAList(req.person.id, body.amcAList);
   res.json(meView(req));
 });
 

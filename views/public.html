@@ -131,6 +131,7 @@
   .me-menu-who-sub{font-size:12px;color:var(--muted);margin-top:1px;white-space:nowrap;}
   .me-menu .me-menu-who-sub a{display:inline;padding:0;font-size:12px;color:var(--gold);text-decoration:none;border-radius:4px;}
   .me-menu .me-menu-who-sub a:hover, .me-menu .me-menu-who-sub a:focus-visible{text-decoration:underline;outline:none;}
+  .me-menu .me-menu-signout svg.me-menu-icon{color:inherit;}
   .me-menu .me-menu-signout{color:#e2857a;border-top:1px solid #2a2a2e;border-radius:0 0 8px 8px;margin-top:4px;padding-top:13px;}
   .tabs{
     display:flex;
@@ -863,8 +864,27 @@
   .claim-for{display:flex;flex-direction:column;gap:8px;margin-bottom:12px;}
   .claim-for-opt{display:flex;align-items:center;gap:10px;font-size:15px;cursor:pointer;}
   .claim-for-opt input{width:18px;height:18px;margin:0;accent-color:var(--gold);}
-  .profile-title{margin-bottom:14px;}
-  .profile-account{margin:0 0 16px;padding-top:12px;border-top:1px solid #2a2a2e;}
+  .profile-card{position:relative;}
+  .profile-title{margin-bottom:14px;padding-right:30px;}
+  .profile-row-btn{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    width:100%;
+    background:#1e1e1e;
+    border:1px solid #3a3a3a;
+    border-radius:10px;
+    color:#fff;
+    font:inherit;
+    font-size:15px;
+    padding:11px 12px;
+    margin:2px 0 4px;
+    cursor:pointer;
+    text-align:left;
+  }
+  .profile-row-btn:hover, .profile-row-btn:focus-visible{border-color:var(--gold);outline:none;}
+  .profile-row-chev{color:var(--muted);font-size:20px;line-height:1;}
+  .profile-account{margin:0;padding-top:12px;border-top:1px solid #2a2a2e;}
   .profile-account a{color:var(--gold);text-decoration:none;}
   .profile-account a:hover, .profile-account a:focus-visible{text-decoration:underline;}
   .profile-allergy{margin-bottom:14px;}
@@ -1486,8 +1506,9 @@
         <!-- LOGO_IMG -->
         <h1>Canopy Tickets</h1>
       </div>
-      <!-- Who's signed in; opens a small menu: your Canopy account,
-           settings, claim seats reserved before profiles, sign out. -->
+      <!-- Who's signed in; opens a small menu: your Canopy account, your
+           calendar feed, settings (favorites are in there), claim seats
+           reserved before profiles, sign out. -->
       <div class="me-wrap">
         <button type="button" class="me-btn" id="meBtn" onclick="toggleMeMenu()" aria-label="Your profile" aria-haspopup="menu" aria-expanded="false">
           <span class="me-name" id="meName"></span>
@@ -1501,11 +1522,10 @@
               <div class="me-menu-who-sub"><span data-copy="friend.menu.account"></span> · <a role="menuitem" id="meMenuAccountLink" href="#"><span data-copy="friend.menu.manageAccount"></span> ↗</a></div>
             </div>
           </div>
+          <button type="button" role="menuitem" onclick="closeMeMenu(); openCalendarFeed()"><svg class="me-menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span data-copy="friend.menu.calendar"></span></button>
           <button type="button" role="menuitem" onclick="closeMeMenu(); openProfile()"><svg class="me-menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span data-copy="friend.menu.settings"></span></button>
-          <button type="button" role="menuitem" onclick="closeMeMenu(); openFavorites()" data-copy="friend.menu.favorites"></button>
-          <button type="button" role="menuitem" onclick="closeMeMenu(); openCalendarFeed()" data-copy="friend.menu.calendar"></button>
-          <button type="button" role="menuitem" onclick="closeMeMenu(); openExisting(true)" data-copy="friend.menu.claimExisting"></button>
-          <button type="button" role="menuitem" class="me-menu-signout" onclick="signOut()" data-copy="friend.menu.signOut"></button>
+          <button type="button" role="menuitem" onclick="closeMeMenu(); openExisting(true)"><svg class="me-menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9a2 2 0 0 0 0 6v3a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1v-3a2 2 0 0 0 0-6V6a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1z"/><path d="M14 5v2M14 11v2M14 17v2"/></svg><span data-copy="friend.menu.claimExisting"></span></button>
+          <button type="button" role="menuitem" class="me-menu-signout" onclick="signOut()"><svg class="me-menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg><span data-copy="friend.menu.signOut"></span></button>
         </div>
       </div>
     </div>
@@ -1685,25 +1705,28 @@
   </div>
 
   <!-- ===================== PROFILE ===================== -->
-  <div class="claim-overlay hidden" id="profileOverlay">
-    <div class="claim-card">
-      <div class="claim-title profile-title" data-copy="friend.profile.heading"></div>
+  <!-- Each box saves as it's ticked; there's no Save. Closed by its X,
+       Escape, or a tap outside the card. -->
+  <div class="claim-overlay hidden" id="profileOverlay" onclick="if (event.target === this) closeProfile()">
+    <div class="claim-card profile-card" role="dialog" aria-modal="true" aria-labelledby="profileTitle">
+      <button type="button" class="cart-close-x" onclick="closeProfile()" aria-label="Close">&#215;</button>
+      <div class="claim-title profile-title" id="profileTitle" data-copy="friend.profile.heading"></div>
       <label class="claim-for-opt profile-allergy">
         <input type="checkbox" id="profilePeanut"><span data-copy="friend.profile.peanutAllergy"></span>
       </label>
       <div class="claim-sub profile-allergy-hint hidden" id="profilePeanutHint" data-copy="friend.profile.peanutHint"></div>
+      <label class="claim-for-opt profile-allergy">
+        <input type="checkbox" id="profileAList"><span data-copy="friend.profile.amcAList"></span>
+      </label>
+      <button type="button" class="profile-row-btn" onclick="openFavorites()"><span data-copy="friend.profile.favorites"></span><span class="profile-row-chev" aria-hidden="true">&#8250;</span></button>
+      <div class="claim-error" id="profileError"></div>
       <!-- Name, photo and Venmo belong to the Canopy account, shared by
            every Canopy site, so they're changed there (href from
-           /api/public/config). Only the peanut setting is tickets' own. -->
+           /api/public/config). The rest of this sheet is tickets' own. -->
       <p class="claim-sub profile-account">
         <span data-copy="friend.profile.accountNote"></span>
         <a id="profileAccountLink" href="#"><span data-copy="friend.profile.accountLink"></span> ↗</a>
       </p>
-      <div class="claim-error" id="profileError"></div>
-      <div class="claim-actions">
-        <button type="button" id="profileSave" onclick="saveProfile()">Save</button>
-        <button type="button" id="profileCancel" onclick="closeProfile()">Cancel</button>
-      </div>
     </div>
   </div>
 
@@ -3418,14 +3441,24 @@ document.addEventListener('click', (e) => {
   if (!e.target.closest('.me-wrap')) closeMeMenu();
 });
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') closeMeMenu();
+  if (e.key !== 'Escape') return;
+  closeMeMenu();
+  // Settings, unless Favorites is open over it.
+  if (!document.getElementById('profileOverlay').classList.contains('hidden') &&
+      document.getElementById('favoritesOverlay').classList.contains('hidden')) closeProfile();
 });
 
 // The note under the box says what ticking it does, once it's ticked.
 function showPeanutHint(){
   document.getElementById('profilePeanutHint').classList.toggle('hidden', !document.getElementById('profilePeanut').checked);
 }
-document.getElementById('profilePeanut').addEventListener('change', showPeanutHint);
+// Each box saves the moment it's ticked. One that fails goes back to how
+// it was, with the error under it.
+document.getElementById('profilePeanut').addEventListener('change', (e) => {
+  showPeanutHint();
+  saveProfileSetting('peanutAllergy', e.target);
+});
+document.getElementById('profileAList').addEventListener('change', (e) => saveProfileSetting('amcAList', e.target));
 
 // Tickets' own settings. Your name, photo and Venmo are changed at your
 // Canopy account, linked from here and from the top of the menu.
@@ -3439,6 +3472,7 @@ function openProfile(){
 function renderProfileSheet(){
   document.getElementById('profileAccountLink').href = accountProfileUrl();
   document.getElementById('profilePeanut').checked = !!me.peanutAllergy;
+  document.getElementById('profileAList').checked = !!me.amcAList;
   showPeanutHint();
   document.getElementById('profileError').textContent = '';
 }
@@ -3453,26 +3487,31 @@ function closeProfile(){
   overlayClosed();
 }
 
-// The peanut allergy setting can be changed from any browser you're
-// signed in on -- no movie needs to be unlocked.
-async function saveProfile(){
+// Settings can be changed from any browser you're signed in on -- no
+// movie needs to be unlocked.
+async function saveProfileSetting(key, box){
   const errorEl = document.getElementById('profileError');
   errorEl.textContent = '';
+  const failed = (message) => {
+    box.checked = !box.checked;
+    if (box.id === 'profilePeanut') showPeanutHint();
+    errorEl.textContent = message || t('friend.profile.failed');
+  };
   try{
     const res = await fetch('/api/profile', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ peanutAllergy: document.getElementById('profilePeanut').checked })
+      body: JSON.stringify({ [key]: box.checked })
     });
     if (await handleAuthFailure(res)) return;
     const data = await res.json().catch(() => ({}));
-    if (!res.ok){ errorEl.textContent = data.error || t('friend.profile.failed'); return; }
+    if (!res.ok){ failed(data.error); return; }
     me = data.person;
     renderMe();
-    closeProfile();
-    loadList();
+    // Who sits next to a peanut allergy changes what the list shows.
+    if (key === 'peanutAllergy') loadList();
   }catch(e){
-    errorEl.textContent = t('friend.profile.failed');
+    failed();
   }
 }
 
