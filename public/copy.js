@@ -32,7 +32,12 @@ const COPY = {
     noPasskeys: "This browser can't use passkeys. Open this page in Safari or Chrome, or continue with email.",
     unavailable: "Signing in isn't working here right now. Try again later.",
     failed: 'Something went wrong. Try again.',
-    unreachable: 'Could not reach Canopy accounts. Try again.'
+    unreachable: 'Could not reach Canopy accounts. Try again.',
+    // Signed in with a quick (unconfirmed) Canopy account, which tickets
+    // doesn't let in.
+    unverified: 'You need a verified email address to use Canopy Tickets.',
+    verify: 'Verify my email',
+    signOut: 'Sign out'
   },
 
   // ---------------- RESERVATION PAGE (what friends see) ----------------

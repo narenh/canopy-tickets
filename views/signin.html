@@ -63,7 +63,10 @@
     font-size:13px;
     font-weight:600;
   }
-  button{
+  button, .button{
+    display:block;
+    text-align:center;
+    text-decoration:none;
     width:100%;
     background:var(--gold);
     color:#241c07;
@@ -103,6 +106,8 @@
     font-weight:600;
     text-decoration:underline;
   }
+  .sign-out{margin:16px 0 0;font-size:12px;}
+  .sign-out a{color:var(--muted);font-weight:600;}
   .error{
     color:#e2857a;
     font-size:13px;
@@ -181,14 +186,24 @@
      itself (it allows that for Canopy pages), and the session cookie
      that comes back is the one every Canopy site reads. Anything else --
      an email code, a new account, a lost passkey -- is "Continue with
-     email", which goes to the account service and comes back here. -->
-<body data-backdrop="__OG_IMAGE_URL__" data-account="__ACCOUNT_URL__" data-email-signin="__EMAIL_SIGNIN_URL__">
+     email", which goes to the account service and comes back here.
+
+     Or signed in, but with a quick Canopy account whose email isn't
+     confirmed, which tickets doesn't let in (data-verify is set): then it
+     says so instead, with Verify my email and Sign out. -->
+<body data-backdrop="__OG_IMAGE_URL__" data-account="__ACCOUNT_URL__" data-email-signin="__EMAIL_SIGNIN_URL__" data-verify="__VERIFY_URL__">
   <div class="edge-tint top" id="edgeTop" aria-hidden="true"></div>
   <div class="edge-tint bottom" id="edgeBottom" aria-hidden="true"></div>
 
   <div class="card">
     <!-- LOGO_IMG -->
     <h1>Canopy Tickets</h1>
+    <div id="verifyView" class="hidden">
+      <p data-copy="signin.unverified"></p>
+      <a class="button" id="verifyBtn" href="__VERIFY_URL__" data-copy="signin.verify"></a>
+      <p class="sign-out"><a href="__SIGN_OUT_URL__" data-copy="signin.signOut"></a></p>
+    </div>
+    <div id="signInView">
     <p data-copy="signin.tagline"></p>
     <div class="error" id="signInError"></div>
     <button type="button" class="passkey-btn" id="signInBtn">
@@ -199,6 +214,7 @@
     </button>
     <div class="or" data-copy="signin.or"></div>
     <button type="button" class="secondary" id="emailBtn" data-copy="signin.email"></button>
+    </div>
   </div>
 
 <script src="/copy.js"></script>
@@ -208,6 +224,12 @@ applyCopy();
 
 const ACCOUNT = document.body.getAttribute('data-account');
 const EMAIL_SIGNIN = document.body.getAttribute('data-email-signin');
+
+// Signed in, email not confirmed: the confirm-your-email card instead.
+if (document.body.getAttribute('data-verify')){
+  document.getElementById('signInView').classList.add('hidden');
+  document.getElementById('verifyView').classList.remove('hidden');
+}
 
 // ---------------- Backdrop ----------------
 // The link-preview image behind the card, when one has been uploaded.

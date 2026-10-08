@@ -1496,8 +1496,15 @@ function normalizeSeats(rawSeats){
 // repeats forever. Refuse to redirect
 // more than once in a few seconds -- show a manual link instead of
 // hammering the server or the browser's redirect-loop detector.
-function handleAuthFailure(res){
-  if (res.status !== 401) return false;
+//
+// A 403 with reason "email_unverified" (signed in with a quick Canopy
+// account whose email isn't confirmed) is handled the same way: the
+// reload shows the page saying so, with Verify my email.
+async function handleAuthFailure(res){
+  if (res.status === 403){
+    const body = await res.clone().json().catch(() => ({}));
+    if (body.reason !== 'email_unverified') return false;
+  } else if (res.status !== 401) return false;
   const key = 'canopy_auth_redirect_at';
   const last = Number(sessionStorage.getItem(key) || 0);
   if (Date.now() - last < 4000){

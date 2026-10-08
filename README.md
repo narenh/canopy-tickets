@@ -58,8 +58,8 @@ files and images (see "Storage & backups" below).
   `setSeatConcessions` does the same read-check-write dance for a friend
   editing a reserved seat's concession order.
 - `lib/canopyAccount.js` — the account service's
-  `client/canopy-account.js`, copied in unchanged apart from its header
-  comment. To update it, copy that file in again.
+  `client/canopy-account.js`, copied in verbatim. To update it, copy that
+  file in again.
 - `lib/concessionMenu.js` — persistence for the concession menu: one
   global list of `{id, name, price, note, optionGroup}` plus the option
   groups items choose from (see "Concessions" below for why it isn't per
@@ -187,6 +187,20 @@ tickets asks the account service, server to server, who it belongs to
   back here: an email and a 6-digit code there either signs in (with a
   new passkey on this phone) or makes a new account, with name, photo and
   an optional Venmo. Then the browser comes straight back to tickets.
+- **A quick Canopy account** (a quick sign-up, whose email isn't
+  confirmed yet) isn't let into tickets. The account service answers
+  `{"person": null, "unverified": true}` for one, and sending it to sign
+  in would loop: the account service sees a signed-in browser and sends
+  it straight back. So `/` and `/admin` show the same page saying "You
+  need a verified email address to use Canopy Tickets.", with **Verify my
+  email** (the account service's confirm step, `canopy.verifyUrl`, which
+  comes back to the page they were on) and **Sign out**. API calls answer
+  `403` with `"reason": "email_unverified"` and a `verify` URL (what
+  `lib/canopyAccount.js`'s `requireSignIn` gives), and the pages reload
+  on it the way they do on a `401`, which shows that page. Confirming the
+  email keeps the same session, so for them the account service is asked
+  again on every request rather than from the minute's cache: they're in
+  as soon as they come back.
 - **Sign out** in the profile menu goes to `/signout`, which hands over to
   the account service's sign-out. That signs the browser out of every
   Canopy site, then comes back to `/`, the sign-in page.
@@ -771,6 +785,12 @@ password (and, optionally, set Venmo/Cash App handles), then make another
 account at `http://localhost:4100` in another browser to see the friend
 side. With no `SMTP_HOST`, the account service prints sign-in codes in
 its own console.
+
+**Tests:** `npm test` runs `test/*.test.js` with Node's own runner. They
+start the real server on a scratch `DATA_DIR` against a fake account
+service, so nothing else needs to be running: who gets in (signed out,
+verified, a quick account before and after confirming its email) and the
+calendar endpoint's signature check.
 
 ## Deploying with Docker
 
