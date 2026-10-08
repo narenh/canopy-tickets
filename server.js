@@ -61,13 +61,18 @@ const canopy = createCanopyAccount({
   key: CANOPY_ACCOUNT_KEY || 'unset',
   calendarSecret: CANOPY_CALENDAR_SECRET
 });
+// The same, without the minute's cache, for asking again about someone
+// whose last answer said their email isn't confirmed (see attachPerson).
+// Confirming it keeps the same session, so the cached answer would
+// otherwise keep them out for up to a minute after they've done it.
+const canopyUncached = createCanopyAccount({ url: CANOPY_ACCOUNT_URL, key: CANOPY_ACCOUNT_KEY || 'unset', cacheMs: 0 });
 if (!CANOPY_ACCOUNT_KEY) {
   console.error('\n[canopy-tickets] ****************************************************************');
   console.error('[canopy-tickets] CANOPY_ACCOUNT_KEY is not set. NOBODY CAN SIGN IN until it is.');
   console.error("[canopy-tickets] Make one in the account admin's Sites tab (site name: tickets),");
   console.error('[canopy-tickets] set it in this server\'s environment and redeploy.');
   console.error('[canopy-tickets] ****************************************************************\n');
-  canopy.attach = (req, res, next) => { req.person = null; next(); };
+  canopy.attach = (req, res, next) => { req.person = null; req.canopyUnverified = false; next(); };
   canopy.people = async () => { throw new Error('CANOPY_ACCOUNT_KEY is not set'); };
 }
 
@@ -442,8 +447,21 @@ function requireAdmin(req, res, next) {
   attachPerson(req, res, (err) => {
     if (err) return next(err);
     if (isAdmin(req)) return next();
+    if (!req.person) return signedOutApi(req, res);
     res.status(401).json({ error: 'unauthorized' });
   });
+}
+
+// An API call from someone not let in: a 401, or, for someone signed in
+// whose email isn't confirmed, the same 403 lib/canopyAccount.js's
+// requireSignIn gives, with where to confirm it and come back to. The
+// pages (handleAuthFailure) reload on either, and the reload shows the
+// sign-in or the confirm-your-email page.
+function signedOutApi(req, res) {
+  if (req.canopyUnverified) {
+    return res.status(403).json({ error: 'confirm your email first', reason: 'email_unverified', verify: canopy.verifyUrl(req, req.get('referer') || undefined) });
+  }
+  res.status(401).json({ error: 'unauthorized' });
 }
 
 // ---------------- Payment handles (admin auth required) ----------------
@@ -816,36 +834,48 @@ function sendGuessRefusal(res, outcome) {
 // (lib/sqliteStore.js syncPerson). The account answer is cached for a
 // minute (lib/canopyAccount.js), so a change there shows here within one.
 //
+// Someone signed in whose email isn't confirmed (a quick sign-up) isn't
+// let in here: req.person stays null and req.canopyUnverified is true, and
+// they're shown how to confirm it (sendSignedOutPage, signedOutApi) rather
+// than sent to sign in, which they already are. That answer is asked again
+// without the cache each time, so they're in as soon as they've confirmed.
+//
 // A database with no admin yet (a brand-new install) makes the first
 // person to sign in the admin. On the live site the admin came across
 // with everyone else, so this never happens there.
 function attachPerson(req, res, next) {
   canopy.attach(req, res, (err) => {
     if (err) return next(err);
-    const account = req.person;
-    req.person = null;
-    req.unlocked = new Set();
-    req.firstVisit = false;
-    if (!account) return next();
-    try {
-      const { person, created } = store.syncPerson(account, photoAtFrom(account.photoUrl));
-      if (created) rememberFirstVisit(person.id);
-      // A brand-new install's first person ever is its admin. Only then:
-      // if the admin were somehow unset on a database with people in it,
-      // the next friend to sign in must not become the admin.
-      if (created && !store.getAdminPersonId() && store.listPeople().length === 1) {
-        store.setAdminPersonId(person.id);
-        console.warn(`[canopy-tickets] new install: ${person.email} is the first person here, so they're the admin`);
-      }
-      if (person.id === store.getAdminPersonId()) rememberAdminPhone(account.phone);
-      req.person = person;
-      req.firstVisit = created;
-      req.unlocked = store.personUnlockedMovieIds(person.id);
-    } catch (e) {
-      return next(e);
-    }
-    next();
+    if (req.canopyUnverified) return canopyUncached.attach(req, res, (err2) => (err2 ? next(err2) : withPerson(req, res, next)));
+    withPerson(req, res, next);
   });
+}
+
+// attachPerson's second half: req.person is the account's answer.
+function withPerson(req, res, next) {
+  const account = req.person;
+  req.person = null;
+  req.unlocked = new Set();
+  req.firstVisit = false;
+  if (!account) return next();
+  try {
+    const { person, created } = store.syncPerson(account, photoAtFrom(account.photoUrl));
+    if (created) rememberFirstVisit(person.id);
+    // A brand-new install's first person ever is its admin. Only then:
+    // if the admin were somehow unset on a database with people in it,
+    // the next friend to sign in must not become the admin.
+    if (created && !store.getAdminPersonId() && store.listPeople().length === 1) {
+      store.setAdminPersonId(person.id);
+      console.warn(`[canopy-tickets] new install: ${person.email} is the first person here, so they're the admin`);
+    }
+    if (person.id === store.getAdminPersonId()) rememberAdminPhone(account.phone);
+    req.person = person;
+    req.firstVisit = created;
+    req.unlocked = store.personUnlockedMovieIds(person.id);
+  } catch (e) {
+    return next(e);
+  }
+  next();
 }
 
 // The ?v= on an account photoUrl (when the photo last changed), or null
@@ -890,7 +920,7 @@ function meView(req) {
 // Only what's tickets' own. Name, photo and Venmo are changed at the
 // account service (the profile sheet links there).
 app.patch('/api/profile', attachPerson, (req, res) => {
-  if (!req.person) return res.status(401).json({ error: 'unauthorized' });
+  if (!req.person) return signedOutApi(req, res);
   const body = req.body || {};
   for (const key of ['peanutAllergy', 'amcAList']) {
     if (body[key] !== undefined && typeof body[key] !== 'boolean') {
@@ -905,7 +935,7 @@ app.patch('/api/profile', attachPerson, (req, res) => {
 // ---------------- Public API (signed-in friends) ----------------
 
 app.use('/api/public', attachPerson, (req, res, next) => {
-  if (!req.person) return res.status(401).json({ error: 'unauthorized' });
+  if (!req.person) return signedOutApi(req, res);
   next();
 });
 
@@ -1654,13 +1684,22 @@ function escapeAttr(value) {
 // With no CANOPY_ACCOUNT_KEY, signing in can't work (they'd come back
 // still signed out), so the page is sent without the account URLs and
 // says so.
-function sendSignInPage(req, res) {
+//
+// Signed in but with an email that isn't confirmed (req.canopyUnverified),
+// the same page says so instead, with Verify my email (the account
+// service's confirm step, which comes back to this page) and Sign out.
+// Sending them to sign in would only loop: the account service sees
+// they're signed in and sends them straight back here.
+function sendSignedOutPage(req, res) {
+  const unverified = !!req.canopyUnverified;
   renderHtmlPage(res, req, path.join(__dirname, 'views', 'signin.html'), {
     OG_IMAGE_URL: ogImageUrl(),
     ACCOUNT_URL: CANOPY_ACCOUNT_KEY ? CANOPY_ACCOUNT_URL : '',
     // ?email: the account page shows only the email step, since choosing
     // email here already says "new, or no passkey on this phone".
-    EMAIL_SIGNIN_URL: CANOPY_ACCOUNT_KEY ? `${canopy.signInUrl(req)}&email` : ''
+    EMAIL_SIGNIN_URL: CANOPY_ACCOUNT_KEY ? `${canopy.signInUrl(req)}&email` : '',
+    VERIFY_URL: unverified ? canopy.verifyUrl(req) : '',
+    SIGN_OUT_URL: unverified ? canopy.signOutUrl(req) : ''
   });
 }
 
@@ -1668,7 +1707,7 @@ app.get('/', attachPerson, (req, res) => {
   if (req.person) {
     return renderHtmlPage(res, req, path.join(__dirname, 'views', 'public.html'));
   }
-  sendSignInPage(req, res);
+  sendSignedOutPage(req, res);
 });
 
 // Signed in as someone else: back to the reservation page. Signed out:
@@ -1676,7 +1715,7 @@ app.get('/', attachPerson, (req, res) => {
 app.get('/admin', attachPerson, (req, res) => {
   if (isAdmin(req)) return renderHtmlPage(res, req, path.join(__dirname, 'views', 'admin.html'));
   if (req.person) return res.redirect('/');
-  sendSignInPage(req, res);
+  sendSignedOutPage(req, res);
 });
 
 // Tickets' own sign-in from before Canopy accounts. A phone can keep the
