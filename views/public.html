@@ -926,13 +926,8 @@
   .existing-card{max-height:85vh;display:flex;flex-direction:column;}
   #existingPick{display:flex;flex-direction:column;flex:1;min-height:0;}
   .existing-list{overflow-y:auto;margin-bottom:12px;flex:1;min-height:0;}
-  .unclaimed-show{display:block;width:100%;text-align:left;background:none;border:0;border-top:1px solid #26262a;padding:10px 0;color:#ddd;font:inherit;cursor:pointer;}
-  .unclaimed-show:first-child{border-top:0;}
-  .unclaimed-show:disabled{cursor:default;}
-  .unclaimed-show-title{font-weight:700;color:#eee;font-size:14px;}
-  .unclaimed-show-when{color:var(--muted);font-size:12.5px;margin-top:1px;}
-  .unclaimed-show-seats{font-size:13px;margin-top:4px;}
-  .unclaimed-show-seats b{color:var(--gold);}
+  .unclaimed-seat{display:block;width:100%;text-align:left;background:none;border:0;padding:5px 0;color:#ddd;font:inherit;font-size:13px;cursor:pointer;}
+  .unclaimed-seat:disabled{cursor:default;}
   .existing-name{font-weight:700;color:var(--gold);font-size:14px;margin:10px 0 4px;}
   .existing-seat{display:flex;align-items:center;gap:10px;font-size:13px;color:#ddd;padding:5px 0;cursor:pointer;}
   .existing-seat input{width:18px;height:18px;margin:0;accent-color:var(--gold);flex:0 0 auto;}
@@ -1796,7 +1791,7 @@
   </div>
 
   <!-- ===================== UNCLAIMED SEATS (admin) ===================== -->
-  <!-- Every upcoming showtime's open seats, in every movie. -->
+  <!-- Seats in upcoming showtimes with a name and no Canopy account. -->
   <div class="claim-overlay hidden" id="unclaimedOverlay">
     <div class="claim-card existing-card">
       <div class="claim-title" data-copy="friend.unclaimed.heading"></div>
@@ -4049,9 +4044,10 @@ async function copyCalendarFeed(){
 }
 
 // ---------------- UNCLAIMED SEATS (admin) ----------------
-// The open seats in every upcoming showtime, for the host to see what's
-// still unsold. A showtime they can open here (its movie unlocked) goes
-// to its seat map when tapped.
+// Seats in upcoming showtimes with a name on them and no Canopy account,
+// grouped by that name: who still needs to sign up and claim theirs. A
+// seat whose showtime is loaded here (its movie unlocked) goes to the
+// seat map when tapped.
 async function openUnclaimed(){
   const list = document.getElementById('unclaimedList');
   const summary = document.getElementById('unclaimedSummary');
@@ -4061,43 +4057,50 @@ async function openUnclaimed(){
   err.textContent = '';
   document.getElementById('unclaimedOverlay').classList.remove('hidden');
   overlayOpened();
-  let showtimes;
+  let seats;
   try{
     const res = await fetch('/api/public/unclaimed');
     if (await handleAuthFailure(res)) return;
     if (!res.ok) throw new Error('failed');
-    showtimes = (await res.json()).showtimes || [];
+    seats = (await res.json()).seats || [];
   }catch(e){
     err.textContent = t('friend.unclaimed.failed');
     return;
   }
-  const total = showtimes.reduce((n, s) => n + s.openSeatIds.length, 0);
-  summary.textContent = total
-    ? t(total === 1 ? 'friend.unclaimed.summaryOne' : 'friend.unclaimed.summaryMany', { count: total, showtimes: showtimes.length })
+  const byName = new Map();
+  seats.forEach(x => {
+    const key = (x.name || '').trim();
+    if (!byName.has(key)) byName.set(key, []);
+    byName.get(key).push(x);
+  });
+  const names = Array.from(byName.keys()).sort((a, b) => a.localeCompare(b));
+  summary.textContent = names.length
+    ? t(names.length === 1 ? 'friend.unclaimed.summaryOne' : 'friend.unclaimed.summaryMany', { count: names.length })
     : t('friend.unclaimed.none');
-  showtimes.forEach(s => {
-    const row = document.createElement('button');
-    row.type = 'button';
-    row.className = 'unclaimed-show';
-    const seatIds = s.openSeatIds.slice().sort(compareSeatIds);
-    const owed = typeof s.price === 'number' && s.price > 0 ? ' · ' + formatPrice(s.price * seatIds.length) : '';
-    row.innerHTML = '<div class="unclaimed-show-title">' + escapeHtml(s.title || 'Untitled') + '</div>' +
-      '<div class="unclaimed-show-when">' + escapeHtml(formatDateDisplay(s.date) + ' · ' + formatTimeDisplay(s.time)) + '</div>' +
-      '<div class="unclaimed-show-seats"><b>' + escapeHtml(t('friend.unclaimed.openOf', { count: seatIds.length, total: s.blockSize })) + '</b>' +
-      escapeHtml(owed) + ' — ' + escapeHtml(seatIds.join(', ')) + '</div>';
-    if (allShowtimes.some(x => x.id === s.id)){
-      // The sheet's own history entry becomes the seat map's, so back
-      // from the map lands where the sheet was opened.
-      row.onclick = () => {
-        document.getElementById('unclaimedOverlay').classList.add('hidden');
-        history.replaceState({ canopyView: 'picker', film: s.title, showtimeId: s.id, depth: navState().depth || 0 }, '');
-        currentFilmTitle = s.title;
-        showSeatPicker(s.id);
-      };
-    } else {
-      row.disabled = true;
-    }
-    list.appendChild(row);
+  names.forEach(name => {
+    const head = document.createElement('div');
+    head.className = 'existing-name';
+    head.textContent = name;
+    list.appendChild(head);
+    byName.get(name).forEach(x => {
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'unclaimed-seat';
+      row.textContent = x.title + ' \u00b7 ' + formatDateDisplay(x.date) + ' \u00b7 ' + formatTimeDisplay(x.time) + ' \u00b7 ' + x.seatId;
+      if (allShowtimes.some(s => s.id === x.showtimeId)){
+        // The sheet's own history entry becomes the seat map's, so back
+        // from the map lands where the sheet was opened.
+        row.onclick = () => {
+          document.getElementById('unclaimedOverlay').classList.add('hidden');
+          history.replaceState({ canopyView: 'picker', film: x.title, showtimeId: x.showtimeId, depth: navState().depth || 0 }, '');
+          currentFilmTitle = x.title;
+          showSeatPicker(x.showtimeId);
+        };
+      } else {
+        row.disabled = true;
+      }
+      list.appendChild(row);
+    });
   });
 }
 
