@@ -3969,8 +3969,9 @@ async function updateClaimBanner(){
 // Top of My Showtimes until the person dismisses it or taps Subscribe --
 // remembered on them (calendarPromptDone), so it doesn't come back on
 // another phone. Subscribe is a real link to the webcal:// feed, so the
-// phone hands it to the calendar app; the feed URL is fetched first so
-// the link is ready by the time anyone taps it.
+// phone hands it to the calendar app (or, once showtimes are in your
+// Canopy calendar, to your account's Calendar section); the feed URL is
+// fetched first so the link is ready by the time anyone taps it.
 async function renderCalBanner(){
   const banner = document.getElementById('calBanner');
   // The claim banner takes its place while it's showing.
@@ -3982,7 +3983,7 @@ async function renderCalBanner(){
       if (res.ok) calendarFeed = await res.json();
     }catch(e){}
   }
-  if (calendarFeed) document.getElementById('calBannerSubscribe').href = calendarFeed.webcalUrl;
+  if (calendarFeed) document.getElementById('calBannerSubscribe').href = calendarFeed.accountUrl || calendarFeed.webcalUrl;
 }
 
 function markCalPromptDone(){
@@ -4004,9 +4005,15 @@ document.getElementById('calBannerSubscribe').addEventListener('click', (e) => {
 // Subscribe opens the webcal:// link, which phones hand to their calendar
 // app as a subscription; Copy is for pasting the https:// one into a
 // calendar that asks for a URL (Google Calendar's "From URL").
-let calendarFeed = null;   // { url, webcalUrl }
+//
+// Once showtimes are in your Canopy calendar (the account service's one
+// link for every Canopy site), the server answers { accountUrl } instead,
+// and this goes straight to your account's Calendar section: one link to
+// subscribe to, not one per site.
+let calendarFeed = null;   // { url, webcalUrl } or { accountUrl }
 
 async function openCalendarFeed(){
+  if (calendarFeed && calendarFeed.accountUrl){ location.href = calendarFeed.accountUrl; return; }
   document.getElementById('calendarError').textContent = '';
   document.getElementById('calendarCopy').textContent = t('friend.calendar.copy');
   const sub = document.getElementById('calendarSubscribe');
@@ -4019,6 +4026,7 @@ async function openCalendarFeed(){
     if (await handleAuthFailure(res)) return;
     if (!res.ok) throw new Error('failed');
     calendarFeed = await res.json();
+    if (calendarFeed.accountUrl){ closeCalendarFeed(); location.href = calendarFeed.accountUrl; return; }
     sub.href = calendarFeed.webcalUrl;
   }catch(e){
     document.getElementById('calendarError').textContent = t('friend.calendar.failed');

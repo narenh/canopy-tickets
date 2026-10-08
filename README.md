@@ -319,6 +319,45 @@ and a banner at the top of My Showtimes points at it until it's tapped or
 dismissed. Calendar apps fetch it without cookies, so the random
 per-person token in the URL is the key.
 
+**In everyone's Canopy calendar.** The account service gives each person
+one calendar link for every Canopy site (`account.canopysf.com/cal/…`,
+see its README, "Calendar feed"), and tickets is in it by answering
+`GET /api/calendar/<personId>` with that person's showtimes, in the
+entry format the account service's README lays out ("`GET
+<site>/api/calendar/<personId>`"). The account service signs each
+request with a secret only it and tickets have, and
+`canopy.verifyCalendarRequest` (`lib/canopyAccount.js`) checks it: a
+request without a good signature from the last five minutes is a `401`.
+Someone tickets has nothing for is `{"entries": []}`, never a 404.
+
+Each showtime someone has a seat in (theirs or a guest's) is one entry:
+`uid` `showtime-<showtime id>@tix.canopysf.com` (fixed in `server.js`,
+since the request comes over Coolify's network, not from the public
+address), the movie's title, the same start and 3-hour block as above,
+the theater as its location, and "Seats H4, H3 (guest)" with the format
+and price as its description. Guests are "guest", not their names: this
+feed goes to Google's and Apple's servers along with everything else on
+someone's calendar. `updatedAt` is the later of the showtime's
+`updated_at` (any change to it or its seats) and its movie's (a new
+title).
+
+To set it up: in the account admin's Sites tab, put tickets' base URL
+(`https://tix.canopysf.com`, or `http://<its container>:3000` on
+Coolify's internal network) in tickets' **Calendar URL** and Save. It
+shows a **calendar secret** once; set it here as
+`CANOPY_CALENDAR_SECRET` and redeploy. With it set, **Calendar feed** in
+the menu and the banner's Subscribe go to the Calendar section of your
+Canopy profile instead of making a link here, so there's one link to
+subscribe to. Links already made here keep working for whoever
+subscribed to them; they just aren't offered any more. Without it,
+`/api/calendar/…` is always a `401` and tickets offers its own link as
+before.
+
+What it doesn't do yet: a released seat or a deleted showtime is simply
+gone from the answer, rather than sent for a while as `cancelled` as the
+account service's README asks, so it disappears from calendars without
+saying why. Doing that needs tickets to remember what it dropped.
+
 The confirmation card after a claim asks one thing at a time — settle up,
 then order something — each with its own way out; skipping one moves to
 the next rather than dismissing the lot, and a step that can't do
@@ -803,6 +842,9 @@ as static files instead of actually running the Node server.
      `https://account.canopysf.com`. It has to be the public address, not
      Coolify's internal one, because browsers are sent there to sign in
      and load photos from it.
+   - `CANOPY_CALENDAR_SECRET` — optional: the calendar secret the account
+     admin's Sites tab shows once tickets has a **Calendar URL** (see
+     "Calendar feed"). **New calendar secret** there replaces it.
    - (There's no env var for movie passwords or for Venmo/Cash App — set
      those from the editor after deploying.)
    - `ADMIN_PASSWORD`, `ADMIN_RECOVERY` and `SESSION_SECRET` are from

@@ -49,9 +49,18 @@ app.set('trust proxy', true);
 // and treats everyone as signed out rather than refusing to start.
 const CANOPY_ACCOUNT_URL = (process.env.CANOPY_ACCOUNT_URL || 'https://account.canopysf.com').replace(/\/+$/, '');
 const CANOPY_ACCOUNT_KEY = process.env.CANOPY_ACCOUNT_KEY || '';
+// CANOPY_CALENDAR_SECRET is what the account service signs its calendar
+// requests with (see "Calendar feed" below), shown once in the Sites tab
+// when tickets' Calendar URL is first saved. Set, it also means people's
+// showtimes are in their Canopy calendar, so that's the one offered here.
+const CANOPY_CALENDAR_SECRET = process.env.CANOPY_CALENDAR_SECRET || '';
 // With no key, the placeholder only feeds signInUrl/signOutUrl: attach
 // and people are swapped out below, so it's never sent anywhere.
-const canopy = createCanopyAccount({ url: CANOPY_ACCOUNT_URL, key: CANOPY_ACCOUNT_KEY || 'unset' });
+const canopy = createCanopyAccount({
+  url: CANOPY_ACCOUNT_URL,
+  key: CANOPY_ACCOUNT_KEY || 'unset',
+  calendarSecret: CANOPY_CALENDAR_SECRET
+});
 if (!CANOPY_ACCOUNT_KEY) {
   console.error('\n[canopy-tickets] ****************************************************************');
   console.error('[canopy-tickets] CANOPY_ACCOUNT_KEY is not set. NOBODY CAN SIGN IN until it is.');
@@ -1239,7 +1248,14 @@ function icsCalendar(eventLines, extra) {
 // a random token per person (lib/sqliteStore.js calendarTokenFor). It
 // shows the same thing My Showtimes does to anyone signed in as them --
 // which showtimes and which seats -- and nothing else.
+//
+// Once the account service's calendar feed has tickets in it
+// (CANOPY_CALENDAR_SECRET is set), that's the one link offered: the page
+// gets { accountUrl } and sends people to their Canopy profile's
+// Calendar section instead of making them a link here. Links already
+// made here keep working for whoever subscribed to them.
 app.get('/api/public/calendar-feed', (req, res) => {
+  if (CANOPY_CALENDAR_SECRET) return res.json({ accountUrl: `${CANOPY_ACCOUNT_URL}/profile#calendarCard` });
   const token = store.calendarTokenFor(req.person.id);
   if (!token) return res.status(404).json({ error: 'not found' });
   const host = req.get('host');
@@ -1265,17 +1281,22 @@ app.post('/api/public/favorites-prompt-done', (req, res) => {
   res.json({ ok: true });
 });
 
+// "Seat H4" for just you; "Seats H4, H3 (Alex)" with guests, yours first.
+// `guestLabel(seat)` is what goes in a guest's brackets.
+function seatTextFor(showtime, seatIds, guestLabel) {
+  const seats = showtime.seats || {};
+  const isGuest = (id) => !!(seats[id] && seats[id].guest);
+  const labels = seatIds.slice().sort((x, y) => isGuest(x) - isGuest(y))
+    .map((id) => (isGuest(id) ? `${id} (${guestLabel(seats[id])})` : id));
+  return `${labels.length > 1 ? 'Seats' : 'Seat'} ${labels.join(', ')}`;
+}
+
 app.get('/calendar/feed/:token.ics', (req, res) => {
   const person = store.personByCalendarToken(req.params.token);
   if (!person) return res.status(404).end();
   const events = [];
   store.seatsOf(person.id).forEach(({ showtime, seatIds }) => {
-    const seats = showtime.seats || {};
-    // "Seat H4" for just you; "Seats H4, H3 (Alex)" with guests, yours first.
-    const isGuest = (id) => !!(seats[id] && seats[id].guest);
-    const labels = seatIds.slice().sort((x, y) => isGuest(x) - isGuest(y))
-      .map((id) => (isGuest(id) ? `${id} (${seats[id].name})` : id));
-    const seatText = `${labels.length > 1 ? 'Seats' : 'Seat'} ${labels.join(', ')}`;
+    const seatText = seatTextFor(showtime, seatIds, (seat) => seat.name);
     const lines = icsEventLines(showtime, `feed-${showtime.id}-${person.id}@canopy-tickets`, seatText);
     if (lines) events.push(...lines);
   });
@@ -1287,6 +1308,79 @@ app.get('/calendar/feed/:token.ics', (req, res) => {
     'REFRESH-INTERVAL;VALUE=DURATION:PT1H',
     'X-PUBLISHED-TTL:PT1H'
   ]));
+});
+
+// ---------------- Calendar feed (the account service's) ----------------
+//
+// Everyone's one Canopy calendar link is the account service's
+// (account.canopysf.com/cal/<secret>.ics), merged from every Canopy site
+// that has a calendar. This is tickets' part of it: the account service
+// asks, signed with CANOPY_CALENDAR_SECRET, for one person's entries, as
+// its README's "GET <site>/api/calendar/<personId>" lays out. In the Sites
+// tab, tickets' Calendar URL is this site's base URL.
+//
+// The entries are the same showtimes the feed above has. What's
+// different, because this feed goes to Google's and Apple's servers
+// along with everything else on someone's calendar: guests are "guest",
+// not their names.
+
+// The account service's spec: a uid is the site's own id for the entry
+// at the site's host, and never changes. The host is fixed here rather
+// than read from the request, which comes over Coolify's internal
+// network and so names the container, not the site.
+const CALENDAR_SITE_ORIGIN = 'https://tix.canopysf.com';
+const CALENDAR_UID_HOST = new URL(CALENDAR_SITE_ORIGIN).host;
+
+function isoOrNull(ms) {
+  return Number.isFinite(ms) && ms > 0 ? new Date(ms).toISOString() : null;
+}
+
+// One showtime someone has seats in, as an entry, or null when it has no
+// usable date and time.
+function calendarEntry(showtime, seatIds, movieUpdatedAt) {
+  const start = showtimeInstantMs(showtime.date, showtime.time);
+  if (start === null) return null;
+  const details = [
+    seatTextFor(showtime, seatIds, () => 'guest'),
+    showtime.format,
+    typeof showtime.price === 'number' ? `$${showtime.price.toFixed(2)}` : ''
+  ].filter(Boolean).join(' \u00b7 ');
+  // A showtime's updated_at moves with every change to it and its seats
+  // (whoever's), and a movie's with its title. Either can change the
+  // entry, so the later one says when it last did.
+  const updatedMs = Math.max(showtime.updatedAt || 0, showtime.createdAt || 0, movieUpdatedAt || 0);
+  return {
+    uid: `showtime-${showtime.id}@${CALENDAR_UID_HOST}`,
+    title: String(showtime.title || 'Movie').slice(0, 500),
+    start: new Date(start).toISOString(),
+    end: new Date(start + CALENDAR_EVENT_MINUTES * 60000).toISOString(),
+    allDay: false,
+    timeZone: SHOWTIME_TIMEZONE,
+    location: showtime.theater ? String(showtime.theater).slice(0, 1000) : null,
+    url: `${CALENDAR_SITE_ORIGIN}/`,
+    status: 'confirmed',
+    description: details ? details.slice(0, 4000) : null,
+    // Never null: the spec requires it. A showtime from before
+    // updated_at was kept falls back to the epoch, which still only
+    // moves forward from there.
+    updatedAt: isoOrNull(updatedMs) || new Date(0).toISOString()
+  };
+}
+
+// Not under /api/public: the account service has no cookie, only the
+// signature. Someone tickets has no seats for (or has never seen) is
+// {"entries": []}, never a 404, so the answer doesn't say who exists.
+app.get('/api/calendar/:personId', (req, res) => {
+  const personId = canopy.verifyCalendarRequest(req);
+  if (!personId) return res.status(401).json({ error: 'not the account service', reason: 'unauthorized' });
+  const movieUpdatedAt = new Map(store.listMovies().map((m) => [m.id, m.updatedAt]));
+  const entries = [];
+  store.seatsOf(personId).forEach(({ showtime, seatIds }) => {
+    const entry = calendarEntry(showtime, seatIds, movieUpdatedAt.get(showtime.movieId));
+    if (entry) entries.push(entry);
+  });
+  res.set('Cache-Control', 'no-store');
+  res.json({ entries });
 });
 
 // ---------------- Favorite concessions ----------------
