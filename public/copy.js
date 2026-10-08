@@ -233,14 +233,13 @@ const COPY = {
       ordersWithTax: 'Total with tax'
     },
 
-    // The admin's Unclaimed Seats sheet, from the profile menu: open seats
-    // in every upcoming showtime.
+    // The admin's Unclaimed Seats sheet, from the profile menu: seats in
+    // upcoming showtimes with a name on them but no Canopy account.
     unclaimed: {
       heading: 'Unclaimed seats',
-      summaryOne: '{count} open seat left in upcoming showtimes.',
-      summaryMany: '{count} open seats left in upcoming showtimes.',
-      none: 'Every seat in every upcoming showtime is taken.',
-      openOf: '{count} of {total} open',
+      summaryOne: "1 name on seats that isn't linked to a Canopy account yet.",
+      summaryMany: "{count} names on seats that aren't linked to a Canopy account yet.",
+      none: 'Every seat in upcoming showtimes belongs to a Canopy account.',
       failed: "Couldn't load unclaimed seats. Try again."
     },
 

@@ -975,35 +975,18 @@ app.get('/api/public/mine', (req, res) => {
   res.json({ items });
 });
 
-// For the admin's "Unclaimed Seats": the seats in each upcoming showtime's
-// block that nobody has reserved yet, in every movie, unlocked or not --
-// they're the ones the host has paid for and nobody's paying back.
-// Showtimes with nothing open are left out.
+// For the admin's "Unclaimed Seats": seats in upcoming showtimes that
+// carry a name but no Canopy account (reserved before profiles, or typed
+// into the editor), in every movie, unlocked or not -- who to nag into
+// signing up and claiming theirs.
 app.get('/api/public/unclaimed', (req, res) => {
   if (!isAdmin(req)) return res.status(403).json({ error: 'admin only' });
   const now = Date.now();
-  const showtimes = store.listShowtimes()
-    .filter((s) => {
-      const start = showtimeInstantMs(s.date, s.time);
-      return start === null || start > now;
-    })
-    .sort(byShowtime)
-    .map((s) => {
-      const seats = normalizeSeats(s.seats);
-      const block = Object.keys(seats).filter((id) => seats[id].status === 'assigned');
-      return {
-        id: s.id,
-        movieId: s.movieId,
-        title: s.title,
-        date: s.date,
-        time: s.time,
-        price: s.price,
-        blockSize: block.length,
-        openSeatIds: block.filter((id) => !seats[id].name)
-      };
-    })
-    .filter((s) => s.openSeatIds.length > 0);
-  res.json({ showtimes });
+  const seats = store.claimableSeats().filter((x) => {
+    const start = showtimeInstantMs(x.date, x.time);
+    return start === null || start > now;
+  });
+  res.json({ seats });
 });
 
 // A seat's order and payment are its owner's: your own seat, or a guest
