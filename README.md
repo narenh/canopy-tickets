@@ -13,7 +13,7 @@ claim seats.
   tickets and concessions alike.
 - At **`/`**, friends get two tabs: **My Showtimes** (their seats,
   and guests they booked) and **All Movies**. Friends see each other as
-  "Matt G", with the name and photo from their Canopy account. A movie is locked until its
+  their full name ("Matt Garcia"), with the name and photo from their Canopy account. A movie is locked until its
   **password** is typed in, once per person; after that they see its
   showtimes, pick an open seat off a seat map, reserve it for themselves
   or for someone they're bringing, and get a one-tap Venmo and/or Cash App

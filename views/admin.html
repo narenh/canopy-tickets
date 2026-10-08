@@ -2376,7 +2376,7 @@ function editorPerson(){
   const id = document.getElementById('seatEditorPerson').value;
   if (!id) return null;
   const cur = seatStates[editingSeatId];
-  return (editorPeople || []).find(p => p.id === id) || { id, shortName: (cur && cur.name) || '' };
+  return (editorPeople || []).find(p => p.id === id) || { id, displayName: (cur && cur.name) || '' };
 }
 
 // Their own seat in this showtime, other than the one being edited.
@@ -2415,7 +2415,7 @@ function syncSeatEditorOwner(){
     nameInput.placeholder = t('admin.seatEditor.guestPlaceholder');
     nameLabel.textContent = t('admin.seatEditor.guestNameLabel');
   } else {
-    nameInput.value = person.shortName;
+    nameInput.value = person.displayName;
     nameInput.readOnly = true;
     nameLabel.textContent = t('admin.seatEditor.ownNameLabel');
   }

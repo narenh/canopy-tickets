@@ -185,6 +185,8 @@ const COPY = {
       calendar: 'My Calendar Feed',
       settings: 'Settings',
       claimExisting: 'Claim Existing Seats',
+      // The admin's, in Claim Existing Seats' place.
+      unclaimed: 'Unclaimed Seats',
       signOut: 'Sign out'
     },
 
@@ -223,7 +225,23 @@ const COPY = {
       // The little black tooltip on a seat.
       tipTaken: '{seat} — {name}',
       tipAvailable: '{seat} — available',
-      tipNotOurs: '{seat} — not purchased'
+      tipNotOurs: '{seat} — not purchased',
+      // Under the map, only for the admin: every seat's concessions.
+      ordersHeading: 'Concessions ({count})',
+      ordersEmpty: 'Nobody has ordered concessions yet.',
+      ordersTotal: 'Whole order',
+      ordersWithTax: 'Total with tax'
+    },
+
+    // The admin's Unclaimed Seats sheet, from the profile menu: open seats
+    // in every upcoming showtime.
+    unclaimed: {
+      heading: 'Unclaimed seats',
+      summaryOne: '{count} open seat left in upcoming showtimes.',
+      summaryMany: '{count} open seats left in upcoming showtimes.',
+      none: 'Every seat in every upcoming showtime is taken.',
+      openOf: '{count} of {total} open',
+      failed: "Couldn't load unclaimed seats. Try again."
     },
 
     claim: {
