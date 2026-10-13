@@ -177,6 +177,48 @@ const SEAT_LAYOUTS = {
       { letter: 'G', count: 13, special: {}, padStart: 3 },
       { letter: 'H', count: 10, special: {}, padStart: 3, blankAfter: {5: 3} },
     ]
+  },
+
+  // Auditorium 14. Read off three overlapping screenshots of the real
+  // map, lined up by the seats they share. The room is 20 columns wide
+  // (rows A and C-G fill all of them, numbered 20 down to 1); rows B, H
+  // and J are placed on that same grid with padStart/blankAfter.
+  //
+  // Row B: B19-B14 and B4-B1 are labeled. The 10 columns between them
+  // hold one empty column and 9 wheelchair/companion spots, which is
+  // exactly B13-B5 -- so the empty column (between B12 and B11) takes no
+  // number. Wheelchair spots B12, B11, B8, B7; companion seats B13, B10,
+  // B9, B6, B5. Those numbers are inferred (AMC doesn't label them).
+  //
+  // Rows H and J start 5 columns in, under A15. H is a full run H15-H1
+  // (H13 is labeled). J has J9 and J1 labeled, with 7 spots between
+  // them and gaps of 4 columns (after J6) and 1 column (after J5): again
+  // exactly J8-J2, so the gaps take no numbers. J4/J2 are companion
+  // seats, J3 a wheelchair spot. Occupied seats show no number on AMC's
+  // map, so theirs come from the labeled seats on either side.
+  'amc-metreon-14': {
+    theater: 'AMC Metreon',
+    auditorium: '14',
+    formats: ['Single Laser'],
+    rows: [
+      { letter: 'A', count: 20, special: {} },
+      {
+        letter: 'B',
+        count: 19,
+        special: {
+          13:'comp', 12:'wc', 11:'wc', 10:'comp', 9:'comp',
+          8:'wc', 7:'wc', 6:'comp', 5:'comp'
+        },
+        blankAfter: {12: 1}
+      },
+      { letter: 'C', count: 20, special: {} },
+      { letter: 'D', count: 20, special: {} },
+      { letter: 'E', count: 20, special: {} },
+      { letter: 'F', count: 20, special: {} },
+      { letter: 'G', count: 20, special: {} },
+      { letter: 'H', count: 15, special: {}, padStart: 5 },
+      { letter: 'J', count: 10, special: {4:'comp', 3:'wc', 2:'comp'}, padStart: 5, blankAfter: {6: 4, 5: 1} },
+    ]
   }
 };
 
