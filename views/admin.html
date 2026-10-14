@@ -316,6 +316,28 @@
     margin-top:8px;
     min-height:16px;
   }
+  /* Wallet passes: a showtime's own, and (in Settings) the upload token
+     and any the server couldn't place. */
+  .pass-row{
+    display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+    padding:9px 0;border-top:1px solid #2a2a2a;font-size:13px;
+  }
+  .pass-row:first-child{border-top:none;}
+  .pass-row-main{flex:1;min-width:160px;}
+  .pass-row-sub{color:var(--muted);font-size:12px;margin-top:2px;}
+  .pass-row-why{color:#e2857a;font-size:12px;margin-top:2px;}
+  .pass-row select{
+    max-width:100%;background:#0f0f10;color:#fff;border:1px solid #3a3a3a;border-radius:8px;padding:6px;font-size:12px;
+  }
+  .pass-empty{color:var(--muted);font-size:12px;}
+  .pass-token{
+    flex:1;min-width:0;font-family:ui-monospace, Menlo, monospace;font-size:12px;
+    background:#0f0f10;border:1px solid #3a3a3a;border-radius:10px;padding:8px 10px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#ddd;
+  }
+  .pass-steps{margin:10px 0 0;padding-left:18px;color:var(--muted);font-size:12px;line-height:1.6;}
+  .pass-steps code{color:#ddd;font-size:11.5px;word-break:break-all;}
+  .pass-subhead{font-size:13px;font-weight:700;margin:16px 0 4px;}
   .cards{
     padding:14px 20px 20px;
     display:flex;
@@ -1217,6 +1239,19 @@
       <span class="orders-close-note" id="ordersCloseNote"></span>
     </div>
 
+    <!-- AMC's Wallet passes for this showtime, one per order. Friends
+         with a seat get the one holding it, an hour before the show. -->
+    <div class="og-section">
+      <h3 data-copy="admin.passes.showTitle"></h3>
+      <p data-copy="admin.passes.showBlurb"></p>
+      <div id="showPassList"></div>
+      <div class="og-controls" style="margin-top:8px;">
+        <input type="file" id="showPassFile">
+        <button type="button" onclick="uploadPass('showPassFile', 'showPassStatus')">Upload</button>
+      </div>
+      <div class="og-status" id="showPassStatus"></div>
+    </div>
+
     <div class="toolbar-note" data-copy="admin.seatGrid.help"></div>
 
     <div class="legend">
@@ -1282,6 +1317,24 @@
         <button type="button" onclick="savePaymentHandles()">Save</button>
       </div>
       <div class="og-status" id="paymentHandlesStatus"></div>
+    </div>
+    <div class="og-section">
+      <h3 data-copy="admin.passes.title"></h3>
+      <p data-copy="admin.passes.blurb"></p>
+      <div class="og-controls">
+        <div class="pass-token" id="passToken"></div>
+        <button type="button" id="passTokenCopy" onclick="copyPassToken()">Copy</button>
+        <button type="button" onclick="makePassToken()" id="passTokenMake">Make token</button>
+      </div>
+      <ol class="pass-steps" id="passSteps"></ol>
+      <div class="og-status" id="passTokenStatus"></div>
+      <div class="pass-subhead" data-copy="admin.passes.unplacedTitle"></div>
+      <div id="unplacedPasses"></div>
+      <div class="og-controls" style="margin-top:8px;">
+        <input type="file" id="settingsPassFile">
+        <button type="button" onclick="uploadPass('settingsPassFile', 'settingsPassStatus')">Upload</button>
+      </div>
+      <div class="og-status" id="settingsPassStatus"></div>
     </div>
     <div class="og-section">
       <h3>Link Preview Image</h3>
@@ -1580,7 +1633,8 @@ async function route(){
 
   if (view === 'moviesView'){ parentHash = '#/movies'; await loadMovies(); }
   else if (view === 'movieView'){ parentHash = '#/movies'; await openMovie(r.id); }
-  else if (view === 'editorView'){ await openShowtime(r.id); }
+  else if (view === 'editorView'){ await openShowtime(r.id); loadPasses(); }
+  else if (view === 'settingsView'){ parentHash = '#/movies'; loadPasses(); }
   else if (view === 'peopleView'){ parentHash = '#/movies'; await loadPeople(); }
   else parentHash = '#/movies';
 }
@@ -3331,6 +3385,176 @@ function populateScreenOptions(){
   });
 }
 
+
+// ---------------- WALLET PASSES ----------------
+//
+// AMC's .pkpass per order, uploaded by the host's iOS Shortcut (with the
+// token below) or from here. The server places each on its showtime by
+// start time, auditorium and seats; one it can't place waits in Settings
+// with a showtime picker. See "Wallet passes" in server.js.
+
+let adminPasses = [];
+let passShowtimes = [];   // every showtime, for placing a pass by hand
+
+async function loadPasses(){
+  try{
+    const [res, showRes] = await Promise.all([fetch('/api/passes'), fetch('/api/showtimes')]);
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok || !showRes.ok) return;
+    adminPasses = (await res.json()).passes || [];
+    passShowtimes = (await showRes.json()).showtimes || [];
+  }catch(e){ return; }
+  renderShowPasses();
+  renderUnplacedPasses();
+}
+
+function passSeatsText(p){
+  if (!p.seats.length) return t(p.ticketCount === 1 ? 'admin.passes.seatsOne' : 'admin.passes.seatsMany', { count: p.ticketCount });
+  return t(p.seats.length === 1 ? 'admin.passes.seatsOne' : 'admin.passes.seatsMany', { count: p.seats.length }) + ' · ' + p.seats.join(', ');
+}
+
+function passDeleteButton(p){
+  const del = document.createElement('button');
+  del.type = 'button';
+  del.className = 'delete-btn';
+  del.textContent = 'Delete';
+  del.addEventListener('click', async () => {
+    if (!confirm(t('admin.passes.deleteConfirm'))) return;
+    const res = await fetch('/api/passes/' + encodeURIComponent(p.id), { method: 'DELETE' });
+    if (await handleAuthFailure(res)) return;
+    loadPasses();
+  });
+  return del;
+}
+
+function renderShowPasses(){
+  const list = document.getElementById('showPassList');
+  if (!currentId){ list.innerHTML = ''; return; }
+  const mine = adminPasses.filter(p => p.showtime && p.showtime.id === currentId);
+  list.innerHTML = '';
+  if (!mine.length){
+    list.innerHTML = '<div class="pass-empty">' + escapeHtml(t('admin.passes.none')) + '</div>';
+    return;
+  }
+  mine.forEach(p => {
+    const row = document.createElement('div');
+    row.className = 'pass-row';
+    row.innerHTML = '<div class="pass-row-main"><div>' + escapeHtml(passSeatsText(p)) + '</div>' +
+      '<div class="pass-row-sub">' + escapeHtml(t('admin.passes.uploaded', { when: new Date(p.updatedAt).toLocaleString() })) + '</div></div>';
+    row.appendChild(passDeleteButton(p));
+    list.appendChild(row);
+  });
+}
+
+function renderUnplacedPasses(){
+  const list = document.getElementById('unplacedPasses');
+  const unplaced = adminPasses.filter(p => !p.showtime);
+  list.innerHTML = '';
+  if (!unplaced.length){
+    list.innerHTML = '<div class="pass-empty">' + escapeHtml(t('admin.passes.unplacedNone')) + '</div>';
+    return;
+  }
+  const options = passShowtimes.filter(s => !isPastShowtime(s));
+  unplaced.forEach(p => {
+    const row = document.createElement('div');
+    row.className = 'pass-row';
+    const main = document.createElement('div');
+    main.className = 'pass-row-main';
+    main.innerHTML = '<div>' + escapeHtml([p.film || 'Pass', p.when].filter(Boolean).join(' · ')) + '</div>' +
+      '<div class="pass-row-sub">' + escapeHtml([p.auditorium ? 'Auditorium ' + p.auditorium : '', passSeatsText(p)].filter(Boolean).join(' · ')) + '</div>' +
+      (p.unmatched ? '<div class="pass-row-why">' + escapeHtml(p.unmatched) + '</div>' : '');
+    row.appendChild(main);
+    const select = document.createElement('select');
+    select.innerHTML = '<option value="">' + escapeHtml(t('admin.passes.placeOn')) + '</option>' +
+      options.map(s => '<option value="' + escapeHtml(s.id) + '">' +
+        escapeHtml([s.title, formatDateDisplay(s.date), formatTimeDisplay(s.time)].filter(Boolean).join(' · ')) + '</option>').join('');
+    select.addEventListener('change', async () => {
+      if (!select.value) return;
+      const res = await fetch('/api/passes/' + encodeURIComponent(p.id), {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ showtimeId: select.value })
+      });
+      if (await handleAuthFailure(res)) return;
+      loadPasses();
+    });
+    row.appendChild(select);
+    row.appendChild(passDeleteButton(p));
+    list.appendChild(row);
+  });
+}
+
+async function uploadPass(inputId, statusId){
+  const input = document.getElementById(inputId);
+  const statusEl = document.getElementById(statusId);
+  const file = input.files && input.files[0];
+  if (!file){ statusEl.textContent = t('admin.passes.chooseFile'); return; }
+  statusEl.textContent = t('admin.status.uploading');
+  const form = new FormData();
+  form.append('file', file);
+  try{
+    const res = await fetch('/api/passes', { method: 'POST', body: form });
+    if (await handleAuthFailure(res)) return;
+    const data = await res.json().catch(() => ({}));
+    statusEl.textContent = data.message || (res.ok ? t('admin.status.uploaded') : t('admin.status.uploadFailed'));
+    if (res.ok) input.value = '';
+  }catch(e){
+    statusEl.textContent = t('admin.status.uploadFailed');
+  }
+  loadPasses();
+}
+
+// ---- The Shortcut's upload token ----
+
+let passToken = null;
+
+async function loadPassToken(){
+  try{
+    const res = await fetch('/api/pass-upload-token');
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok) return;
+    passToken = (await res.json()).token || null;
+  }catch(e){ return; }
+  renderPassToken();
+}
+
+function renderPassToken(){
+  document.getElementById('passToken').textContent = passToken || t('admin.passes.noToken');
+  document.getElementById('passTokenCopy').classList.toggle('hidden', !passToken);
+  document.getElementById('passTokenMake').textContent = passToken ? 'New token' : 'Make token';
+  const url = location.origin + '/api/passes';
+  const steps = document.getElementById('passSteps');
+  steps.innerHTML = '';
+  ['step1', 'step2', 'step3', 'step4', 'step5'].forEach(k => {
+    const li = document.createElement('li');
+    li.innerHTML = escapeHtml(t('admin.passes.' + k, { url: '\u0000URL\u0000' }))
+      .replace('\u0000URL\u0000', '<code>' + escapeHtml(url) + '</code>');
+    steps.appendChild(li);
+  });
+}
+
+async function makePassToken(){
+  if (passToken && !confirm(t('admin.passes.newTokenConfirm'))) return;
+  const statusEl = document.getElementById('passTokenStatus');
+  try{
+    const res = await fetch('/api/pass-upload-token', { method: 'POST' });
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok) throw new Error('failed');
+    passToken = (await res.json()).token;
+    statusEl.textContent = '';
+  }catch(e){
+    statusEl.textContent = t('admin.status.saveFailed');
+  }
+  renderPassToken();
+}
+
+async function copyPassToken(){
+  const statusEl = document.getElementById('passTokenStatus');
+  try{
+    await navigator.clipboard.writeText(passToken);
+    statusEl.textContent = t('admin.passes.copied');
+  }catch(e){
+    statusEl.textContent = t('admin.passes.copyFailed');
+  }
+}
 // ---------------- INIT ----------------
 populateScreenOptions();
 syncFormatOptions();
@@ -3340,6 +3564,8 @@ loadOgPreview();
 loadLogoPreview();
 loadPaymentHandles();
 loadConcessionMenu();
+loadPassToken();
+loadPasses();
 </script>
 
 </body>

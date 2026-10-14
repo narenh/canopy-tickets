@@ -1531,6 +1531,104 @@
     white-space:nowrap;
   }
   .cart-status.is-error{color:#e2857a;cursor:pointer;text-decoration:underline;}
+
+  /* ---------- DAY-OF SCREEN ----------
+     Full screen, on the day of a showtime you have a seat in (see
+     renderDayOf). Coloured from the movie's poster: --do-* are set on
+     #dayOfOverlay from its hue (posterTheme), at fixed lightnesses so any
+     poster stays readable. Under the cart (z-index 50), which opens on
+     top of it. */
+  #dayOfOverlay{
+    --do-bg:#0b0b0d; --do-card:#1a1a1d; --do-line:#2e2e33; --do-acc:var(--gold); --do-ink:#241c07; --do-mute:#a8a8a8;
+    position:fixed;
+    inset:0;
+    z-index:45;
+    background:var(--do-bg);
+    color:#f5f5f5;
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+    overscroll-behavior:contain;
+  }
+  body.dayof-open{overflow:hidden;}
+  .dayof-inner{
+    max-width:440px;
+    min-height:100%;
+    margin:0 auto;
+    display:flex;
+    flex-direction:column;
+    padding:calc(env(safe-area-inset-top) + 14px) 18px calc(env(safe-area-inset-bottom) + 20px);
+  }
+  .dayof-top{display:flex;justify-content:space-between;align-items:center;color:var(--do-mute);font-size:14px;}
+  .dayof-close{
+    width:34px;height:34px;border-radius:50%;border:none;cursor:pointer;
+    background:var(--do-card);color:#f5f5f5;font-size:20px;line-height:1;
+  }
+  .dayof-poster{
+    display:block;margin:16px auto 0;width:min(190px, 52vw);aspect-ratio:2/3;
+    border-radius:12px;object-fit:cover;background:var(--do-card);
+  }
+  .dayof-poster.is-small{width:min(140px, 40vw);}
+  .dayof-title{text-align:center;margin-top:14px;font-size:22px;font-weight:700;line-height:1.2;}
+  .dayof-sub{text-align:center;margin-top:3px;font-size:14px;color:var(--do-mute);}
+  .dayof-tiles{display:flex;gap:8px;margin-top:16px;}
+  .dayof-tile{flex:1;min-width:0;background:var(--do-card);border-radius:12px;padding:9px 11px;}
+  .dayof-tile-label{font-size:12px;color:var(--do-mute);}
+  .dayof-tile-value{font-size:16px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .dayof-bottom{margin-top:auto;padding-top:18px;}
+  .dayof-btn{
+    display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:54px;
+    border:none;border-radius:16px;cursor:pointer;font:inherit;font-size:17px;font-weight:700;
+    background:var(--do-acc);color:var(--do-ink);text-decoration:none;
+  }
+  .dayof-btn + .dayof-btn{margin-top:8px;}
+  .dayof-btn.venmo{background:var(--venmo);color:#fff;}
+  .dayof-btn.cashapp{background:var(--cashapp);color:#06290f;}
+  .dayof-note{text-align:center;font-size:13px;color:var(--do-mute);margin-top:9px;line-height:1.4;}
+  .dayof-sublinks{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 16px;margin-top:10px;}
+  .dayof-link{
+    background:none;border:none;padding:0;cursor:pointer;font:inherit;font-size:14px;
+    color:var(--do-mute);text-decoration:underline;text-underline-offset:2px;
+  }
+  .dayof-pay{margin-top:12px;}
+  .dayof-breakdown{font-size:14px;color:var(--do-mute);margin-bottom:10px;}
+  .dayof-breakdown div{display:flex;justify-content:space-between;padding:2px 0;}
+  .dayof-breakdown .is-total{color:#f5f5f5;font-weight:600;border-top:1px solid var(--do-line);margin-top:3px;padding-top:5px;}
+  .dayof-order{background:var(--do-card);border-radius:14px;padding:10px 12px;}
+  .dayof-order-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:14px;font-weight:600;margin-bottom:2px;}
+  .dayof-order-status{font-size:13px;font-weight:400;color:var(--do-mute);white-space:nowrap;}
+  .dayof-order-status.is-paid{color:var(--do-acc);}
+  .dayof-order-who{font-size:12px;color:var(--do-mute);margin-top:8px;display:flex;justify-content:space-between;}
+  .dayof-order-line{font-size:15px;padding:6px 0;border-top:1px solid var(--do-line);}
+  .dayof-order + .dayof-btn, .dayof-order + .dayof-sublinks{margin-top:10px;}
+  .dayof-head{display:flex;gap:12px;align-items:center;margin-top:14px;}
+  .dayof-head img, .dayof-head .dayof-thumb{width:46px;aspect-ratio:2/3;border-radius:6px;object-fit:cover;background:var(--do-card);flex:0 0 auto;}
+  .dayof-head-title{font-size:17px;font-weight:700;line-height:1.2;}
+  .dayof-head-sub{font-size:13px;color:var(--do-mute);margin-top:2px;}
+  .dayof-pages{
+    display:flex;overflow-x:auto;scroll-snap-type:x mandatory;margin:18px -18px 0;
+    scrollbar-width:none;
+  }
+  .dayof-pages::-webkit-scrollbar{display:none;}
+  .dayof-page{flex:0 0 100%;scroll-snap-align:center;display:flex;flex-direction:column;align-items:center;padding:0 18px;}
+  .dayof-qr{
+    width:220px;background:#fff;border-radius:18px;padding:12px;border:3px solid var(--do-acc);
+  }
+  .dayof-qr svg{display:block;width:100%;height:auto;}
+  .dayof-qr-none{color:#333;font-size:14px;text-align:center;padding:60px 10px;}
+  .dayof-pass-note{text-align:center;font-size:13px;color:var(--do-mute);margin-top:9px;}
+  .dayof-dots{display:flex;justify-content:center;gap:7px;margin-top:8px;}
+  .dayof-dots button{width:8px;height:8px;padding:0;border:none;border-radius:50%;background:var(--do-line);cursor:pointer;}
+  .dayof-dots button.is-on{background:var(--do-acc);}
+  .dayof-wallet{display:block;margin-top:14px;}
+  .dayof-wallet img{display:block;height:44px;width:auto;}
+  .dayof-paycard{
+    margin:18px auto 0;width:100%;max-width:300px;background:var(--do-card);border-radius:18px;
+    border:3px solid var(--do-acc);padding:18px 16px 14px;
+  }
+  .dayof-paycard-title{text-align:center;font-size:17px;font-weight:700;line-height:1.3;margin-bottom:12px;}
+  .dayof-error{text-align:center;font-size:13px;color:#ff8a8a;margin-top:8px;}
+  /* The way back in, on My Showtimes, once the screen's been closed. */
+  .dayof-banner .cal-banner-icon{color:var(--gold);}
 </style>
 </head>
 <body>
@@ -1578,6 +1676,15 @@
     <!-- Your seats and the guests you booked, in every movie. Read-only
          for a movie you haven't unlocked. -->
     <div id="mineTab" class="hidden">
+      <!-- Today's showtime, once its full-screen day-of screen has been
+           closed: the way back to it. -->
+      <div class="cal-banner dayof-banner claim-banner hidden" id="dayOfBanner">
+        <svg class="cal-banner-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9a2 2 0 0 0 0 6v3a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1v-3a2 2 0 0 0 0-6V6a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1z"/><path d="M14 5v2M14 11v2M14 17v2"/></svg>
+        <div class="cal-banner-body">
+          <div class="cal-banner-title" id="dayOfBannerTitle"></div>
+          <button type="button" class="cal-banner-btn" onclick="openDayOf()" data-copy="friend.dayOf.bannerOpen"></button>
+        </div>
+      </div>
       <!-- A line of your usual order left the menu: said first, in red, so
            nobody orders "the usual" and ends up without the food. -->
       <div class="cal-banner warn-banner hidden" id="usualBanner">
@@ -1846,6 +1953,12 @@
            five buttons made every one of them look optional. -->
       <div class="claim-actions" id="successActions"></div>
     </div>
+  </div>
+
+  <!-- ===================== DAY-OF SCREEN ===================== -->
+  <!-- See renderDayOf. Drawn whole each time; nothing in it is static. -->
+  <div class="hidden" id="dayOfOverlay" role="dialog" aria-modal="true">
+    <div class="dayof-inner" id="dayOfInner"></div>
   </div>
 
   <!-- ===================== CONCESSION CART OVERLAY ===================== -->
@@ -2199,7 +2312,7 @@ function isShowingState(state){
 // open one straight after closing the last), which is why closing checks
 // a tick later whether another sheet took over before stepping back.
 function anyOverlayOpen(){
-  return ['claimOverlay', 'successOverlay', 'cartOverlay', 'profileOverlay', 'existingOverlay', 'calendarOverlay', 'favoritesOverlay', 'unclaimedOverlay'].some(id =>
+  return ['claimOverlay', 'successOverlay', 'cartOverlay', 'profileOverlay', 'existingOverlay', 'calendarOverlay', 'favoritesOverlay', 'unclaimedOverlay', 'dayOfOverlay'].some(id =>
     !document.getElementById(id).classList.contains('hidden'));
 }
 function overlayOpened(){
@@ -2268,6 +2381,7 @@ function closeAllOverlays(){
   if (!document.getElementById('calendarOverlay').classList.contains('hidden')) closeCalendarFeed();
   if (!document.getElementById('favoritesOverlay').classList.contains('hidden')) closeFavorites();
   if (!document.getElementById('unclaimedOverlay').classList.contains('hidden')) closeUnclaimed();
+  if (!document.getElementById('dayOfOverlay').classList.contains('hidden')) closeDayOf();
 }
 
 // Today's date as the calendar on the wall has it, NOT as UTC has it.
@@ -4601,6 +4715,8 @@ function closeCartOverlay(){
   document.getElementById('cartOverlay').classList.add('hidden');
   document.body.classList.remove('cart-open');
   overlayClosed();
+  // Opened from the day-of screen: it shows the order, so redraw it.
+  if (dayOf && !document.getElementById('dayOfOverlay').classList.contains('hidden')) renderDayOf();
 }
 
 // Shown whenever the cart is read-only. Its own function because the
@@ -5191,6 +5307,9 @@ async function runSave(){
     // (and the seat map, if the picker is what's open behind this).
     renderCards();
     if (currentShowtimeId === showtimeId) buildSeatmap(data.showtime);
+    // And the day-of screen, if it's this showtime's and open behind it.
+    if (dayOf && dayOf.showtimeId === showtimeId &&
+        !document.getElementById('dayOfOverlay').classList.contains('hidden')) renderDayOf();
   }catch(e){
     saveState = 'error';
     renderSaveStatus();
@@ -5421,6 +5540,579 @@ function cartTotalRow(label, valueHtml, onUndo){
   return row;
 }
 
+// ---------------- DAY-OF SCREEN ----------------
+//
+// From 4am on the day of a showtime you have a seat in, the page opens on
+// a full screen of its own for it (/api/public/day-of picks which: with
+// two in a day, the next one). Until an hour before the show it's the
+// poster and concessions; from then on it's your ticket -- the QR from
+// AMC's Wallet pass, with Add to Apple Wallet under it.
+//
+// Paying, in one place, one button:
+//   * Orders open, nothing ordered: the ticket can be paid now.
+//   * Orders open, something ordered: no pay button. Ticket and snacks
+//     get paid together once the host closes orders, as one payment.
+//   * Orders closed: one button for everything still owed, with a
+//     breakdown when it's both, and an "I've paid" per part under it.
+//   * Ticket hour, still owing: that pay card takes the QR's place until
+//     it's settled (or marked so) -- an honour system, on purpose.
+//
+// It closes with ×, and stays closed for that showtime until the ticket
+// arrives, when it opens itself once more. "Open" on the banner on My
+// Showtimes brings it back any time.
+
+let dayOf = null;          // /api/public/day-of's dayOf, or null
+let dayOfClockSkew = 0;    // server clock minus this one, ms
+let dayOfTimer = null;
+let dayOfPage = 0;         // which pass is showing, when there's more than one
+let dayOfError = '';
+let dayOfHeadSub = () => {};  // redraws the ticket header's seats (renderDayOf)
+
+function dayOfNow(){ return Date.now() + dayOfClockSkew; }
+function dayOfPhase(){ return dayOf && dayOfNow() >= dayOf.ticketAt ? 'ticket' : 'day'; }
+
+// Remembered per showtime AND phase: closing the morning screen doesn't
+// stop the ticket from coming up by itself an hour before.
+function dayOfClosedKey(){ return 'canopy_dayof_closed:' + dayOf.showtimeId + ':' + dayOfPhase(); }
+function dayOfWasClosed(){
+  try{ return localStorage.getItem(dayOfClosedKey()) === '1'; }catch(e){ return false; }
+}
+
+async function loadDayOf(autoOpen){
+  try{
+    const res = await fetch('/api/public/day-of');
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok) return;
+    const data = await res.json();
+    dayOfClockSkew = typeof data.now === 'number' ? data.now - Date.now() : 0;
+    const before = dayOf ? dayOf.showtimeId + dayOfPhase() : '';
+    dayOf = data.dayOf || null;
+    if (dayOf && before !== dayOf.showtimeId + dayOfPhase()) dayOfPage = 0;
+  }catch(e){ return; }
+  scheduleDayOfRefresh();
+  renderDayOfBanner();
+  const overlay = document.getElementById('dayOfOverlay');
+  if (!dayOf){
+    if (!overlay.classList.contains('hidden')) closeDayOf();
+    return;
+  }
+  if (!overlay.classList.contains('hidden')) renderDayOf();
+  else if (autoOpen && !dayOfWasClosed() && navState().canopyView === 'grid' && !anyOverlayOpen()) openDayOf();
+}
+
+// Asks again when something changes by the clock: the ticket's hour, or
+// the showtime being far enough under way that the next one takes over.
+function scheduleDayOfRefresh(){
+  if (dayOfTimer){ clearTimeout(dayOfTimer); dayOfTimer = null; }
+  if (!dayOf) return;
+  const now = dayOfNow();
+  const next = [dayOf.ticketAt, dayOf.startsAt + 20 * 60 * 1000].filter(at => at > now);
+  if (!next.length) return;
+  // setTimeout can't wait longer than ~24 days; this is at most a day.
+  dayOfTimer = setTimeout(() => loadDayOf(true), Math.min(...next) - now + 1000);
+}
+
+// A phone that slept through the ticket's hour fires nothing; coming back
+// to the page is when to catch up.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && me) loadDayOf(true);
+});
+
+function openDayOf(){
+  if (!dayOf) return;
+  dayOfError = '';
+  document.getElementById('dayOfOverlay').classList.remove('hidden');
+  document.body.classList.add('dayof-open');
+  overlayOpened();
+  renderDayOf();
+  renderDayOfBanner();
+}
+
+function closeDayOf(){
+  if (dayOf){ try{ localStorage.setItem(dayOfClosedKey(), '1'); }catch(e){} }
+  document.getElementById('dayOfOverlay').classList.add('hidden');
+  document.body.classList.remove('dayof-open');
+  renderDayOfBanner();
+  overlayClosed();
+}
+
+function renderDayOfBanner(){
+  const banner = document.getElementById('dayOfBanner');
+  const open = !document.getElementById('dayOfOverlay').classList.contains('hidden');
+  banner.classList.toggle('hidden', !dayOf || open);
+  if (!dayOf) return;
+  const obj = dayOf.showtime;
+  document.getElementById('dayOfBannerTitle').textContent =
+    t('friend.dayOf.banner', { title: obj.title || 'Movie', time: formatTimeDisplay(obj.time) });
+}
+
+// ---- Colour from the poster ----
+//
+// The poster's most common saturated hue, from a 24x36 copy of it. The
+// poster is served from this site, so the canvas can read it back. Only
+// the hue and how saturated it is are kept: every colour on the screen is
+// that hue at a lightness fixed for its job (applyDayOfTheme), so a pale
+// poster can't wash the text out and a dark one can't swallow it.
+// Remembered per poster URL, which changes whenever the poster does.
+function posterTheme(url){
+  return new Promise(resolve => {
+    if (!url) return resolve(null);
+    const key = 'canopy_poster_theme:' + url;
+    try{
+      const cached = localStorage.getItem(key);
+      if (cached) return resolve(JSON.parse(cached));
+    }catch(e){}
+    const img = new Image();
+    img.onload = () => {
+      let theme = null;
+      try{
+        const w = 24, h = 36;
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        const px = ctx.getImageData(0, 0, w, h).data;
+        const weight = new Array(36).fill(0), satSum = new Array(36).fill(0), hueX = new Array(36).fill(0), hueY = new Array(36).fill(0);
+        let total = 0;
+        for (let i = 0; i < px.length; i += 4){
+          const r = px[i] / 255, g = px[i + 1] / 255, b = px[i + 2] / 255;
+          const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2, d = max - min;
+          if (d < 0.08 || l < 0.1 || l > 0.92) continue;
+          const sat = d / (1 - Math.abs(2 * l - 1));
+          let hue = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+          hue = (hue * 60 + 360) % 360;
+          const wt = sat * (1 - Math.abs(l - 0.5));
+          const bin = Math.floor(hue / 10) % 36;
+          weight[bin] += wt; satSum[bin] += sat * wt; total += wt;
+          hueX[bin] += Math.cos(hue * Math.PI / 180) * wt; hueY[bin] += Math.sin(hue * Math.PI / 180) * wt;
+        }
+        // Neighbouring bins count together, so a hue that straddles a
+        // boundary isn't split in two and beaten by a smaller one.
+        let best = -1, bestW = 0;
+        for (let i = 0; i < 36; i++){
+          const wsum = weight[i] + 0.5 * (weight[(i + 35) % 36] + weight[(i + 1) % 36]);
+          if (wsum > bestW){ bestW = wsum; best = i; }
+        }
+        // Barely any colour at all (a black-and-white poster): no theme.
+        if (best >= 0 && total > w * h * 0.04){
+          const hue = (Math.atan2(hueY[best], hueX[best]) * 180 / Math.PI + 360) % 360;
+          const sat = satSum[best] / weight[best];
+          theme = { h: Math.round(hue), s: Math.round(Math.min(80, Math.max(25, sat * 90))) };
+        }
+      }catch(e){ theme = null; }
+      try{ localStorage.setItem(key, JSON.stringify(theme)); }catch(e){}
+      resolve(theme);
+    };
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
+}
+
+function applyDayOfTheme(theme){
+  const el = document.getElementById('dayOfOverlay');
+  // No poster, or no colour in it: the app's own black and gold.
+  const vars = theme ? {
+    '--do-bg': 'hsl(' + theme.h + ' ' + Math.round(theme.s * 0.45) + '% 8%)',
+    '--do-card': 'hsl(' + theme.h + ' ' + Math.round(theme.s * 0.35) + '% 14%)',
+    '--do-line': 'hsl(' + theme.h + ' ' + Math.round(theme.s * 0.3) + '% 22%)',
+    '--do-acc': 'hsl(' + theme.h + ' ' + theme.s + '% 60%)',
+    '--do-ink': 'hsl(' + theme.h + ' ' + theme.s + '% 10%)',
+    '--do-mute': 'hsl(' + theme.h + ' 12% 68%)'
+  } : { '--do-bg': '', '--do-card': '', '--do-line': '', '--do-acc': '', '--do-ink': '', '--do-mute': '' };
+  Object.entries(vars).forEach(([k, v]) => v ? el.style.setProperty(k, v) : el.style.removeProperty(k));
+}
+
+// ---- What's owed ----
+//
+// The same sums as the pay button on My Showtimes (buildMinePayRow): your
+// seat and your guests', the ticket now and the food once orders close,
+// nothing for the host, and no ticket of your own on an A-List swap.
+function dayOfOwing(obj){
+  const seats = obj.seats || {};
+  const ids = dayOf.seatIds.filter(id => seats[id]);
+  const hasItems = ids.some(id => (seats[id].concessions || []).length);
+  const ordersOpen = concessionsOpen(obj);
+  const out = { ticket: 0, food: 0, ticketSeats: [], foodSeats: [], hasItems, ordersOpen };
+  // Orders still open with something in them: nothing to pay yet, so
+  // ticket and snacks go in one payment later.
+  if (!me || me.isAdmin || (ordersOpen && hasItems)) return out;
+  const swap = aListSwapFor(obj);
+  ids.forEach(id => {
+    const pay = seatPayable(obj, seats[id]);
+    const ticket = swap && !seats[id].guest ? 0 : pay.ticket;
+    if (ticket > 0){ out.ticket += ticket; out.ticketSeats.push(id); }
+    if (pay.food > 0){ out.food += pay.food; out.foodSeats.push(id); }
+  });
+  out.ticket = Math.round(out.ticket * 100) / 100;
+  out.food = Math.round(out.food * 100) / 100;
+  return out;
+}
+
+function dayOfPayBlock(obj, owe){
+  const wrap = document.createElement('div');
+  wrap.className = 'dayof-pay';
+  const total = Math.round((owe.ticket + owe.food) * 100) / 100;
+  if (owe.ticket > 0 && owe.food > 0){
+    const b = document.createElement('div');
+    b.className = 'dayof-breakdown';
+    const ticketLabel = owe.ticketSeats.length > 1 ? t('friend.dayOf.ticketLineMany', { count: owe.ticketSeats.length }) : t('friend.dayOf.ticketLine');
+    [[ticketLabel, owe.ticket, ''], [t('friend.dayOf.concessionsLine'), owe.food, ''], [t('friend.dayOf.totalLine'), total, 'is-total']].forEach(([label, amount, cls]) => {
+      const row = document.createElement('div');
+      if (cls) row.className = cls;
+      row.innerHTML = '<span>' + escapeHtml(label) + '</span><span>' + escapeHtml(formatPrice(amount)) + '</span>';
+      b.appendChild(row);
+    });
+    wrap.appendChild(b);
+  }
+  const seatList = Array.from(new Set(owe.ticketSeats.concat(owe.foodSeats))).sort(compareSeatIds);
+  const note = (obj.title || 'Movie') + ' (' + formatDateShort(obj.date) + ', ' + seatList.join(', ') + ')' +
+    (owe.food > 0 ? (owe.ticket > 0 ? ' + concessions' : ' concessions') : '');
+  const vars = { amount: formatPrice(total) };
+  const links = [[buildVenmoLink(total, note), 'venmo', t('friend.dayOf.payVenmo', vars)], [buildCashAppLink(total), 'cashapp', t('friend.dayOf.payCashApp', vars)]];
+  links.forEach(([href, cls, label]) => {
+    if (!href) return;
+    const a = document.createElement('a');
+    a.className = 'dayof-btn ' + cls;
+    a.href = href;
+    if (opensInNewTab(href)){ a.target = '_blank'; a.rel = 'noopener'; }
+    a.textContent = label;
+    wrap.appendChild(a);
+  });
+  const sub = document.createElement('div');
+  sub.className = 'dayof-sublinks';
+  if (owe.ticket > 0){
+    const own = owe.ticketSeats.length > 1 ? 'friend.dayOf.paidTickets' : 'friend.dayOf.paidTicket';
+    sub.appendChild(dayOfLink(t(own), () => dayOfMarkPaid(obj, owe.ticketSeats, { ticket: true })));
+  }
+  if (owe.food > 0){
+    sub.appendChild(dayOfLink(t('friend.dayOf.paidConcessions'), () => dayOfMarkPaid(obj, owe.foodSeats, { concessions: true })));
+  }
+  wrap.appendChild(sub);
+  if (dayOfError){
+    const err = document.createElement('div');
+    err.className = 'dayof-error';
+    err.textContent = dayOfError;
+    wrap.appendChild(err);
+  }
+  return wrap;
+}
+
+function dayOfLink(label, onClick){
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'dayof-link';
+  b.textContent = label;
+  b.addEventListener('click', onClick);
+  return b;
+}
+
+async function dayOfMarkPaid(obj, seatIds, patch){
+  dayOfError = '';
+  let failed = false;
+  for (const id of seatIds){
+    try{
+      const res = await fetch('/api/public/showtimes/' + encodeURIComponent(obj.id) +
+        '/seats/' + encodeURIComponent(id) + '/paid', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch)
+      });
+      if (await handleAuthFailure(res)) return;
+      if (!res.ok) failed = true;
+    }catch(e){ failed = true; }
+  }
+  if (failed) dayOfError = t('friend.dayOf.payFailed');
+  // The list first: renderDayOf reads the showtime from it.
+  await loadList();
+  await loadDayOf(false);
+}
+
+// ---- Drawing it ----
+
+function dayOfSeatText(){
+  const ids = dayOf.seatIds.slice().sort(compareSeatIds);
+  return { label: ids.length > 1 ? t('friend.dayOf.seats') : t('friend.dayOf.seat'), ids: ids.join(', ') };
+}
+
+function dayOfAuditorium(obj){
+  const m = /-(\d+)$/.exec(obj.screen || '');
+  return m ? m[1] : '';
+}
+
+function dayOfPosterEl(obj, className){
+  if (obj.posterUrl){
+    const img = document.createElement('img');
+    img.className = className;
+    img.src = obj.posterUrl;
+    img.alt = '';
+    return img;
+  }
+  const blank = document.createElement('div');
+  blank.className = className + ' dayof-thumb';
+  return blank;
+}
+
+// Your seats' orders, together. With guests, each seat's under its own
+// name, and each can be opened for editing while orders are open.
+function dayOfOrderCard(obj, owe){
+  const seats = obj.seats || {};
+  const ids = dayOf.seatIds.filter(id => seats[id] && (seats[id].concessions || []).length).sort(compareSeatIds);
+  if (!ids.length) return null;
+  const card = document.createElement('div');
+  card.className = 'dayof-order';
+  const sub = ids.reduce((n, id) => n + concessionsTotal(seats[id].concessions), 0);
+  const total = Math.round((sub + concessionTax(sub)) * 100) / 100;
+  const head = document.createElement('div');
+  head.className = 'dayof-order-head';
+  const paid = !owe.ordersOpen && ids.every(id => seats[id].concessionsPaid || seats[id].host);
+  head.innerHTML = '<span>' + escapeHtml(t('friend.dayOf.order', { amount: formatPrice(total) })) + '</span>' +
+    '<span class="dayof-order-status' + (paid ? ' is-paid' : '') + '">' +
+    escapeHtml(owe.ordersOpen ? t('friend.dayOf.orderEditable') : paid ? t('friend.dayOf.orderPaid') : t('friend.dayOf.orderClosed')) + '</span>';
+  card.appendChild(head);
+  ids.forEach(id => {
+    if (ids.length > 1 || seats[id].guest){
+      const who = document.createElement('div');
+      who.className = 'dayof-order-who';
+      who.textContent = seats[id].guest ? t('friend.dayOf.orderFor', { name: (seats[id].name || '').split(/\s+/)[0] }) : t('friend.list.you');
+      card.appendChild(who);
+    }
+    seats[id].concessions.forEach(l => {
+      const line = document.createElement('div');
+      line.className = 'dayof-order-line';
+      line.textContent = concessionLineLabel(l);
+      card.appendChild(line);
+    });
+  });
+  return card;
+}
+
+// "Add concessions" / "Edit order" for your own seat as the big button,
+// and a smaller one per guest.
+function dayOfCartButtons(obj, wrap){
+  if (concessionsOff()) return;
+  const seats = obj.seats || {};
+  const ids = dayOf.seatIds.filter(id => seats[id]).sort(compareSeatIds);
+  const own = ids.find(id => !seats[id].guest) || ids[0];
+  if (!own) return;
+  const has = (id) => (seats[id].concessions || []).length > 0;
+  const open = (id) => () => openCart(obj.id, id);
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'dayof-btn';
+  btn.textContent = has(own) ? t('friend.dayOf.editOrder') : t('friend.dayOf.addConcessions');
+  btn.addEventListener('click', open(own));
+  wrap.appendChild(btn);
+  const guests = ids.filter(id => id !== own);
+  if (guests.length){
+    const sub = document.createElement('div');
+    sub.className = 'dayof-sublinks';
+    guests.forEach(id => {
+      const name = (seats[id].name || '').split(/\s+/)[0];
+      sub.appendChild(dayOfLink(t(has(id) ? 'friend.dayOf.editFor' : 'friend.dayOf.addFor', { name }), open(id)));
+    });
+    wrap.appendChild(sub);
+  }
+}
+
+function dayOfNoteEl(text){
+  const n = document.createElement('div');
+  n.className = 'dayof-note';
+  n.textContent = text;
+  return n;
+}
+
+function formatInstantTime(ms){
+  return new Date(ms).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles' });
+}
+
+async function renderDayOf(){
+  if (!dayOf) return;
+  // The freshest copy of the showtime this page has: a cart saved a
+  // moment ago is in allShowtimes before the next day-of fetch.
+  const obj = allShowtimes.find(s => s.id === dayOf.showtimeId) || dayOf.showtime;
+  const theme = await posterTheme(obj.posterUrl);
+  if (!dayOf || dayOf.showtimeId !== obj.id) return;
+  applyDayOfTheme(theme);
+
+  const inner = document.getElementById('dayOfInner');
+  inner.innerHTML = '';
+  const phase = dayOfPhase();
+  const owe = dayOfOwing(obj);
+  const owed = Math.round((owe.ticket + owe.food) * 100) / 100;
+  const seatText = dayOfSeatText();
+  const aud = dayOfAuditorium(obj);
+  const evening = Number(String(obj.time || '').split(':')[0]) >= 17;
+
+  const top = document.createElement('div');
+  top.className = 'dayof-top';
+  const when = document.createElement('span');
+  when.textContent = t(evening ? 'friend.dayOf.tonight' : 'friend.dayOf.today', { date: formatDateDisplay(obj.date) });
+  top.appendChild(when);
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'dayof-close';
+  close.setAttribute('aria-label', 'Close');
+  close.innerHTML = '&#215;';
+  close.addEventListener('click', closeDayOf);
+  top.appendChild(close);
+  inner.appendChild(top);
+
+  const bottom = document.createElement('div');
+  bottom.className = 'dayof-bottom';
+
+  if (phase === 'day'){
+    const ordered = owe.hasItems;
+    inner.appendChild(dayOfPosterEl(obj, 'dayof-poster' + (ordered || owed > 0 ? ' is-small' : '')));
+    const title = document.createElement('div');
+    title.className = 'dayof-title';
+    title.textContent = obj.title || 'Movie';
+    inner.appendChild(title);
+    const sub = document.createElement('div');
+    sub.className = 'dayof-sub';
+    sub.textContent = [obj.theater, obj.format].filter(Boolean).join(' · ');
+    inner.appendChild(sub);
+
+    const tiles = document.createElement('div');
+    tiles.className = 'dayof-tiles';
+    [[t('friend.dayOf.showtime'), formatTimeDisplay(obj.time)],
+     [aud ? t('friend.dayOf.auditorium', { number: aud }) : seatText.label, seatText.ids],
+     [t('friend.dayOf.ticket'), formatInstantTime(dayOf.ticketAt)]
+    ].forEach(([label, value]) => {
+      const tile = document.createElement('div');
+      tile.className = 'dayof-tile';
+      tile.innerHTML = '<div class="dayof-tile-label">' + escapeHtml(label) + '</div><div class="dayof-tile-value">' + escapeHtml(value) + '</div>';
+      tiles.appendChild(tile);
+    });
+    inner.appendChild(tiles);
+
+    const order = dayOfOrderCard(obj, owe);
+    if (owe.ordersOpen){
+      if (order) bottom.appendChild(order);
+      dayOfCartButtons(obj, bottom);
+      if (!concessionsOff()){
+        const seats = obj.seats || {};
+        const mine = dayOf.seatIds.filter(id => seats[id]);
+        const unpaidTicket = !me.isAdmin && mine.some(id => seatPayable(obj, seats[id]).ticket > 0);
+        const unpaidFood = !me.isAdmin && mine.some(id => (seats[id].concessions || []).length && !seats[id].concessionsPaid);
+        bottom.appendChild(dayOfNoteEl(!ordered ? t('friend.dayOf.closesNote')
+          : unpaidTicket && unpaidFood ? t('friend.dayOf.payTogetherNote')
+          : t('friend.dayOf.paySnacksNote')));
+      }
+      // Nothing ordered yet: the ticket can be settled now.
+      if (owed > 0) bottom.appendChild(dayOfPayBlock(obj, owe));
+    } else {
+      if (order) bottom.appendChild(order);
+      if (owed > 0) bottom.appendChild(dayOfPayBlock(obj, owe));
+      else bottom.appendChild(dayOfNoteEl(t('friend.dayOf.ticketSoonNote', { time: formatInstantTime(dayOf.ticketAt) })));
+    }
+  } else {
+    const head = document.createElement('div');
+    head.className = 'dayof-head';
+    head.appendChild(dayOfPosterEl(obj, ''));
+    const words = document.createElement('div');
+    words.innerHTML = '<div class="dayof-head-title">' + escapeHtml(obj.title || 'Movie') + '</div>';
+    const headSub = document.createElement('div');
+    headSub.className = 'dayof-head-sub';
+    words.appendChild(headSub);
+    // Names the seats on whichever pass is showing (yours on it), so it's
+    // redrawn as the passes are swiped between.
+    dayOfHeadSub = (pass) => {
+      const shown = pass && pass.mySeats.length ? pass.mySeats : dayOf.seatIds.slice().sort(compareSeatIds);
+      headSub.textContent = [formatTimeDisplay(obj.time), aud ? t('friend.dayOf.auditorium', { number: aud }) : '',
+        (shown.length > 1 ? t('friend.dayOf.seats') : t('friend.dayOf.seat')) + ' ' + shown.join(', ')].filter(Boolean).join(' · ');
+    };
+    dayOfHeadSub(owed > 0 ? null : dayOf.passes[Math.min(dayOfPage, dayOf.passes.length - 1)]);
+    head.appendChild(words);
+    inner.appendChild(head);
+
+    if (owed > 0){
+      const card = document.createElement('div');
+      card.className = 'dayof-paycard';
+      const many = owe.ticketSeats.length > 1;
+      const what = owe.ticket > 0 && owe.food > 0 ? (many ? 'payWhatBothMany' : 'payWhatBoth')
+        : owe.ticket > 0 ? (many ? 'payWhatTickets' : 'payWhatTicket') : 'payWhatSnacks';
+      const title = document.createElement('div');
+      title.className = 'dayof-paycard-title';
+      title.textContent = t('friend.dayOf.payToShow', { what: t('friend.dayOf.' + what) });
+      card.appendChild(title);
+      const block = dayOfPayBlock(obj, owe);
+      block.style.marginTop = '0';
+      card.appendChild(block);
+      inner.appendChild(card);
+    } else if (dayOf.passes.length){
+      inner.appendChild(dayOfPassPages());
+    } else {
+      inner.appendChild(dayOfNoteEl(t('friend.dayOf.noPassNote')));
+    }
+    const order = dayOfOrderCard(obj, owe);
+    if (order) bottom.appendChild(order);
+  }
+  inner.appendChild(bottom);
+}
+
+function canAddToWallet(){
+  const ua = navigator.userAgent || '';
+  return /iPhone|iPad|iPod|Macintosh/.test(ua);
+}
+
+// One page per pass, side by side, swiped between (scroll snap). Almost
+// always one; a party split over two orders gets a page for each.
+function dayOfPassPages(){
+  const wrap = document.createElement('div');
+  const pages = document.createElement('div');
+  pages.className = 'dayof-pages';
+  const passes = dayOf.passes;
+  passes.forEach((p, i) => {
+    const page = document.createElement('div');
+    page.className = 'dayof-page';
+    const qr = document.createElement('div');
+    qr.className = 'dayof-qr';
+    // The SVG is the server's own drawing of the pass's barcode (see
+    // barcodeSvg in lib/pkpass.js), not anything from the pass's text.
+    if (p.qrSvg) qr.innerHTML = p.qrSvg;
+    else qr.innerHTML = '<div class="dayof-qr-none">' + escapeHtml(t('friend.dayOf.noQr')) + '</div>';
+    page.appendChild(qr);
+    const note = document.createElement('div');
+    note.className = 'dayof-pass-note';
+    note.textContent = t(p.ticketCount === 1 ? 'friend.dayOf.passSeatsOne' : 'friend.dayOf.passSeatsMany', { count: p.ticketCount }) +
+      (passes.length > 1 ? ' · ' + t('friend.dayOf.passPage', { n: i + 1, count: passes.length }) : '');
+    page.appendChild(note);
+    if (canAddToWallet()){
+      const a = document.createElement('a');
+      a.className = 'dayof-wallet';
+      a.href = p.walletUrl;
+      a.innerHTML = '<img src="__WALLET_BADGE_SRC__" alt="Add to Apple Wallet">';
+      page.appendChild(a);
+    }
+    pages.appendChild(page);
+  });
+  wrap.appendChild(pages);
+  if (passes.length > 1){
+    const dots = document.createElement('div');
+    dots.className = 'dayof-dots';
+    passes.forEach((p, i) => {
+      const d = document.createElement('button');
+      d.type = 'button';
+      d.setAttribute('aria-label', t('friend.dayOf.passPage', { n: i + 1, count: passes.length }));
+      d.addEventListener('click', () => pages.scrollTo({ left: i * pages.clientWidth, behavior: 'smooth' }));
+      dots.appendChild(d);
+    });
+    wrap.appendChild(dots);
+    const sync = () => {
+      const i = Math.round(pages.scrollLeft / Math.max(1, pages.clientWidth));
+      if (i !== dayOfPage && passes[i]){
+        dayOfPage = i;
+        dayOfHeadSub(passes[i]);
+      }
+      Array.from(dots.children).forEach((d, j) => d.classList.toggle('is-on', j === i));
+    };
+    pages.addEventListener('scroll', sync, { passive: true });
+    requestAnimationFrame(() => {
+      if (dayOfPage) pages.scrollLeft = dayOfPage * pages.clientWidth;
+      Array.from(dots.children).forEach((d, j) => d.classList.toggle('is-on', j === dayOfPage));
+    });
+  }
+  return wrap;
+}
+
 // ---------------- INIT ----------------
 // A reload keeps its history entry, so put back the view it names once
 // there's a list to find it in. On your first visit to tickets (a new
@@ -5429,6 +6121,8 @@ function cartTotalRow(label, valueHtml, onUndo){
 loadMe().then(loadList).then(() => {
   if (navState().canopyView !== 'grid') applyNavState(navState());
   if (firstVisit) openExisting(false);
+  // After the list: its cart buttons open carts out of allShowtimes.
+  loadDayOf(true);
 });
 loadConfig(); // populates venmoHandle for the post-claim pay link
 loadConcessionMenu(); // so the post-claim overlay knows whether to offer concessions

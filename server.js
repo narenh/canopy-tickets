@@ -10,6 +10,7 @@ const concessionMenuStore = require('./lib/concessionMenu');
 const { createTextSettingStore } = require('./lib/textSetting');
 const createCanopyAccount = require('./lib/canopyAccount');
 const { normalizeSeats, isHostSeat, CONCESSION_TAX_RATE } = require('./lib/seats');
+const pkpass = require('./lib/pkpass');
 
 const ogImageStore = createImageStore('og');
 const logoImageStore = createImageStore('logo');
@@ -22,6 +23,9 @@ const cashappHandleStore = createTextSettingStore('cashapp-handle');
 // The admin's phone, copied from their Canopy account whenever they visit
 // (see attachPerson): A-List members text it to set up a swap.
 const adminPhoneStore = createTextSettingStore('admin-phone');
+// What the host's iOS Shortcut sends to upload a Wallet pass (see
+// "Wallet passes" below). Made in the admin's Settings tab.
+const passUploadTokenStore = createTextSettingStore('pass-upload-token');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -88,6 +92,12 @@ app.disable('x-powered-by');
 // case the proxy in front ever reports the request as plain http.
 app.use((req, res, next) => {
   if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
+  // The pass upload from the host's iOS Shortcut has no Origin to send.
+  // It doesn't need one: it's let in by the upload token in its
+  // Authorization header, never by the cookie, and no other site's page
+  // can set that header on a request here without a CORS preflight this
+  // server never says yes to.
+  if (req.method === 'POST' && req.path === '/api/passes' && /^Bearer\s/i.test(req.get('authorization') || '')) return next();
   const origin = req.get('origin');
   const host = req.get('host');
   if (origin && (origin === `${req.protocol}://${host}` || origin === `https://${host}`)) return next();
@@ -253,6 +263,14 @@ const INLINE_SCRIPTS = [
   return { tag: `<script src="/${name}"></script>`, inline: `<script>/* ${name} */\n${source}\n</script>` };
 });
 
+// Apple's "Add to Apple Wallet" badge, exactly as Apple supplies it (their
+// guidelines don't allow redrawing it). Inlined as a data URI for the same
+// reason as the scripts above: a new file asked for mid-deploy can 404
+// and stay that way in a phone's cache. Pages use it as
+// __WALLET_BADGE_SRC__.
+const WALLET_BADGE_SRC = 'data:image/svg+xml;base64,' +
+  fs.readFileSync(path.join(__dirname, 'public', 'vendor', 'apple-wallet-badge', 'add-to-apple-wallet-us-uk.svg')).toString('base64');
+
 // Sends a static HTML file with its `<!-- OG_META -->` (in <head>) and
 // `<!-- LOGO_IMG -->` (in <body>, wherever the page wants the logo to
 // appear) placeholders replaced with the real thing, and the app's own
@@ -270,7 +288,8 @@ function renderHtmlPage(res, req, filePath, values = {}) {
   const logoTag = buildLogoImgTag();
   let html = fs.readFileSync(filePath, 'utf8')
     .replace('<!-- OG_META -->', buildOgTags(req))
-    .replaceAll('<!-- LOGO_IMG -->', () => logoTag);
+    .replaceAll('<!-- LOGO_IMG -->', () => logoTag)
+    .replaceAll('__WALLET_BADGE_SRC__', () => WALLET_BADGE_SRC);
   Object.entries(values).forEach(([name, value]) => {
     html = html.replaceAll(`__${name}__`, () => escapeAttr(value));
   });
@@ -1566,6 +1585,256 @@ app.put('/api/public/showtimes/:id/seats/:seatId/concessions', async (req, res) 
   res.json({ showtime: publicShowtimeView(result.showtime, req.person) });
 });
 
+// ---------------- Wallet passes ----------------
+//
+// AMC's .pkpass for each group of tickets the host bought (one per order,
+// so a showtime bought in two goes has two). The host shares one from
+// Wallet to an iOS Shortcut, which POSTs it here with the upload token;
+// the admin page can upload one too. lib/pkpass.js reads it and works out
+// which showtime it's for -- start time, then auditorium, then seats --
+// and anything it can't place waits in the admin's Settings tab for the
+// host to place by hand.
+//
+// Everyone with a seat on the showtime gets the pass holding their seat
+// on the day-of screen (/api/public/day-of below), from an hour before
+// the show. Before then the server doesn't hand it out at all.
+
+// The day-of screen shows from 4am on the showtime's date...
+const DAY_OF_FROM_HOUR = 4;
+// ...the ticket from an hour before it starts...
+const TICKET_LEAD_MS = 60 * 60 * 1000;
+// ...and keeps showing for a while after the start, for whoever's late:
+// the next showtime of the day only takes over once this one's under way.
+const DAY_OF_AFTER_START_MS = 20 * 60 * 1000;
+// A pass is deleted this long after its showtime. Until then it's the key
+// to somebody's seats, so it isn't kept a moment longer than it's useful.
+const PASS_KEEP_AFTER_START_MS = 12 * 60 * 60 * 1000;
+
+// .pkpass files are under a megabyte; AMC's is about 750KB, mostly images.
+const PASS_MAX_BYTES = 5 * 1024 * 1024;
+const passMultipart = multer({ storage: multer.memoryStorage(), limits: { fileSize: PASS_MAX_BYTES, files: 1 } });
+const passRawBody = express.raw({ type: () => true, limit: PASS_MAX_BYTES });
+
+// The uploaded file, however it came: a form with a file field (the admin
+// page, or a Shortcut sending a form), or the file as the whole body (a
+// Shortcut sending "File").
+function passUploadBody(req, res, next) {
+  if (req.is('multipart/form-data')) {
+    return passMultipart.any()(req, res, (err) => {
+      if (err) return next(err);
+      req.passFile = req.files && req.files[0] ? req.files[0].buffer : null;
+      next();
+    });
+  }
+  passRawBody(req, res, (err) => {
+    if (err) return next(err);
+    req.passFile = Buffer.isBuffer(req.body) && req.body.length ? req.body : null;
+    next();
+  });
+}
+
+// The Shortcut's way in: `Authorization: Bearer <token>`. Anything else
+// is the admin, signed in, from the admin page.
+function requirePassUploader(req, res, next) {
+  const auth = /^Bearer\s+(.+)$/i.exec(req.get('authorization') || '');
+  if (!auth) return requireAdmin(req, res, next);
+  const token = passUploadTokenStore.get();
+  if (token && checkPassword(auth[1].trim(), token)) return next();
+  res.status(401).json({ error: 'that upload token is not right -- make a new one in Settings', message: 'Upload token not accepted. Make a new one in Canopy Tickets → Settings.' });
+}
+
+// "Tue, Apr 7, 7:00 PM", in San Francisco's time, for the host.
+function formatShowtimeInstant(ms) {
+  return new Date(ms).toLocaleString('en-US', {
+    timeZone: SHOWTIME_TIMEZONE, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
+  });
+}
+
+function seatRange(seats) {
+  if (!seats.length) return '';
+  return seats.length > 1 ? `${seats[0]}–${seats[seats.length - 1]}` : seats[0];
+}
+
+// A pass as the admin page lists it. The barcode stays out: the admin
+// page has no use for it.
+function adminPassView(p, showtimesById) {
+  const show = p.showtimeId ? showtimesById.get(p.showtimeId) : null;
+  return {
+    id: p.id,
+    film: p.film,
+    theater: p.theater,
+    auditorium: p.auditorium,
+    startsAt: p.startsAt,
+    when: p.startsAt ? formatShowtimeInstant(p.startsAt) : '',
+    seats: p.seats,
+    ticketCount: p.ticketCount,
+    unmatched: p.unmatched,
+    createdAt: p.createdAt,
+    updatedAt: p.updatedAt,
+    showtime: show ? { id: show.id, movieId: show.movieId, title: show.title, date: show.date, time: show.time } : null
+  };
+}
+
+function showtimesById() {
+  return new Map(store.listShowtimes().map((s) => [s.id, s]));
+}
+
+app.post('/api/passes', requirePassUploader, passUploadBody, (req, res) => {
+  if (!req.passFile) return res.status(400).json({ error: 'no file was sent', message: 'No pass came through. Share the pass itself to the Shortcut.' });
+  let parsed;
+  try {
+    parsed = pkpass.parsePkpass(req.passFile);
+  } catch (e) {
+    return res.status(400).json({ error: e.message, message: `Couldn't read that: ${e.message}.` });
+  }
+  const showtimes = store.listShowtimes();
+  const match = pkpass.matchShowtime(parsed, showtimes, showtimeInstantMs);
+  const { pass, replaced } = store.savePass(parsed, req.passFile, match.showtime ? match.showtime.id : null, match.reason);
+  const seatText = `${parsed.ticketCount} ${parsed.ticketCount === 1 ? 'seat' : 'seats'}${parsed.seats.length ? ` (${seatRange(parsed.seats)})` : ''}`;
+  const message = match.showtime
+    ? `${replaced ? 'Updated' : 'Added'}: ${match.showtime.title}, ${formatShowtimeInstant(showtimeInstantMs(match.showtime.date, match.showtime.time))}, ${seatText}.`
+    : `Saved, but not placed: ${match.reason}. Place it in Canopy Tickets → Settings.`;
+  res.status(replaced ? 200 : 201).json({
+    ok: true,
+    status: match.showtime ? 'matched' : 'unplaced',
+    message,
+    pass: adminPassView(pass, new Map(showtimes.map((s) => [s.id, s])))
+  });
+});
+
+app.use('/api/passes', requireAdmin);
+
+app.get('/api/passes', (req, res) => {
+  const byId = showtimesById();
+  res.json({ passes: store.listPasses().map((p) => adminPassView(p, byId)) });
+});
+
+// Placing a pass by hand: { showtimeId } or { showtimeId: null }.
+app.patch('/api/passes/:id', (req, res) => {
+  const { showtimeId } = req.body || {};
+  if (showtimeId !== null && typeof showtimeId !== 'string') return res.status(400).json({ error: 'showtimeId must be a string or null' });
+  const result = store.assignPass(req.params.id, showtimeId);
+  if (!result.ok) return sendResult(res, result);
+  res.json({ pass: adminPassView(result.pass, showtimesById()) });
+});
+
+app.delete('/api/passes/:id', (req, res) => {
+  if (!store.deletePass(req.params.id)) return res.status(404).json({ error: 'not found' });
+  res.json({ ok: true });
+});
+
+// The upload token, shown in Settings for pasting into the Shortcut.
+// POST makes a new one, which retires the old.
+app.get('/api/pass-upload-token', requireAdmin, (req, res) => {
+  res.json({ token: passUploadTokenStore.get() });
+});
+
+app.post('/api/pass-upload-token', requireAdmin, (req, res) => {
+  res.json({ token: passUploadTokenStore.set(crypto.randomBytes(24).toString('base64url')) });
+});
+
+// Old passes go: at startup, then hourly.
+function deleteOldPasses() {
+  const n = store.deletePassesBefore(Date.now() - PASS_KEEP_AFTER_START_MS);
+  if (n) console.log(`[canopy-tickets] deleted ${n} Wallet pass(es) for showtimes that are over`);
+}
+deleteOldPasses();
+setInterval(deleteOldPasses, 60 * 60 * 1000).unref();
+
+// ---------------- The day-of screen ----------------
+//
+// On the day of a showtime someone has a seat in, the reservation page
+// opens on a screen of its own for it: the poster, the seats, concessions
+// and paying, and from an hour before, the ticket. With two showtimes in
+// a day it's the next one -- the earlier one until it's been running for
+// DAY_OF_AFTER_START_MS.
+
+// When a showtime's day-of screen starts: 4am on its date. One starting
+// before 4am (a midnight show) belongs to the day before.
+function dayOfStartsMs(show, startMs) {
+  let from = showtimeInstantMs(show.date, `${String(DAY_OF_FROM_HOUR).padStart(2, '0')}:00`);
+  if (from === null) return null;
+  if (from > startMs) from -= 24 * 60 * 60 * 1000;
+  return from;
+}
+
+// The passes someone gets: those holding one of their seats (theirs or a
+// guest's), the one with most of theirs first. Normally that's one; a
+// party split over two orders gets both. If none holds any of their
+// seats -- a seat renamed in the editor, a pass AMC numbered differently
+// -- they get them all rather than nothing at the door.
+function passesForSeats(passes, seatIds) {
+  const mine = new Set(seatIds);
+  const scored = passes.map((p) => ({ p, n: p.seats.filter((id) => mine.has(id)).length }));
+  const holding = scored.filter((x) => x.n > 0);
+  return (holding.length ? holding : scored)
+    .sort((a, b) => b.n - a.n || b.p.ticketCount - a.p.ticketCount)
+    .map((x) => x.p);
+}
+
+// The day-of showtime for this person right now, or null.
+function dayOfFor(person, now) {
+  let best = null;
+  store.seatsOf(person.id).forEach(({ showtime, seatIds }) => {
+    const startsAt = showtimeInstantMs(showtime.date, showtime.time);
+    if (startsAt === null) return;
+    const from = dayOfStartsMs(showtime, startsAt);
+    if (from === null || now < from || now >= startsAt + DAY_OF_AFTER_START_MS) return;
+    if (!best || startsAt < best.startsAt) best = { showtime, seatIds, startsAt };
+  });
+  return best;
+}
+
+// What the screen shows. `passes` is empty until the ticket's hour; until
+// then `passCount` says whether there'll be one. The barcode's digits are
+// left out on purpose: the screen shows the code and nothing else.
+app.get('/api/public/day-of', (req, res) => {
+  const now = Date.now();
+  const found = dayOfFor(req.person, now);
+  res.set('Cache-Control', 'no-store');
+  if (!found) return res.json({ dayOf: null, now });
+  const { showtime, seatIds, startsAt } = found;
+  const ticketAt = startsAt - TICKET_LEAD_MS;
+  const passes = passesForSeats(store.passesFor(showtime.id), seatIds);
+  const mine = new Set(seatIds);
+  res.json({
+    now,
+    dayOf: {
+      showtimeId: showtime.id,
+      showtime: publicShowtimeView(showtime, req.person),
+      seatIds,
+      startsAt,
+      ticketAt,
+      passCount: passes.length,
+      passes: now < ticketAt ? [] : passes.map((p) => ({
+        id: p.id,
+        seats: p.seats,
+        mySeats: p.seats.filter((id) => mine.has(id)),
+        ticketCount: p.ticketCount,
+        qrSvg: pkpass.barcodeSvg(p.barcode),
+        walletUrl: `/api/public/passes/${p.id}.pkpass`
+      }))
+    }
+  });
+});
+
+// The .pkpass itself, for Add to Apple Wallet: the same file AMC made,
+// untouched (it's signed). Same rules as the screen: someone with a seat
+// on its showtime, from the ticket's hour until the pass is cleared away.
+app.get('/api/public/passes/:id.pkpass', (req, res) => {
+  const pass = store.getPass(req.params.id);
+  const show = pass && pass.showtimeId ? store.getShowtime(pass.showtimeId) : null;
+  const hasSeat = !!show && Object.values(show.seats || {}).some((s) => s.personId === req.person.id);
+  const startsAt = show ? showtimeInstantMs(show.date, show.time) : null;
+  const now = Date.now();
+  if (!hasSeat || startsAt === null) return res.status(404).json({ error: 'not found' });
+  if (now < startsAt - TICKET_LEAD_MS) return res.status(403).json({ error: 'your ticket opens an hour before the show', reason: 'too_early' });
+  res.set('Content-Type', 'application/vnd.apple.pkpass');
+  res.set('Content-Disposition', 'inline; filename="ticket.pkpass"');
+  res.set('Cache-Control', 'no-store');
+  res.sendFile(store.passFilePath(pass.id));
+});
+
 // ---------------- AMC API test (admin auth required, TEMPORARY) ----------------
 //
 // One-off diagnostic, not wired into any page. Checks whether AMC_API_KEY
@@ -1805,7 +2074,11 @@ app.use(
 // returns clean JSON instead of Express's default HTML error page.
 app.use((err, req, res, next) => {
   if (err instanceof multer.MulterError) {
-    return res.status(400).json({ error: err.code === 'LIMIT_FILE_SIZE' ? 'image is too large (5MB max)' : err.message });
+    return res.status(400).json({ error: err.code === 'LIMIT_FILE_SIZE' ? 'that file is too large (5MB max)' : err.message });
+  }
+  // A pass sent as the whole body (passUploadBody), over the limit.
+  if (err && err.type === 'entity.too.large') {
+    return res.status(413).json({ error: 'that file is too large (5MB max)', message: "That file is too large to be a Wallet pass." });
   }
   next(err);
 });

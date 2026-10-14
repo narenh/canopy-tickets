@@ -79,6 +79,10 @@ files and images (see "Storage & backups" below).
   where `concessions` is that seat's cart (`{itemId, name, price, qty,
   note?, options?}` per line, `options` holding one pick per unit
   ordered).
+- `lib/pkpass.js` — reads AMC's Wallet passes and matches each one to its
+  showtime, and draws a pass's QR as SVG with the vendored
+  `lib/vendor/qrcode-generator-1.4.4` (MIT). See "Wallet passes and the
+  day-of screen" below.
 - `lib/uploadedImage.js` — persistence for admin-uploaded site images (the
   link-preview image, the logo): `createImageStore(name)` gives each one
   its own file in `DATA_DIR`, same durability story as `canopy.db`.
@@ -722,6 +726,55 @@ give back: unpaid (ticket and food), reserved by them in the last 24
 hours (`seats.reserved_at`), and the showtime more than 24 hours away.
 It asks once, then the seat goes back to being an open seat in the
 block. An old seat claimed into an account keeps its reservation time.
+
+## Wallet passes and the day-of screen
+
+**Passes.** AMC makes one Wallet pass (`.pkpass`) per order, so a
+showtime bought in two goes has two. Share one from Wallet to an iOS
+Shortcut and it lands on its showtime. Settings → **Wallet Passes**
+makes the Shortcut's upload token and lists the steps to build the
+Shortcut. The Shortcut POSTs the file to `/api/passes` with
+`Authorization: Bearer <token>`, and the answer's `message` says where
+the pass went. A showtime's editor and Settings can upload one too.
+
+`lib/pkpass.js` reads the pass's `pass.json` and places it on the
+showtime that matches. It matches on start time (`relevantDate`), then
+on auditorium (`amc-metreon-13` is 13), and then on which block holds its
+seats. A pass it can't place waits in Settings under **Not placed yet**,
+with the reason and a showtime picker. Uploading the same pass again
+(same serial number) replaces it. The file is served back untouched,
+because AMC signs it. It lives in `DATA_DIR/passes/` and is deleted 12
+hours after its showtime.
+
+**The day-of screen.** From 4am on the day of a showtime someone has a
+seat in, the reservation page opens full screen on it. It shows the
+poster, the seats, and concessions, coloured from the poster's main
+colour. With two showtimes in a day it shows the next one. The earlier
+one keeps the screen until 20 minutes after it starts.
+
+From an hour before the show the screen shows the ticket instead: the
+QR from the pass that holds their seat. The server draws the QR as SVG;
+the code's digits aren't shown. Apple's own **Add to Apple Wallet**
+badge (`public/vendor/apple-wallet-badge`, inlined into the page) sits
+below it on Apple devices. A party split over two orders swipes between
+two passes. The server hands nothing out before the hour
+(`/api/public/day-of`, `/api/public/passes/<id>.pkpass`).
+
+Paying on that screen comes down to one button:
+
+- **Orders open, nothing ordered:** the ticket can be paid now.
+- **Orders open, something ordered:** there's no pay button. The ticket
+  and the snacks are paid together, in one payment, once orders close.
+- **Orders closed:** one button for everything still owed. A breakdown
+  shows above it when that's both the ticket and the snacks. Below it is
+  an "I've paid for…" link for each part.
+- **The ticket's hour, still owing:** that pay card takes the QR's place
+  until it's settled or marked as settled. This happens only in the
+  browser, and the person's own word is enough.
+
+Closing the screen with × keeps it closed for that showtime until the
+ticket's hour, when it opens once more. The banner on My Showtimes
+reopens it any time.
 
 ## Link-preview image & logo
 
