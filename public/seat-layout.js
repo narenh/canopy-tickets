@@ -118,21 +118,24 @@ const SEAT_LAYOUTS = {
   // seats are J16 and J6 down to J1 -- 7 seats total, out of 16 slots.
   // The very bottom edge of that screenshot is still slightly cropped,
   // so treat this as high-confidence but not 100% certain.
+  // Alignment fix (re-measured column by column off the screenshot): the
+  // room is 23 columns wide. D-G start at column 0; A starts 2 in, B/C/H/J
+  // start 1 in; J has 6 empty columns between J8 and J7.
   'amc-metreon-13': {
     theater: 'AMC Metreon',
     auditorium: '13',
     name: 'Dolby Cinema',
     formats: ['Dolby Cinema'],
     rows: [
-      { letter: 'A', count: 20, special: {} },
-      { letter: 'B', count: 22, special: {} },
-      { letter: 'C', count: 18, special: {6:'comp', 7:'wc', 8:'wc', 9:'comp'}, gapAfter: true },
+      { letter: 'A', count: 20, special: {}, padStart: 2 },
+      { letter: 'B', count: 22, special: {}, padStart: 1 },
+      { letter: 'C', count: 18, special: {6:'comp', 7:'wc', 8:'wc', 9:'comp'}, padStart: 1, gapAfter: true },
       { letter: 'D', count: 22, special: {} },
       { letter: 'E', count: 22, special: {} },
       { letter: 'F', count: 22, special: {} },
       { letter: 'G', count: 22, special: {} },
-      { letter: 'H', count: 22, special: {} },
-      { letter: 'J', count: 16, special: {7:'comp', 8:'comp', 9:'wc', 10:'wc', 11:'comp', 12:'comp', 13:'wc', 14:'wc', 15:'comp'} },
+      { letter: 'H', count: 22, special: {}, padStart: 1 },
+      { letter: 'J', count: 16, special: {7:'comp', 8:'comp', 9:'wc', 10:'wc', 11:'comp', 12:'comp', 13:'wc', 14:'wc', 15:'comp'}, padStart: 1, blankAfter: {8: 6} },
     ]
   },
 
@@ -354,7 +357,133 @@ const SEAT_LAYOUTS = {
       { letter: 'H', count: 12, special: {}, padStart: 9, blankAfter: {11: 2} },
       { letter: 'J', count: 10, special: {}, padStart: 13 },
     ]
-  }
+  },
+
+  // Auditoriums 1, 3, 6, 7, 8, 10, 11. Read off the AMC seat-map
+  // screenshots in the uploaded archive (one per auditorium).
+  // Auditoriums 2 and 3 share the same shape.
+  'amc-metreon-1': {
+    theater: 'AMC Metreon',
+    auditorium: '1',
+    formats: ['Single Laser'],
+    rows: [
+      { letter: 'A', count: 11, special: {} },
+      { letter: 'B', count: 8, special: {5:'comp', 4:'wc', 3:'wc', 2:'comp'}, padStart: 1 },
+      { letter: 'C', count: 9, special: {}, padStart: 1 },
+      { letter: 'D', count: 9, special: {}, padStart: 1 },
+      { letter: 'E', count: 10, special: {} },
+    ]
+  },
+
+  'amc-metreon-2': {
+    theater: 'AMC Metreon',
+    auditorium: '2',
+    formats: ['Single Laser'],
+    rows: [
+      { letter: 'A', count: 12, special: {} },
+      { letter: 'B', count: 7, special: {5:'comp', 4:'wc', 3:'wc', 2:'comp'}, padStart: 3 },
+      { letter: 'C', count: 8, special: {}, padStart: 2 },
+      { letter: 'D', count: 8, special: {}, padStart: 2 },
+      { letter: 'E', count: 8, special: {}, padStart: 2 },
+      { letter: 'F', count: 4, special: {}, padStart: 3, blankAfter: {3: 2} },
+    ]
+  },
+
+  'amc-metreon-3': {
+    theater: 'AMC Metreon',
+    auditorium: '3',
+    formats: ['Single Laser'],
+    rows: [
+      { letter: 'A', count: 12, special: {} },
+      { letter: 'B', count: 7, special: {5:'comp', 4:'wc', 3:'wc', 2:'comp'}, padStart: 3 },
+      { letter: 'C', count: 8, special: {}, padStart: 2 },
+      { letter: 'D', count: 8, special: {}, padStart: 2 },
+      { letter: 'E', count: 8, special: {}, padStart: 2 },
+      { letter: 'F', count: 4, special: {}, padStart: 3, blankAfter: {3: 2} },
+    ]
+  },
+
+  'amc-metreon-6': {
+    theater: 'AMC Metreon',
+    auditorium: '6',
+    formats: ['Single Laser'],
+    rows: [
+      { letter: 'A', count: 14, special: {} },
+      { letter: 'B', count: 8, special: {7:'wc', 6:'wc', 5:'comp', 4:'comp', 3:'wc', 2:'wc'}, padStart: 2 },
+      { letter: 'C', count: 10, special: {}, padStart: 2 },
+      { letter: 'D', count: 10, special: {}, padStart: 2 },
+      { letter: 'E', count: 10, special: {}, padStart: 2 },
+      { letter: 'F', count: 10, special: {}, padStart: 2 },
+    ]
+  },
+
+  'amc-metreon-7': {
+    theater: 'AMC Metreon',
+    auditorium: '7',
+    formats: ['Single Laser'],
+    rows: [
+      { letter: 'A', count: 16, special: {}, padStart: 1 },
+      { letter: 'B', count: 17, special: {} },
+      { letter: 'C', count: 11, padStart: 3, blankAfter: {9: 1, 5: 1},
+        special: {11:'comp', 10:'comp', 9:'wc', 8:'wc', 7:'comp', 6:'comp', 5:'wc', 4:'wc', 3:'comp', 2:'comp', 1:'wc'} },
+      { letter: 'D', count: 13, special: {}, padStart: 3 },
+      { letter: 'E', count: 13, special: {}, padStart: 3 },
+      { letter: 'F', count: 13, special: {}, padStart: 3 },
+      { letter: 'G', count: 13, special: {}, padStart: 3 },
+      { letter: 'H', count: 8, special: {}, padStart: 3, blankAfter: {6: 5} },
+    ]
+  },
+
+  'amc-metreon-8': {
+    theater: 'AMC Metreon',
+    auditorium: '8',
+    formats: ['Single Laser'],
+    rows: [
+      { letter: 'A', count: 14, special: {}, padStart: 2 },
+      { letter: 'B', count: 18, special: {} },
+      { letter: 'C', count: 12, padStart: 2, blankAfter: {10: 1, 6: 1},
+        special: {12:'comp', 11:'comp', 10:'wc', 9:'wc', 8:'comp', 7:'comp', 6:'wc', 5:'wc', 4:'comp', 3:'comp', 2:'wc', 1:'comp'} },
+      { letter: 'D', count: 13, special: {}, padStart: 3 },
+      { letter: 'E', count: 13, special: {}, padStart: 3 },
+      { letter: 'F', count: 13, special: {}, padStart: 3 },
+      { letter: 'G', count: 13, special: {}, padStart: 3 },
+      { letter: 'H', count: 6, special: {}, padStart: 3, blankAfter: {3: 4} },
+    ]
+  },
+
+  'amc-metreon-10': {
+    theater: 'AMC Metreon',
+    auditorium: '10',
+    formats: ['Single Laser'],
+    rows: [
+      { letter: 'A', count: 14, special: {}, padStart: 2 },
+      { letter: 'B', count: 18, special: {} },
+      { letter: 'C', count: 12, padStart: 2, blankAfter: {10: 1, 6: 1},
+        special: {12:'comp', 11:'comp', 10:'wc', 9:'wc', 8:'comp', 7:'comp', 6:'wc', 5:'wc', 4:'comp', 3:'comp', 2:'wc', 1:'comp'} },
+      { letter: 'D', count: 13, special: {}, padStart: 3 },
+      { letter: 'E', count: 13, special: {}, padStart: 3 },
+      { letter: 'F', count: 13, special: {}, padStart: 3 },
+      { letter: 'G', count: 13, special: {}, padStart: 3 },
+      { letter: 'H', count: 10, special: {}, padStart: 4, blankAfter: {7: 3} },
+    ]
+  },
+
+  'amc-metreon-11': {
+    theater: 'AMC Metreon',
+    auditorium: '11',
+    formats: ['Single Laser'],
+    rows: [
+      { letter: 'A', count: 14, special: {}, padStart: 2 },
+      { letter: 'B', count: 18, special: {} },
+      { letter: 'C', count: 12, padStart: 2, blankAfter: {9: 1, 5: 1},
+        special: {12:'comp', 11:'comp', 10:'comp', 9:'wc', 8:'wc', 7:'comp', 6:'comp', 5:'wc', 4:'wc', 3:'comp', 2:'comp', 1:'wc'} },
+      { letter: 'D', count: 14, special: {}, padStart: 2 },
+      { letter: 'E', count: 14, special: {}, padStart: 2 },
+      { letter: 'F', count: 14, special: {}, padStart: 2 },
+      { letter: 'G', count: 14, special: {}, padStart: 2 },
+      { letter: 'H', count: 12, special: {}, padStart: 2, blankAfter: {7: 2} },
+    ]
+  },
 };
 
 // Kept in sync by hand with the same-named constant in server.js (a
