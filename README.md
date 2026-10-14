@@ -31,8 +31,8 @@ in is sent to `account.canopysf.com` to sign in (or make an account),
 and comes straight back. See "Signing in" and "The admin" below.
 
 **Seat maps currently only cover AMC Metreon (San Francisco) — IMAX
-(Auditorium 16), Dolby Cinema (Auditorium 13), and Auditoriums 9 and
-14.** Other screens/theaters
+(Auditorium 16), Dolby Cinema (Auditorium 13), and Auditoriums 4, 5, 9,
+12, 14 and 15.** Other screens/theaters
 are coming soon; see `public/seat-layout.js` below for how a new one gets
 added.
 

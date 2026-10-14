@@ -219,6 +219,141 @@ const SEAT_LAYOUTS = {
       { letter: 'H', count: 15, special: {}, padStart: 5 },
       { letter: 'J', count: 10, special: {4:'comp', 3:'wc', 2:'comp'}, padStart: 5, blankAfter: {6: 4, 5: 1} },
     ]
+  },
+
+  // Auditorium 4. Read off one screenshot of the real map. The room is
+  // 10 columns wide (row A fills them; C-E are 8 wide, starting at A's
+  // first column).
+  //
+  // Row B: B7, B6 and B1 are labeled. Between B6 and B1 there are 4
+  // wheelchair/companion spots and one empty column, so B5-B2 fill the
+  // spots and the empty column (after B4) takes no number. Companion
+  // seats B5, B2; wheelchair spots B4, B3. Those numbers are inferred.
+  // Row F is F4, F3, two empty columns, F2, F1, starting one column in.
+  // Occupied seats show no number on AMC's map; theirs are inferred
+  // from the sequence.
+  'amc-metreon-4': {
+    theater: 'AMC Metreon',
+    auditorium: '4',
+    formats: ['Single Laser'],
+    rows: [
+      { letter: 'A', count: 10, special: {} },
+      { letter: 'B', count: 7, special: {5:'comp', 4:'wc', 3:'wc', 2:'comp'}, blankAfter: {4: 1} },
+      { letter: 'C', count: 8, special: {} },
+      { letter: 'D', count: 8, special: {} },
+      { letter: 'E', count: 8, special: {} },
+      { letter: 'F', count: 4, special: {}, padStart: 1, blankAfter: {3: 2} },
+    ]
+  },
+
+  // Auditorium 5. Read off one screenshot of the real map. The room is
+  // 11 columns wide: rows A and B are all wheelchair/companion spots
+  // with no labels on the map, and rows C-G are 8 wide, starting two
+  // columns in. Rows A/B numbers are NOT confirmed: they're numbered
+  // 11 (or 7) down to 1 left to right, like the labeled rows, which
+  // matches how the other rooms here run (row A of Auditorium 12 has
+  // one more seat than the rows behind it, the same way).
+  //
+  // Row A: A11 is a wheelchair spot, A10-A1 companion seats. Row B sits
+  // under A's 3rd-9th columns: B7/B6 and B3/B2 companion seats, B5/B4/B1
+  // wheelchair spots. Row G has two empty columns between G5 and G4.
+  'amc-metreon-5': {
+    theater: 'AMC Metreon',
+    auditorium: '5',
+    formats: ['Single Laser'],
+    rows: [
+      {
+        letter: 'A',
+        count: 11,
+        special: {
+          11:'wc', 10:'comp', 9:'comp', 8:'comp', 7:'comp', 6:'comp',
+          5:'comp', 4:'comp', 3:'comp', 2:'comp', 1:'comp'
+        }
+      },
+      {
+        letter: 'B',
+        count: 7,
+        special: {7:'comp', 6:'comp', 5:'wc', 4:'wc', 3:'comp', 2:'comp', 1:'wc'},
+        padStart: 2
+      },
+      { letter: 'C', count: 8, special: {}, padStart: 2 },
+      { letter: 'D', count: 8, special: {}, padStart: 2 },
+      { letter: 'E', count: 8, special: {}, padStart: 2 },
+      { letter: 'F', count: 8, special: {}, padStart: 2 },
+      { letter: 'G', count: 6, special: {}, padStart: 2, blankAfter: {5: 2} },
+    ]
+  },
+
+  // Auditorium 12. Read off one screenshot of the real map. The room
+  // is 21 columns wide (B runs the full width); row A starts one column
+  // in, rows C-F are 20 wide from the left edge.
+  //
+  // Row B: B19-B14 and B5-B1 are labeled, and B1 sits one column past
+  // where C1 ends. In between are 8 wheelchair/companion spots and two
+  // empty columns (after B12 and after B8), which take no number, so
+  // the spots are B13-B6. Those numbers are inferred.
+  //
+  // Row G: the map labels the two seats after G9 "HG8" and "HG7"; they
+  // are treated as G8 and G7 here, which is what the sequence implies.
+  // G3/G2/G1 are unlabeled companion, wheelchair, companion spots.
+  'amc-metreon-12': {
+    theater: 'AMC Metreon',
+    auditorium: '12',
+    formats: ['Single Laser'],
+    rows: [
+      { letter: 'A', count: 19, special: {}, padStart: 1 },
+      {
+        letter: 'B',
+        count: 19,
+        special: {
+          13:'comp', 12:'wc', 11:'wc', 10:'comp', 9:'comp',
+          8:'wc', 7:'wc', 6:'comp'
+        },
+        blankAfter: {12: 1, 8: 1}
+      },
+      { letter: 'C', count: 20, special: {} },
+      { letter: 'D', count: 20, special: {} },
+      { letter: 'E', count: 20, special: {} },
+      { letter: 'F', count: 20, special: {} },
+      { letter: 'G', count: 16, special: {3:'comp', 2:'wc', 1:'comp'}, blankAfter: {7: 5} },
+    ]
+  },
+
+  // Auditorium 15. Read off one screenshot of the real map. The room is
+  // 23 columns wide: rows C-F are 22 wide from the left edge, while A,
+  // B, H and J reach the 23rd column on the right (A starts one column
+  // in; B1 sits one column past C1).
+  //
+  // Row B: B22-B16 and B7-B1 are labeled. Between them are 8
+  // wheelchair/companion spots and one empty column (after B14), which
+  // takes no number, so the spots are B15-B8. Those numbers are
+  // inferred. Companion seats B15, B12, B11, B8; wheelchair spots B14,
+  // B13, B10, B9.
+  // Rows H and J sit under A's right-hand columns; H also has H12/H11
+  // out on their own, two empty columns before H10.
+  'amc-metreon-15': {
+    theater: 'AMC Metreon',
+    auditorium: '15',
+    formats: ['Single Laser'],
+    rows: [
+      { letter: 'A', count: 22, special: {}, padStart: 1 },
+      {
+        letter: 'B',
+        count: 22,
+        special: {
+          15:'comp', 14:'wc', 13:'wc', 12:'comp', 11:'comp',
+          10:'wc', 9:'wc', 8:'comp'
+        },
+        blankAfter: {14: 1}
+      },
+      { letter: 'C', count: 22, special: {} },
+      { letter: 'D', count: 22, special: {} },
+      { letter: 'E', count: 22, special: {} },
+      { letter: 'F', count: 22, special: {} },
+      { letter: 'G', count: 6, special: {}, padStart: 16 },
+      { letter: 'H', count: 12, special: {}, padStart: 9, blankAfter: {11: 2} },
+      { letter: 'J', count: 10, special: {}, padStart: 13 },
+    ]
   }
 };
 
