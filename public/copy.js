@@ -517,7 +517,7 @@ const COPY = {
       remove: 'Remove from seat',
       removeNoRefund: 'Remove without refund',
       refund: 'Refund {amount} to {name}',
-      refundNote: 'Refund: {title} {date}, {seat}',
+      refundNote: 'REFUND: {title} {date}',
       noVenmo: '{name} has no Venmo on their Canopy account, so refund them another way.',
       noAccount: 'This seat isn’t linked to an account, so refund them another way.',
       move: 'Move to another seat',

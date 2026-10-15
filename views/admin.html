@@ -2894,7 +2894,11 @@ async function openRemoveSheet(id){
   if (person && person.venmo){
     const a = byId('removeRefund');
     const title = byId('editorTitle').textContent || 'Movie';
-    a.href = venmoPayLink(person.venmo, paid, t('admin.removeSheet.refundNote', { title, date: formatDateDisplay(byId('showDate').value), seat: id }));
+    // "2026-10-14" -> "10/14/26", the same short date as the friends'
+    // pay notes.
+    const [y, m, d] = (byId('showDate').value || '').split('-').map(Number);
+    const date = y ? m + '/' + d + '/' + String(y).slice(-2) : '';
+    a.href = venmoPayLink(person.venmo, paid, t('admin.removeSheet.refundNote', { title, date }).trim());
     if (/^https?:/.test(a.href)){ a.target = '_blank'; a.rel = 'noopener'; } else { a.removeAttribute('target'); }
     a.textContent = t('admin.removeSheet.refund', { amount: formatPrice(paid), name: person.firstName });
     // The link opens Venmo; the seat comes off as it does.
