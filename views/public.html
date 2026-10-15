@@ -3235,10 +3235,10 @@ function seatOwesAnything(obj, seat){
   if (!seat || seat.host) return false;
   const price = typeof obj.price === 'number' ? obj.price : 0;
   if (!seat.paid && price > 0) return true;
-  // Counted whether or not it's settleable yet: this tag answers "has
-  // this person paid me", and an unpaid cart is an unpaid cart even
-  // while its total is still a draft.
-  return !seat.concessionsPaid && (seat.concessions || []).length > 0;
+  // The food only once orders are closed: until then the cart is a draft
+  // that nobody's been asked to pay for, so a paid ticket with an order
+  // in progress is settled up for now.
+  return !concessionsOpen(obj) && !seat.concessionsPaid && (seat.concessions || []).length > 0;
 }
 
 // Red seat number and "unpaid": on your own seats and your guests', and

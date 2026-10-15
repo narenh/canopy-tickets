@@ -1643,12 +1643,14 @@ function concessionsGrandTotal(lines){
   return Math.round((sub + concessionTax(sub)) * 100) / 100;
 }
 
-// What this seat still owes the host, ticket and food together. The
-// host's own seat owes nothing by definition.
-function seatOutstanding(s, price){
+// What this seat owes the host right now. The ticket from the moment it's
+// claimed; the food only once orders are closed (`ordersClosed`), since
+// until then the cart is a draft nobody's asked to pay for. The host's
+// own seat owes nothing by definition.
+function seatOutstanding(s, price, ordersClosed){
   if (!s || !s.name || s.host) return 0;
   const ticket = s.paid ? 0 : (typeof price === 'number' ? price : 0);
-  const food = s.concessionsPaid ? 0 : concessionsGrandTotal(s.concessions);
+  const food = !ordersClosed || s.concessionsPaid ? 0 : concessionsGrandTotal(s.concessions);
   return Math.round((ticket + food) * 100) / 100;
 }
 
@@ -2371,10 +2373,10 @@ function buildCard(obj){
   if (namedIds.length > 0){
     const namedLines = namedIds.map(id => {
       const s = seats[id];
-      // What's outstanding, ticket and food together -- a seat that paid
-      // for its ticket and then ordered $25 of popcorn hasn't settled up,
-      // and this list is the one place the host scans for who to chase.
-      const outstanding = seatOutstanding(s, obj.price);
+      // What's outstanding: the ticket, and the food once orders are
+      // closed -- this list is the one place the host scans for who to
+      // chase, and nobody's asked to pay for a draft cart.
+      const outstanding = seatOutstanding(s, obj.price, !!obj.ordersClosed);
       const paidTag = outstanding > 0
         ? '<span class="unpaid-tag">owes ' + escapeHtml(formatPrice(outstanding)) + '</span>'
         : '<span class="paid-tag">&#10003; paid</span>';
@@ -2817,7 +2819,7 @@ function updateSummary(){
     const row = document.createElement('div');
     row.className = 'seat-row' + (s.name ? '' : ' is-open');
     row.addEventListener('click', () => openSeatEditor(id));
-    const outstanding = seatOutstanding(s, currentShowtimePrice());
+    const outstanding = seatOutstanding(s, currentShowtimePrice(), ordersClosed);
     const sub = !s.name ? '' : outstanding > 0
       ? '<div class="seat-row-sub owes">' + escapeHtml(t('admin.seatSummary.owesRow', { amount: formatPrice(outstanding) })) + '</div>'
       : '<div class="seat-row-sub paid">' + escapeHtml(t('admin.seatSummary.paidRow')) + '</div>';
@@ -3015,7 +3017,8 @@ async function toggleOrdersClosed(){
     if (await handleAuthFailure(res)) return;
     if (!res.ok){ alert(t('admin.orders.finalizeFailed')); return; }
     ordersClosed = next;
-    renderOrdersCloseBar();
+    // What each seat owes changes with it.
+    updateSummary();
   }catch(e){
     alert(t('admin.orders.finalizeFailed'));
   }finally{
