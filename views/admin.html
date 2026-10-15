@@ -135,6 +135,10 @@
     display:grid;
     grid-template-columns:repeat(auto-fill, minmax(140px, 1fr));
     gap:16px 12px;
+    /* Tiles are <button>s, which centre their contents vertically: in a
+       row stretched to its tallest tile (a two-line title), the others'
+       posters would sit lower. */
+    align-items:start;
   }
   .movie-grid .empty-state, .movie-grid .loading-state{grid-column:1 / -1;}
   .movie-tile{
