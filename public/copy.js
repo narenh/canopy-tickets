@@ -536,9 +536,9 @@ const COPY = {
     deleteFailed: 'Could not delete. Try again.',
     openFailed: 'Could not open that showtime.',
     notFound: 'Could not find that showtime.',
-    auditorium: 'Auditorium {number} ({name})',
+    auditorium: '{number} ({name})',
     // For a screen with no `name` in seat-layout.js.
-    auditoriumUnnamed: 'Auditorium {number}'
+    auditoriumUnnamed: '{number}'
   },
 
   // Shown on both pages when you've been signed out and sending you to

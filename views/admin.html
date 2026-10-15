@@ -484,54 +484,52 @@
     flex:1;
     min-width:0;
   }
-  .subtitle{
-    margin-top:10px;
-    color:#e8e8e8;
-    font-size:15px;
-    line-height:1.5;
-    display:flex;
-    flex-wrap:wrap;
-    align-items:center;
-    gap:6px;
+  /* The showtime's fields: labelled, full-size controls in two columns,
+     16px text (smaller and iOS Safari zooms the page on focus). */
+  .show-form{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:12px 10px;
+    margin-top:14px;
+    max-width:560px;
   }
-  .subtitle input.theater{width:9.5em;}
-  .sep{color:#777;}
-  .subtitle input, .subtitle select{
-    background:transparent;
-    color:#e8e8e8;
-    border:none;
-    border-bottom:1px solid #555;
-    font-size:15px;
+  .sf-field{display:flex;flex-direction:column;gap:5px;min-width:0;}
+  .sf-wide{grid-column:1 / -1;}
+  .sf-label{font-size:12px;font-weight:600;color:var(--muted);}
+  .sf-input{
+    width:100%;
+    height:46px;
+    box-sizing:border-box;
+    background:#0f0f10;
+    color:#fff;
+    border:1px solid #3a3a3a;
+    border-radius:10px;
+    padding:0 12px;
+    font-size:16px;
     font-family:inherit;
-    padding:2px 2px;
+    min-width:0;
   }
-  .subtitle select{
+  .sf-input:focus{outline:none;border-color:var(--gold);}
+  .sf-input::placeholder{color:#666;}
+  .sf-input::-webkit-calendar-picker-indicator{filter:invert(1);}
+  /* iOS draws date/time inputs centred and short without these. */
+  input.sf-input[type="date"], input.sf-input[type="time"]{-webkit-appearance:none;appearance:none;text-align:left;line-height:44px;}
+  input.sf-input::-webkit-date-and-time-value{text-align:left;}
+  select.sf-input{
     -webkit-appearance:none;
     appearance:none;
-    padding-right:16px;
-    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0 L5 6 L10 0 Z' fill='%23aaa'/></svg>");
+    padding-right:32px;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='7'><path d='M0 0 L6 7 L12 0 Z' fill='%23aaa'/></svg>");
     background-repeat:no-repeat;
-    background-position:right center;
+    background-position:right 12px center;
   }
-  .subtitle select option{background:#111;color:#fff;}
-  .subtitle input::-webkit-calendar-picker-indicator{filter:invert(1);}
-  .price-field{display:inline-flex;align-items:center;gap:2px;}
-  #price{width:64px;}
-  .info-row{margin-top:10px;}
-  #showInfo{
-    width:100%;
-    max-width:360px;
-    background:transparent;
-    color:#e8e8e8;
-    border:none;
-    border-bottom:1px solid #555;
-    font-size:15px;
-    font-family:inherit;
-    padding:2px 2px;
-  }
-  #showInfo::placeholder{color:#666;}
-  .a-list-row{display:inline-flex;align-items:center;gap:8px;margin-top:12px;font-size:14px;color:#e8e8e8;cursor:pointer;}
-  .a-list-row input{width:17px;height:17px;margin:0;accent-color:var(--gold);}
+  select.sf-input option{background:#111;color:#fff;}
+  select.sf-input:disabled{opacity:1;color:#bbb;background-image:none;padding-right:12px;}
+  .sf-price{position:relative;display:block;}
+  .sf-dollar{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#aaa;font-size:16px;pointer-events:none;}
+  .sf-price .sf-input{padding-left:24px;}
+  .a-list-row{display:inline-flex;align-items:center;gap:10px;margin-top:14px;min-height:44px;font-size:15px;color:#e8e8e8;cursor:pointer;}
+  .a-list-row input{width:22px;height:22px;margin:0;accent-color:var(--gold);}
   .card .showtime-info{
     color:var(--info-blue);
     font-size:14px;
@@ -539,16 +537,17 @@
     margin-bottom:4px;
   }
   .price-quick{
-    margin-top:8px;
     display:flex;
     gap:8px;
     align-items:center;
+    height:46px;
   }
-  .price-quick span{color:var(--muted);font-size:11px;}
   .quick-price-btn{
-    padding:4px 10px;
-    font-size:12px;
-    border-radius:14px;
+    flex:1;
+    height:46px;
+    padding:0 8px;
+    font-size:15px;
+    border-radius:10px;
   }
   .edit-hint{
     color:var(--muted);
@@ -1192,35 +1191,54 @@
         <div class="back-btn" onclick="goUp()">&#8592;</div>
         <div class="editor-title" id="editorTitle"></div>
       </div>
-      <div class="subtitle">
-        <input type="text" class="theater" id="theaterField" placeholder="Theater" autocomplete="off">
-        <span class="sep">|</span>
-        <input type="date" id="showDate">
-        <span class="sep">|</span>
-        <input type="time" id="showTime">
-        <span class="sep">|</span>
-        <!-- Options follow the selected screen's `formats` (seat-layout.js)
-             -- see syncFormatOptions(). -->
-        <select id="format"></select>
-        <span class="sep">|</span>
-        <!-- Options populated at load time from SEAT_LAYOUTS (seat-layout.js),
-             grouped by theater -- see populateScreenOptions(). -->
-        <select id="screen"></select>
-        <span class="sep">|</span>
-        <span class="price-field">$<input type="number" id="price" step="0.01" min="0" placeholder="17.49" inputmode="decimal"></span>
-      </div>
-      <div class="price-quick">
-        <span>Quick price:</span>
-        <button type="button" class="quick-price-btn" onclick="setPrice(17.49)">$17.49</button>
-        <button type="button" class="quick-price-btn" onclick="setPrice(28.99)">$28.99</button>
-      </div>
-      <!-- Optional note shown to friends on this showtime's card. The
-           datalist offers every note already used, so "Japanese Spoken"
-           is typed once. -->
-      <div class="info-row">
-        <input type="text" id="showInfo" list="infoSuggestions" maxlength="120" autocomplete="off"
-               placeholder="Showtime info (optional)">
-        <datalist id="infoSuggestions"></datalist>
+      <!-- The showtime's fields, each a full-size control with its label,
+           so they're easy to hit on a phone. Auditorium comes before
+           format: the auditorium decides which formats there are. -->
+      <div class="show-form">
+        <label class="sf-field sf-wide">
+          <span class="sf-label">Theater</span>
+          <input type="text" class="sf-input" id="theaterField" placeholder="Theater" autocomplete="off">
+        </label>
+        <label class="sf-field">
+          <span class="sf-label">Date</span>
+          <input type="date" class="sf-input" id="showDate">
+        </label>
+        <label class="sf-field">
+          <span class="sf-label">Time</span>
+          <input type="time" class="sf-input" id="showTime">
+        </label>
+        <label class="sf-field" id="screenField">
+          <span class="sf-label">Auditorium</span>
+          <!-- Options populated at load time from SEAT_LAYOUTS (seat-layout.js),
+               grouped by theater -- see populateScreenOptions(). -->
+          <select class="sf-input" id="screen"></select>
+        </label>
+        <label class="sf-field" id="formatField">
+          <span class="sf-label">Format</span>
+          <!-- Options follow the selected screen's `formats` (seat-layout.js)
+               -- see syncFormatOptions(). -->
+          <select class="sf-input" id="format"></select>
+        </label>
+        <label class="sf-field">
+          <span class="sf-label">Price</span>
+          <span class="sf-price"><span class="sf-dollar">$</span><input type="number" class="sf-input" id="price" step="0.01" min="0" placeholder="17.49" inputmode="decimal"></span>
+        </label>
+        <div class="sf-field">
+          <span class="sf-label">Quick price</span>
+          <div class="price-quick">
+            <button type="button" class="quick-price-btn" onclick="setPrice(17.49)">$17.49</button>
+            <button type="button" class="quick-price-btn" onclick="setPrice(28.99)">$28.99</button>
+          </div>
+        </div>
+        <!-- Optional note shown to friends on this showtime's card. The
+             datalist offers every note already used, so "Japanese Spoken"
+             is typed once. -->
+        <label class="sf-field sf-wide">
+          <span class="sf-label">Showtime info</span>
+          <input type="text" class="sf-input" id="showInfo" list="infoSuggestions" maxlength="120" autocomplete="off"
+                 placeholder="Optional, e.g. Japanese Spoken">
+          <datalist id="infoSuggestions"></datalist>
+        </label>
       </div>
       <label class="a-list-row">
         <input type="checkbox" id="aListSwap"><span data-copy="admin.aListSwap"></span>
@@ -2020,11 +2038,19 @@ async function addShowtime(){
   if (!currentMovie) return;
   const latest = (currentMovie.showtimes || []).slice()
     .sort((a, b) => (b.date + 'T' + b.time).localeCompare(a.date + 'T' + a.time))[0];
-  const screen = latest && latest.screen ? latest.screen : DEFAULT_SCREEN;
-  const layout = SEAT_LAYOUTS[screen] || SEAT_LAYOUTS[DEFAULT_SCREEN];
-  const body = latest
-    ? { theater: latest.theater || '', screen, format: latest.format || '', price: latest.price, time: latest.time || '19:00', date: todayISO() }
-    : { theater: layout.theater || 'AMC Metreon 16', screen, format: (layout.formats || [])[0] || '', price: 17.49, time: '19:00', date: todayISO() };
+  // Always auditorium 16 (IMAX) and its first format, whatever the last
+  // showtime was in. The last one's price only carries over if it was in
+  // 16 too: an IMAX showtime shouldn't start at a Dolby price.
+  const screen = DEFAULT_SCREEN;
+  const layout = SEAT_LAYOUTS[screen];
+  const body = {
+    theater: (latest && latest.theater) || layout.theater || 'AMC Metreon 16',
+    screen,
+    format: (layout.formats || [])[0] || '',
+    price: latest && latest.screen === screen && typeof latest.price === 'number' ? latest.price : 17.49,
+    time: (latest && latest.time) || '19:00',
+    date: todayISO()
+  };
   try{
     const res = await fetch('/api/movies/' + encodeURIComponent(currentMovie.id) + '/showtimes', {
       method: 'POST',
@@ -3355,7 +3381,12 @@ function syncFormatOptions(preferred){
     select.appendChild(option);
   });
   select.value = formats.includes(want) ? want : (formats[0] || '');
-  select.disabled = formats.length < 2;
+  // Nothing to pick with one format: the picker goes, and the auditorium
+  // takes the whole row.
+  const single = formats.length < 2;
+  select.disabled = single;
+  document.getElementById('formatField').classList.toggle('hidden', single);
+  document.getElementById('screenField').classList.toggle('sf-wide', single);
 }
 
 // Builds the Screen dropdown's options from SEAT_LAYOUTS (seat-layout.js),

@@ -263,7 +263,7 @@ const SEAT_LAYOUTS = {
   'amc-metreon-5': {
     theater: 'AMC Metreon',
     auditorium: '5',
-    formats: ['Single Laser'],
+    formats: ['Single Laser', 'RealD 3D'],
     rows: [
       {
         letter: 'A',
@@ -302,7 +302,7 @@ const SEAT_LAYOUTS = {
   'amc-metreon-12': {
     theater: 'AMC Metreon',
     auditorium: '12',
-    formats: ['Single Laser'],
+    formats: ['Single Laser', 'RealD 3D'],
     rows: [
       { letter: 'A', count: 19, special: {}, padStart: 1 },
       {
@@ -454,7 +454,7 @@ const SEAT_LAYOUTS = {
   'amc-metreon-10': {
     theater: 'AMC Metreon',
     auditorium: '10',
-    formats: ['Single Laser'],
+    formats: ['Single Laser', 'RealD 3D'],
     rows: [
       { letter: 'A', count: 14, special: {}, padStart: 2 },
       { letter: 'B', count: 18, special: {} },
@@ -472,7 +472,7 @@ const SEAT_LAYOUTS = {
     theater: 'AMC Metreon',
     auditorium: '11',
     name: 'ScreenX',
-    formats: ['ScreenX'],
+    formats: ['ScreenX', 'ScreenX 3D'],
     rows: [
       { letter: 'A', count: 14, special: {}, padStart: 2 },
       { letter: 'B', count: 18, special: {} },
