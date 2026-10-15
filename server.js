@@ -1675,6 +1675,39 @@ function adminPassView(p, showtimesById) {
   };
 }
 
+// Reads a pass and puts its start right: the instant its wall-clock date
+// and time are in San Francisco, rather than the pass's own offset (see
+// parsePkpass for why that can't be trusted).
+function readPass(file) {
+  const parsed = pkpass.parsePkpass(file);
+  if (parsed.wallDate) {
+    const at = showtimeInstantMs(parsed.wallDate, parsed.wallTime);
+    if (at !== null) parsed.startsAt = at;
+  }
+  return parsed;
+}
+
+// Tries again to place every pass still waiting to be placed: a showtime
+// may have been added or fixed since, or the matching has improved. Each
+// is re-read from its file, so this also catches passes uploaded before
+// a matching fix.
+function placeUnplacedPasses() {
+  const loose = store.listPasses().filter((p) => !p.showtimeId);
+  if (!loose.length) return;
+  const showtimes = store.listShowtimes();
+  loose.forEach((p) => {
+    try {
+      const file = fs.readFileSync(store.passFilePath(p.id));
+      const parsed = readPass(file);
+      const match = pkpass.matchShowtime(parsed, showtimes, showtimeInstantMs);
+      store.savePass(parsed, file, match.showtime ? match.showtime.id : null, match.reason);
+      if (match.showtime) console.log(`[canopy-tickets] placed Wallet pass ${p.serial} on ${match.showtime.title} ${match.showtime.date} ${match.showtime.time}`);
+    } catch (e) {
+      console.warn(`[canopy-tickets] couldn't re-read Wallet pass ${p.id}: ${e.message}`);
+    }
+  });
+}
+
 function showtimesById() {
   return new Map(store.listShowtimes().map((s) => [s.id, s]));
 }
@@ -1683,7 +1716,7 @@ app.post('/api/passes', requirePassUploader, passUploadBody, (req, res) => {
   if (!req.passFile) return res.status(400).json({ error: 'no file was sent', message: 'No pass came through. Share the pass itself to the Shortcut.' });
   let parsed;
   try {
-    parsed = pkpass.parsePkpass(req.passFile);
+    parsed = readPass(req.passFile);
   } catch (e) {
     return res.status(400).json({ error: e.message, message: `Couldn't read that: ${e.message}.` });
   }
@@ -1705,6 +1738,7 @@ app.post('/api/passes', requirePassUploader, passUploadBody, (req, res) => {
 app.use('/api/passes', requireAdmin);
 
 app.get('/api/passes', (req, res) => {
+  placeUnplacedPasses();
   const byId = showtimesById();
   res.json({ passes: store.listPasses().map((p) => adminPassView(p, byId)) });
 });
@@ -1740,6 +1774,7 @@ function deleteOldPasses() {
 }
 deleteOldPasses();
 setInterval(deleteOldPasses, 60 * 60 * 1000).unref();
+placeUnplacedPasses();
 
 // ---------------- The day-of screen ----------------
 //

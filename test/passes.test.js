@@ -71,8 +71,10 @@ function zip(files) {
 }
 
 // AMC's pass.json, as the real one has it.
-function amcPass({ serial, startsAt, auditorium = '13', seats = 'E8, E7', tickets: count = '2 ADULT', film = 'Test Movie', message = 'A0123456789' }) {
-  const iso = new Date(startsAt).toISOString().replace('.000Z', 'Z');
+// `when` overrides the time, written exactly as given (AMC's own form is
+// "2026-04-07T19:00:00-07:00").
+function amcPass({ serial, startsAt, when, auditorium = '13', seats = 'E8, E7', tickets: count = '2 ADULT', film = 'Test Movie', message = 'A0123456789' }) {
+  const iso = when || new Date(startsAt).toISOString().replace('.000Z', 'Z');
   return zip({
     'pass.json': JSON.stringify({
       passTypeIdentifier: 'pass.com.amctheatres.ticketconfirmation',
@@ -347,4 +349,36 @@ test('the reservation page carries the Wallet badge inline', async () => {
   assert.ok(html.includes('id="dayOfOverlay"'));
   assert.ok(html.includes('src="data:image/svg+xml;base64,'));
   assert.ok(!html.includes('__WALLET_BADGE_SRC__'));
+});
+
+test("a December show's pass carrying October's offset still matches, by its wall clock", async () => {
+  // AMC writes the offset in force when the ticket was bought: -07:00 in
+  // October, for a show that will be at -08:00. Wallet ignores it and
+  // shows 7:00 PM; so does the match.
+  const { movie } = await json(await api('/api/movies', ADA, { method: 'POST', body: JSON.stringify({ title: 'Winter Movie' }) }));
+  const { showtime } = await json(await api(`/api/movies/${movie.id}/showtimes`, ADA, {
+    method: 'POST', body: JSON.stringify({ date: '2026-12-14', time: '19:00', screen: 'amc-metreon-13' })
+  }), 201);
+  const { token } = await json(await api('/api/pass-upload-token', ADA), 200);
+  const up = await json(await shortcutUpload(amcPass({ serial: 'winter-1', when: '2026-12-14T19:00:00-07:00' }), token), 201);
+  assert.strictEqual(up.status, 'matched', up.message);
+  assert.strictEqual(up.pass.showtime.id, showtime.id);
+  // Said, and kept, as the real 7:00 PM -- PST, not an hour out.
+  assert.match(up.message, /Mon, Dec 14, 7:00 PM/);
+  assert.strictEqual(up.pass.startsAt, Date.parse('2026-12-14T19:00:00-08:00'));
+});
+
+test('a pass uploaded before its showtime existed gets placed once it does', async () => {
+  const { token } = await json(await api('/api/pass-upload-token', ADA), 200);
+  const up = await json(await shortcutUpload(amcPass({ serial: 'early-1', when: '2026-12-20T13:30:00-07:00', auditorium: '16' }), token), 201);
+  assert.strictEqual(up.status, 'unplaced');
+  const { movie } = await json(await api('/api/movies', ADA, { method: 'POST', body: JSON.stringify({ title: 'Matinee Movie' }) }));
+  const { showtime } = await json(await api(`/api/movies/${movie.id}/showtimes`, ADA, {
+    method: 'POST', body: JSON.stringify({ date: '2026-12-20', time: '13:30', screen: 'amc-metreon-16' })
+  }), 201);
+  // Settings asks for the list, which tries the unplaced ones again.
+  const { passes } = await json(await api('/api/passes', ADA), 200);
+  const placed = passes.find((p) => p.id === up.pass.id);
+  assert.strictEqual(placed.showtime && placed.showtime.id, showtime.id);
+  assert.strictEqual(placed.unmatched, null);
 });
