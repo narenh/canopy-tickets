@@ -1550,7 +1550,19 @@
     overscroll-behavior:contain;
   }
   body.dayof-open{overflow:hidden;}
+  .dayof-bg, .dayof-dim{position:fixed;pointer-events:none;display:none;}
+  .dayof-bg{inset:-40px;background-size:cover;background-position:center;filter:blur(6px) saturate(1.2);}
+  .dayof-dim{inset:0;background:linear-gradient(rgba(5,10,20,.4), rgba(5,10,20,.62) 40%, rgba(5,10,20,.88));}
+  #dayOfOverlay.has-poster{background:#05080f;--do-mute:hsl(212 14% 80%);}
+  #dayOfOverlay.has-poster .dayof-bg, #dayOfOverlay.has-poster .dayof-dim{display:block;}
+  /* Over the poster, cards are glass rather than solid. */
+  #dayOfOverlay.has-poster .dayof-tile, #dayOfOverlay.has-poster .dayof-order, #dayOfOverlay.has-poster .dayof-paycard{
+    background:rgba(10,18,30,.55);border:1px solid rgba(255,255,255,.12);
+  }
+  #dayOfOverlay.has-poster .dayof-close{background:rgba(0,0,0,.35);}
+  #dayOfOverlay.has-poster .dayof-order-line{border-top-color:rgba(255,255,255,.15);}
   .dayof-inner{
+    position:relative;
     max-width:440px;
     min-height:100%;
     margin:0 auto;
@@ -1600,26 +1612,39 @@
   .dayof-order-who{font-size:12px;color:var(--do-mute);margin-top:8px;display:flex;justify-content:space-between;}
   .dayof-order-line{font-size:15px;padding:6px 0;border-top:1px solid var(--do-line);}
   .dayof-order + .dayof-btn, .dayof-order + .dayof-sublinks{margin-top:10px;}
-  .dayof-head{display:flex;gap:12px;align-items:center;margin-top:14px;}
-  .dayof-head img, .dayof-head .dayof-thumb{width:46px;aspect-ratio:2/3;border-radius:6px;object-fit:cover;background:var(--do-card);flex:0 0 auto;}
-  .dayof-head-title{font-size:17px;font-weight:700;line-height:1.2;}
-  .dayof-head-sub{font-size:13px;color:var(--do-mute);margin-top:2px;}
+  /* The ticket: title, QR, and Aud / Time / Seat under it, centred in
+     whatever room the order (if any) leaves. */
+  .dayof-ticket{margin:auto 0;padding:18px 0 8px;}
+  .dayof-ttl{text-align:center;font-size:28px;font-weight:800;line-height:1.1;text-shadow:0 2px 12px rgba(0,0,0,.5);}
+  .dayof-ttl-sub{text-align:center;font-size:13px;color:var(--do-mute);margin-top:5px;}
+  .dayof-ticket.is-compact .dayof-ttl{font-size:24px;}
+  .dayof-stats{display:flex;width:100%;max-width:300px;margin:18px auto 0;}
+  .dayof-stat{flex:1;min-width:0;text-align:center;}
+  .dayof-stat + .dayof-stat{border-left:1px solid rgba(255,255,255,.22);}
+  .dayof-stat-label{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--do-mute);}
+  .dayof-stat-value{font-size:28px;font-weight:600;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .dayof-stat-value small{font-size:14px;font-weight:600;margin-left:2px;}
+  .dayof-ticket.is-compact .dayof-stat-value{font-size:24px;}
+  .dayof-ticket.is-compact .dayof-stat-value small{font-size:12px;}
+  /* Two seats or more ("G17, G18"). */
+  .dayof-stat-value.is-long, .dayof-ticket.is-compact .dayof-stat-value.is-long{font-size:18px;line-height:1.55;}
   .dayof-pages{
-    display:flex;overflow-x:auto;scroll-snap-type:x mandatory;margin:18px -18px 0;
+    display:flex;overflow-x:auto;scroll-snap-type:x mandatory;margin:22px -18px 0;
     scrollbar-width:none;
   }
   .dayof-pages::-webkit-scrollbar{display:none;}
   .dayof-page{flex:0 0 100%;scroll-snap-align:center;display:flex;flex-direction:column;align-items:center;padding:0 18px;}
   .dayof-qr{
-    width:220px;background:#fff;border-radius:18px;padding:12px;border:3px solid var(--do-acc);
+    width:220px;background:#fff;border-radius:18px;padding:12px;box-shadow:0 10px 40px rgba(0,0,0,.45);
   }
+  .dayof-ticket.is-compact .dayof-qr{width:200px;}
   .dayof-qr svg{display:block;width:100%;height:auto;}
   .dayof-qr-none{color:#333;font-size:14px;text-align:center;padding:60px 10px;}
   .dayof-pass-note{text-align:center;font-size:13px;color:var(--do-mute);margin-top:9px;}
   .dayof-dots{display:flex;justify-content:center;gap:7px;margin-top:8px;}
   .dayof-dots button{width:8px;height:8px;padding:0;border:none;border-radius:50%;background:var(--do-line);cursor:pointer;}
   .dayof-dots button.is-on{background:var(--do-acc);}
-  .dayof-wallet{display:block;margin-top:14px;}
+  .dayof-wallet{display:block;margin-top:16px;}
   .dayof-wallet img{display:block;height:44px;width:auto;}
   .dayof-paycard{
     margin:18px auto 0;width:100%;max-width:300px;background:var(--do-card);border-radius:18px;
@@ -1958,6 +1983,11 @@
   <!-- ===================== DAY-OF SCREEN ===================== -->
   <!-- See renderDayOf. Drawn whole each time; nothing in it is static. -->
   <div class="hidden" id="dayOfOverlay" role="dialog" aria-modal="true">
+    <!-- The movie's poster, blurred, behind everything, and a darkening
+         over it that deepens towards the bottom so text stays readable
+         wherever the poster has its own lettering. -->
+    <div class="dayof-bg" id="dayOfBg"></div>
+    <div class="dayof-dim"></div>
     <div class="dayof-inner" id="dayOfInner"></div>
   </div>
 
@@ -5566,7 +5596,6 @@ let dayOfClockSkew = 0;    // server clock minus this one, ms
 let dayOfTimer = null;
 let dayOfPage = 0;         // which pass is showing, when there's more than one
 let dayOfError = '';
-let dayOfHeadSub = () => {};  // redraws the ticket header's seats (renderDayOf)
 
 function dayOfNow(){ return Date.now() + dayOfClockSkew; }
 function dayOfPhase(){ return dayOf && dayOfNow() >= dayOf.ticketAt ? 'ticket' : 'day'; }
@@ -5931,6 +5960,11 @@ async function renderDayOf(){
   const theme = await posterTheme(obj.posterUrl);
   if (!dayOf || dayOf.showtimeId !== obj.id) return;
   applyDayOfTheme(theme);
+  // posterUrl is the server's own /poster-image path (a hex key and a
+  // number), so it's safe inside url("...").
+  const overlay = document.getElementById('dayOfOverlay');
+  overlay.classList.toggle('has-poster', !!obj.posterUrl);
+  document.getElementById('dayOfBg').style.backgroundImage = obj.posterUrl ? 'url("' + obj.posterUrl + '")' : '';
 
   const inner = document.getElementById('dayOfInner');
   inner.innerHTML = '';
@@ -6004,24 +6038,19 @@ async function renderDayOf(){
       else bottom.appendChild(dayOfNoteEl(t('friend.dayOf.ticketSoonNote', { time: formatInstantTime(dayOf.ticketAt) })));
     }
   } else {
-    const head = document.createElement('div');
-    head.className = 'dayof-head';
-    head.appendChild(dayOfPosterEl(obj, ''));
-    const words = document.createElement('div');
-    words.innerHTML = '<div class="dayof-head-title">' + escapeHtml(obj.title || 'Movie') + '</div>';
-    const headSub = document.createElement('div');
-    headSub.className = 'dayof-head-sub';
-    words.appendChild(headSub);
-    // Names the seats on whichever pass is showing (yours on it), so it's
-    // redrawn as the passes are swiped between.
-    dayOfHeadSub = (pass) => {
-      const shown = pass && pass.mySeats.length ? pass.mySeats : dayOf.seatIds.slice().sort(compareSeatIds);
-      headSub.textContent = [formatTimeDisplay(obj.time), aud ? t('friend.dayOf.auditorium', { number: aud }) : '',
-        (shown.length > 1 ? t('friend.dayOf.seats') : t('friend.dayOf.seat')) + ' ' + shown.join(', ')].filter(Boolean).join(' · ');
-    };
-    dayOfHeadSub(owed > 0 ? null : dayOf.passes[Math.min(dayOfPage, dayOf.passes.length - 1)]);
-    head.appendChild(words);
-    inner.appendChild(head);
+    const order = dayOfOrderCard(obj, owe);
+    const ticket = document.createElement('div');
+    // With an order at the bottom, everything above it steps down a size.
+    ticket.className = 'dayof-ticket' + (order ? ' is-compact' : '');
+    const ttl = document.createElement('div');
+    ttl.className = 'dayof-ttl';
+    ttl.textContent = obj.title || 'Movie';
+    ticket.appendChild(ttl);
+    const sub = document.createElement('div');
+    sub.className = 'dayof-ttl-sub';
+    sub.textContent = [obj.format, obj.theater].filter(Boolean).join(' · ');
+    ticket.appendChild(sub);
+    const mySeats = dayOf.seatIds.slice().sort(compareSeatIds);
 
     if (owed > 0){
       const card = document.createElement('div');
@@ -6036,16 +6065,39 @@ async function renderDayOf(){
       const block = dayOfPayBlock(obj, owe);
       block.style.marginTop = '0';
       card.appendChild(block);
-      inner.appendChild(card);
+      ticket.appendChild(card);
     } else if (dayOf.passes.length){
-      inner.appendChild(dayOfPassPages());
+      ticket.appendChild(dayOfPassPages(obj, aud, mySeats));
     } else {
-      inner.appendChild(dayOfNoteEl(t('friend.dayOf.noPassNote')));
+      ticket.appendChild(dayOfStats(obj, aud, mySeats));
+      ticket.appendChild(dayOfNoteEl(t('friend.dayOf.noPassNote')));
     }
-    const order = dayOfOrderCard(obj, owe);
+    inner.appendChild(ticket);
     if (order) bottom.appendChild(order);
   }
   inner.appendChild(bottom);
+}
+
+// Aud / Time / Seat, on one line under the QR. "PM" rides small after
+// the time; more than one seat drops a size so "G17, G18" still fits.
+function dayOfStats(obj, aud, seats){
+  const row = document.createElement('div');
+  row.className = 'dayof-stats';
+  const time = formatTimeDisplay(obj.time);
+  const ampm = /^(.*?)\s*([AaPp]\.?\s?[Mm]\.?)$/.exec(time);
+  const cells = [];
+  if (aud) cells.push([t('friend.dayOf.statAud'), aud, '']);
+  cells.push([t('friend.dayOf.statTime'), ampm ? ampm[1] : time, ampm ? ampm[2] : '']);
+  cells.push([seats.length > 1 ? t('friend.dayOf.seats') : t('friend.dayOf.seat'), seats.join(', '), '']);
+  cells.forEach(([label, value, small]) => {
+    const cell = document.createElement('div');
+    cell.className = 'dayof-stat';
+    cell.innerHTML = '<div class="dayof-stat-label">' + escapeHtml(label) + '</div>' +
+      '<div class="dayof-stat-value' + (value.length > 4 && !small ? ' is-long' : '') + '">' + escapeHtml(value) +
+      (small ? '<small>' + escapeHtml(small) + '</small>' : '') + '</div>';
+    row.appendChild(cell);
+  });
+  return row;
 }
 
 function canAddToWallet(){
@@ -6055,7 +6107,7 @@ function canAddToWallet(){
 
 // One page per pass, side by side, swiped between (scroll snap). Almost
 // always one; a party split over two orders gets a page for each.
-function dayOfPassPages(){
+function dayOfPassPages(obj, aud, mySeats){
   const wrap = document.createElement('div');
   const pages = document.createElement('div');
   pages.className = 'dayof-pages';
@@ -6070,11 +6122,16 @@ function dayOfPassPages(){
     if (p.qrSvg) qr.innerHTML = p.qrSvg;
     else qr.innerHTML = '<div class="dayof-qr-none">' + escapeHtml(t('friend.dayOf.noQr')) + '</div>';
     page.appendChild(qr);
-    const note = document.createElement('div');
-    note.className = 'dayof-pass-note';
-    note.textContent = t(p.ticketCount === 1 ? 'friend.dayOf.passSeatsOne' : 'friend.dayOf.passSeatsMany', { count: p.ticketCount }) +
-      (passes.length > 1 ? ' · ' + t('friend.dayOf.passPage', { n: i + 1, count: passes.length }) : '');
-    page.appendChild(note);
+    // Your seats on this pass (all yours, for one that holds none of them).
+    page.appendChild(dayOfStats(obj, aud, p.mySeats.length ? p.mySeats : mySeats));
+    // Only worth saying when there's more than one pass to tell apart.
+    if (passes.length > 1){
+      const note = document.createElement('div');
+      note.className = 'dayof-pass-note';
+      note.textContent = t('friend.dayOf.passPage', { n: i + 1, count: passes.length }) + ' · ' +
+        t(p.ticketCount === 1 ? 'friend.dayOf.passSeatsOne' : 'friend.dayOf.passSeatsMany', { count: p.ticketCount });
+      page.appendChild(note);
+    }
     if (canAddToWallet()){
       const a = document.createElement('a');
       a.className = 'dayof-wallet';
@@ -6098,10 +6155,7 @@ function dayOfPassPages(){
     wrap.appendChild(dots);
     const sync = () => {
       const i = Math.round(pages.scrollLeft / Math.max(1, pages.clientWidth));
-      if (i !== dayOfPage && passes[i]){
-        dayOfPage = i;
-        dayOfHeadSub(passes[i]);
-      }
+      if (passes[i]) dayOfPage = i;
       Array.from(dots.children).forEach((d, j) => d.classList.toggle('is-on', j === i));
     };
     pages.addEventListener('scroll', sync, { passive: true });

@@ -334,6 +334,9 @@ const COPY = {
       seats: 'Seats',
       ticket: 'Ticket',
       auditorium: 'Aud {number}',
+      // The labels over Aud / Time / Seat under the QR.
+      statAud: 'Aud',
+      statTime: 'Time',
       addConcessions: 'Add concessions',
       addFor: 'Add concessions for {name}',
       editOrder: 'Edit order',
