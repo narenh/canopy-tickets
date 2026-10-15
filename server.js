@@ -753,6 +753,21 @@ app.put('/api/showtimes/:id/seats/:seatId', (req, res) => {
   res.json({ showtime: withScreenFallback(result.showtime) });
 });
 
+// Moves whoever's in a seat, with their payments and order, to another
+// open seat in the block: { to: "G18" }. See moveSeat in lib/sqliteStore.js.
+app.post('/api/showtimes/:id/seats/:seatId/move', (req, res) => {
+  const to = (req.body || {}).to;
+  if (!SEAT_ID_RE.test(req.params.seatId) || typeof to !== 'string' || !SEAT_ID_RE.test(to) || to === req.params.seatId) {
+    return res.status(400).json({ error: 'bad seat id' });
+  }
+  const result = store.moveSeat(req.params.id, req.params.seatId, to);
+  if (!result.ok) {
+    if (result.reason === 'not_open' || result.reason === 'not_reserved') return res.status(409).json({ error: result.reason, reason: result.reason });
+    return sendResult(res, result);
+  }
+  res.json({ showtime: withScreenFallback(result.showtime) });
+});
+
 app.delete('/api/showtimes/:id/seats/:seatId', (req, res) => {
   if (!SEAT_ID_RE.test(req.params.seatId)) return res.status(400).json({ error: 'bad seat id' });
   const result = store.releaseSeat(req.params.id, req.params.seatId);

@@ -382,3 +382,28 @@ test('a pass uploaded before its showtime existed gets placed once it does', asy
   assert.strictEqual(placed.showtime && placed.showtime.id, showtime.id);
   assert.strictEqual(placed.unmatched, null);
 });
+
+test('the host moves someone to another open seat, paid and ordered as they were', async () => {
+  const startsAt = minute(Date.now() + 5 * 24 * 60 * 60 * 1000);
+  const show = await showtimeWithFred('Moving Movie', startsAt);
+  await json(await api(`/api/public/showtimes/${show.id}/seats/E7/paid`, FRED, { method: 'PUT', body: JSON.stringify({ ticket: true }) }), 200);
+  const order = [{ itemId: 'x', name: 'Popcorn', price: 9, qty: 1 }];
+  await json(await api(`/api/public/showtimes/${show.id}/seats/E7/concessions`, FRED, { method: 'PUT', body: JSON.stringify({ items: order }) }), 200);
+
+  // E8 is Fred's guest: not open, so no.
+  assert.strictEqual((await api(`/api/showtimes/${show.id}/seats/E7/move`, ADA, { method: 'POST', body: JSON.stringify({ to: 'E8' }) })).status, 409);
+  // A friend can't move anyone.
+  assert.strictEqual((await api(`/api/showtimes/${show.id}/seats/E7/move`, FRED, { method: 'POST', body: JSON.stringify({ to: 'E9' }) })).status, 401);
+
+  const { showtime } = await json(await api(`/api/showtimes/${show.id}/seats/E7/move`, ADA, { method: 'POST', body: JSON.stringify({ to: 'E9' }) }), 200);
+  assert.strictEqual(showtime.seats.E9.name, 'Fred X');
+  assert.strictEqual(showtime.seats.E9.paid, true);
+  assert.strictEqual(showtime.seats.E9.concessions.length, 1);
+  // E7 stays in the block, open.
+  assert.strictEqual(showtime.seats.E7.status, 'assigned');
+  assert.strictEqual(showtime.seats.E7.name, '');
+  // Still Fred's seat as far as he's concerned.
+  const { items } = await json(await api('/api/public/mine', FRED), 200);
+  const mine = items.find((i) => i.showtime.id === show.id);
+  assert.deepStrictEqual(mine.seatIds.slice().sort(), ['E8', 'E9']);
+});

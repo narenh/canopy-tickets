@@ -786,6 +786,19 @@
     border-radius:14px;
     padding:20px;
   }
+  .remove-card{max-width:360px;}
+  .remove-sub{color:var(--muted);font-size:13px;margin:-8px 0 16px;line-height:1.4;}
+  .remove-refund{
+    display:flex;align-items:center;justify-content:center;height:52px;border-radius:12px;
+    background:#008CFF;color:#fff;font-size:16px;font-weight:700;text-decoration:none;margin-bottom:10px;
+  }
+  .remove-note{color:var(--muted);font-size:12.5px;margin:-2px 0 12px;text-align:center;}
+  .remove-btn{display:block;width:100%;height:46px;margin-top:8px;font-size:15px;border-radius:12px;}
+  .remove-btn.is-quiet{background:none;border-color:transparent;color:var(--muted);}
+  .remove-move-label{font-size:14px;margin-bottom:10px;}
+  .remove-move-seats{display:grid;grid-template-columns:repeat(auto-fill, minmax(64px, 1fr));gap:8px;}
+  .remove-move-seats button{height:46px;font-size:15px;font-weight:700;border-radius:10px;}
+  .remove-move-empty{color:var(--muted);font-size:13px;line-height:1.4;grid-column:1 / -1;}
   .seat-editor-title{
     font-size:17px;
     font-weight:700;
@@ -1501,6 +1514,30 @@
         <button type="button" id="seatEditorClearBtn" onclick="clearNameFromEditor()">Clear</button>
         <button type="button" class="se-danger-btn" onclick="releaseSeatFromEditor()">Release</button>
         <button type="button" onclick="closeSeatEditor()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== TAKING SOMEONE OFF A SEAT ===================== -->
+  <!-- The × on a seat's row. Removing leaves the seat open in your block
+       for someone else (nothing is refunded on AMC). Refund also sends
+       them what they paid, by Venmo. Move takes them, paid and ordered as
+       they are, to another open seat. -->
+  <div class="seat-editor-overlay hidden" id="removeOverlay" onclick="if (event.target === this) closeRemoveSheet()">
+    <div class="seat-editor-card remove-card">
+      <div class="seat-editor-title" id="removeTitle"></div>
+      <div class="remove-sub" id="removeSub"></div>
+      <div id="removeMain">
+        <a class="remove-refund hidden" id="removeRefund"></a>
+        <div class="remove-note hidden" id="removeRefundNote"></div>
+        <button type="button" class="remove-btn" id="removeBtn" onclick="removeFromSheet()"></button>
+        <button type="button" class="remove-btn" onclick="showMovePicker()" data-copy="admin.removeSheet.move"></button>
+        <button type="button" class="remove-btn is-quiet" onclick="closeRemoveSheet()">Cancel</button>
+      </div>
+      <div id="removeMove" class="hidden">
+        <div class="remove-move-label" id="removeMoveLabel"></div>
+        <div class="remove-move-seats" id="removeMoveSeats"></div>
+        <button type="button" class="remove-btn is-quiet" onclick="showRemoveMain()">Back</button>
       </div>
     </div>
   </div>
@@ -2794,25 +2831,145 @@ function updateSummary(){
       x.className = 'seat-row-x';
       x.setAttribute('aria-label', t('admin.seatSummary.remove', { name: s.name, seat: id }));
       x.innerHTML = '&#215;';
-      x.addEventListener('click', (e) => { e.stopPropagation(); removePersonFromSeat(id); });
+      x.addEventListener('click', (e) => { e.stopPropagation(); openRemoveSheet(id); });
       row.appendChild(x);
     }
     summary.appendChild(row);
   });
 }
 
-// The × on a seat's row: the person comes off it, the seat stays in your
-// block, open (same as clearing the name in the seat editor). Their order
-// and what they've paid go with them, so that asks first.
-function removePersonFromSeat(id){
+// ---- The × on a seat's row ----
+//
+// Opens a sheet for that seat: remove the person (the seat stays in your
+// block, open for someone else -- nothing is refunded on AMC), refund
+// them what they've paid by Venmo and remove them, or move them to
+// another open seat with everything they've paid and ordered.
+let removingSeatId = null;
+
+// What this seat has actually paid the host: the ticket if marked paid,
+// the food if that's marked paid. The host's own seat paid nobody.
+function seatPaidAmount(s){
+  if (!s || !s.name || s.host) return 0;
+  const ticket = s.paid ? currentShowtimePrice() : 0;
+  const food = s.concessionsPaid ? concessionsGrandTotal(s.concessions) : 0;
+  return Math.round((ticket + food) * 100) / 100;
+}
+
+// A Venmo payment TO someone, pre-filled. The app on a phone, the site
+// anywhere else (a desktop browser has nothing to open venmo:// with).
+function venmoPayLink(handle, amount, note){
+  const q = 'txn=pay&amount=' + encodeURIComponent(amount.toFixed(2)) + '&note=' + encodeURIComponent(note);
+  const phone = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || '') || (/Macintosh/.test(navigator.userAgent || '') && navigator.maxTouchPoints > 1);
+  return phone
+    ? 'venmo://paycharge?recipients=' + encodeURIComponent(handle) + '&' + q
+    : 'https://venmo.com/' + encodeURIComponent(handle) + '?' + q;
+}
+
+async function openRemoveSheet(id){
   const s = seatStates[id];
   if (!s || !s.name) return;
-  const settled = s.paid || s.concessionsPaid || (s.concessions || []).length;
-  if (settled && !confirm(t('admin.seatSummary.removeConfirm', { name: s.name, seat: id }))) return;
+  removingSeatId = id;
+  const byId = (x) => document.getElementById(x);
+  byId('removeTitle').textContent = t('admin.removeSheet.title', { name: s.name, seat: id });
+  const paid = seatPaidAmount(s);
+  byId('removeSub').textContent = paid > 0 ? t('admin.removeSheet.paid', { amount: formatPrice(paid) }) : t('admin.removeSheet.notPaid');
+  byId('removeBtn').textContent = t(paid > 0 ? 'admin.removeSheet.removeNoRefund' : 'admin.removeSheet.remove');
+  byId('removeRefund').classList.add('hidden');
+  byId('removeRefundNote').classList.add('hidden');
+  showRemoveMain();
+  byId('removeOverlay').classList.remove('hidden');
+  if (paid <= 0) return;
+
+  // Who gets the money back: the seat's person, or for a guest, whoever
+  // booked them (a guest has no account of their own).
+  if (!editorPeople){
+    try{
+      const res = await fetch('/api/people');
+      if (await handleAuthFailure(res)) return;
+      if (res.ok) editorPeople = (await res.json()).people || [];
+    }catch(e){}
+  }
+  if (removingSeatId !== id) return;
+  const person = (editorPeople || []).find(p => p.id === s.personId);
+  if (person && person.venmo){
+    const a = byId('removeRefund');
+    const title = byId('editorTitle').textContent || 'Movie';
+    a.href = venmoPayLink(person.venmo, paid, t('admin.removeSheet.refundNote', { title, date: formatDateDisplay(byId('showDate').value), seat: id }));
+    if (/^https?:/.test(a.href)){ a.target = '_blank'; a.rel = 'noopener'; } else { a.removeAttribute('target'); }
+    a.textContent = t('admin.removeSheet.refund', { amount: formatPrice(paid), name: person.firstName });
+    // The link opens Venmo; the seat comes off as it does.
+    a.onclick = () => { clearSeatPerson(id); closeRemoveSheet(); };
+    a.classList.remove('hidden');
+  } else {
+    const note = byId('removeRefundNote');
+    note.textContent = person ? t('admin.removeSheet.noVenmo', { name: person.firstName }) : t('admin.removeSheet.noAccount');
+    note.classList.remove('hidden');
+  }
+}
+
+function closeRemoveSheet(){
+  removingSeatId = null;
+  document.getElementById('removeOverlay').classList.add('hidden');
+}
+
+function showRemoveMain(){
+  document.getElementById('removeMain').classList.remove('hidden');
+  document.getElementById('removeMove').classList.add('hidden');
+}
+
+// The seat stays in your block, open (same as clearing the name in the
+// seat editor). Their order and payments go with them.
+function clearSeatPerson(id){
   seatStates[id] = { status: 'assigned', name: '', paid: false, concessionsPaid: false, concessions: [] };
   renderSeat(id);
   updateSummary();
   writeSeat(id);
+}
+
+function removeFromSheet(){
+  if (!removingSeatId) return;
+  clearSeatPerson(removingSeatId);
+  closeRemoveSheet();
+}
+
+// The open seats in your block, to move them to.
+function showMovePicker(){
+  const from = removingSeatId;
+  if (!from) return;
+  document.getElementById('removeMain').classList.add('hidden');
+  document.getElementById('removeMove').classList.remove('hidden');
+  document.getElementById('removeMoveLabel').textContent = t('admin.removeSheet.moveTo', { name: seatStates[from].name });
+  const box = document.getElementById('removeMoveSeats');
+  box.innerHTML = '';
+  const open = Object.keys(seatStates).filter(id => id !== from && seatStates[id].status === 'assigned' && !seatStates[id].name).sort(compareSeatIds);
+  if (!open.length){
+    box.innerHTML = '<div class="remove-move-empty">' + escapeHtml(t('admin.removeSheet.noOpen')) + '</div>';
+    return;
+  }
+  open.forEach(id => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = id;
+    b.addEventListener('click', () => moveSeatPerson(from, id));
+    box.appendChild(b);
+  });
+}
+
+// Shown straight away, saved in the queue like every other seat change;
+// the server moves both seats in one go (POST .../move).
+function moveSeatPerson(from, to){
+  const showtimeId = currentId;
+  if (!showtimeId) return;
+  seatStates[to] = { ...seatStates[from] };
+  seatStates[from] = { status: 'assigned', name: '', paid: false, concessionsPaid: false, concessions: [] };
+  renderSeat(from);
+  renderSeat(to);
+  updateSummary();
+  closeRemoveSheet();
+  enqueueWrite(showtimeId + ':seat:' + from + '>' + to, () => fetch(
+    '/api/showtimes/' + encodeURIComponent(showtimeId) + '/seats/' + encodeURIComponent(from) + '/move', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to })
+    }));
 }
 
 // Per-seat orders plus the summed shopping list, rebuilt whenever the

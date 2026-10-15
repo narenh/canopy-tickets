@@ -459,8 +459,7 @@ const COPY = {
       guest: 'guest',
       owesRow: 'Owes {amount}',
       paidRow: '✓ Paid',
-      remove: 'Remove {name} from {seat}',
-      removeConfirm: 'Remove {name} from {seat}? Their order and what they’ve paid go with them. The seat stays in your block.'
+      remove: 'Remove {name} from {seat}'
     },
 
     orders: {
@@ -508,6 +507,22 @@ const COPY = {
       uploaded: 'Uploaded.',
       uploadFailed: 'Upload failed. Try again.',
       chooseImage: 'Choose an image first.'
+    },
+
+    // The × on a seat's row.
+    removeSheet: {
+      title: '{name} · {seat}',
+      paid: 'Has paid {amount}.',
+      notPaid: 'Hasn’t paid anything yet.',
+      remove: 'Remove from seat',
+      removeNoRefund: 'Remove without refund',
+      refund: 'Refund {amount} to {name}',
+      refundNote: 'Refund: {title} {date}, {seat}',
+      noVenmo: '{name} has no Venmo on their Canopy account, so refund them another way.',
+      noAccount: 'This seat isn’t linked to an account, so refund them another way.',
+      move: 'Move to another seat',
+      moveTo: 'Move {name} to:',
+      noOpen: 'No open seats in your block. Tap a yellow seat on the map to add one first.'
     },
 
     // A saved showtime's details, folded.
