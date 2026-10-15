@@ -3377,6 +3377,8 @@ function populateScreenOptions(){
   groupOrder.forEach(theaterName => {
     const optgroup = document.createElement('optgroup');
     optgroup.label = theaterName;
+    // Highest auditorium number first: 16 (IMAX) at the top, down to 1.
+    groups[theaterName].sort((a, b) => Number(b.layout.auditorium) - Number(a.layout.auditorium));
     groups[theaterName].forEach(({ screenId, layout }) => {
       const option = document.createElement('option');
       option.value = screenId;
