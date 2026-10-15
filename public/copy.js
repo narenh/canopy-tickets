@@ -502,6 +502,12 @@ const COPY = {
       chooseImage: 'Choose an image first.'
     },
 
+    // A new showtime, before Save.
+    draft: {
+      note: 'Pick your seats once it’s saved.',
+      needWhen: 'Pick a date and a time first.'
+    },
+
     // AMC's Wallet passes: on a showtime, and in Settings.
     passes: {
       title: 'Wallet Passes',

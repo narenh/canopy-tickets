@@ -528,6 +528,13 @@
   .sf-price{position:relative;display:block;}
   .sf-dollar{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#aaa;font-size:16px;pointer-events:none;}
   .sf-price .sf-input{padding-left:24px;}
+  /* A showtime not made yet (#/new-showtime/<movie>): the form and Save. */
+  .draft-bar{display:none;padding:6px 20px 24px;max-width:600px;}
+  #editorView.is-draft .draft-bar{display:block;}
+  #editorView.is-draft > :not(.header):not(.draft-bar){display:none !important;}
+  .draft-cancel{display:block;width:100%;margin-top:10px;height:46px;font-size:15px;border-radius:12px;}
+  .draft-note{color:var(--muted);font-size:13px;margin-top:10px;text-align:center;}
+  .draft-note.is-error{color:#e2857a;}
   .a-list-row{display:inline-flex;align-items:center;gap:10px;margin-top:14px;min-height:44px;font-size:15px;color:#e8e8e8;cursor:pointer;}
   .a-list-row input{width:22px;height:22px;margin:0;accent-color:var(--gold);}
   .card .showtime-info{
@@ -1245,6 +1252,15 @@
       </label>
     </div>
 
+    <!-- A new showtime: nothing is made until Save. Everything below the
+         form (seats, orders, passes) needs a showtime to belong to, so it
+         shows once it exists. -->
+    <div class="draft-bar">
+      <button type="button" class="new-btn" id="draftSave" onclick="saveDraftShowtime()">Save showtime</button>
+      <button type="button" class="draft-cancel" onclick="goUp()">Cancel</button>
+      <div class="draft-note" id="draftNote" data-copy="admin.draft.note"></div>
+    </div>
+
     <div class="seatmap" id="seatmap"></div>
 
     <div class="summary" id="summary">Your seats: <b>none</b></div>
@@ -1638,6 +1654,7 @@ async function route(){
   let view = 'moviesView';
   if (r.name === 'movie' && r.id) view = 'movieView';
   else if (r.name === 'showtime' && r.id) view = 'editorView';
+  else if (r.name === 'new-showtime' && r.id) view = 'editorView';
   else if (r.name === 'menu') view = 'menuView';
   else if (r.name === 'settings') view = 'settingsView';
   else if (r.name === 'people') view = 'peopleView';
@@ -1655,6 +1672,7 @@ async function route(){
 
   if (view === 'moviesView'){ parentHash = '#/movies'; await loadMovies(); }
   else if (view === 'movieView'){ parentHash = '#/movies'; await openMovie(r.id); }
+  else if (view === 'editorView' && r.name === 'new-showtime'){ await openDraftShowtime(r.id); }
   else if (view === 'editorView'){ await openShowtime(r.id); loadPasses(); }
   else if (view === 'settingsView'){ parentHash = '#/movies'; loadPasses(); }
   else if (view === 'peopleView'){ parentHash = '#/movies'; await loadPeople(); }
@@ -2034,25 +2052,95 @@ async function deleteMovie(){
 // A new showtime starts as a copy of the movie's latest one (same
 // theater, screen, format, price and time -- usually all that's the same
 // between showings), dated today; or the defaults, for a movie's first.
-async function addShowtime(){
+// "+ Add showtime" opens the editor on a draft: the form, filled in, and
+// nothing made until Save (saveDraftShowtime). While it's a draft there's
+// no currentId, so the editor's save-as-you-go has nothing to write to.
+function addShowtime(){
   if (!currentMovie) return;
-  const latest = (currentMovie.showtimes || []).slice()
+  navigate('#/new-showtime/' + encodeURIComponent(currentMovie.id));
+}
+
+// The movie a draft showtime is for, while one is open.
+let draftMovieId = null;
+
+// A new showtime's starting values. Always auditorium 16 (IMAX) and its
+// first format, whatever the last showtime was in. The last one's theater
+// and time carry over; its price only if it was in 16 too, since an IMAX
+// showtime shouldn't start at a Dolby price.
+function draftDefaults(movie){
+  const latest = (movie.showtimes || []).slice()
     .sort((a, b) => (b.date + 'T' + b.time).localeCompare(a.date + 'T' + a.time))[0];
-  // Always auditorium 16 (IMAX) and its first format, whatever the last
-  // showtime was in. The last one's price only carries over if it was in
-  // 16 too: an IMAX showtime shouldn't start at a Dolby price.
-  const screen = DEFAULT_SCREEN;
-  const layout = SEAT_LAYOUTS[screen];
-  const body = {
-    theater: (latest && latest.theater) || layout.theater || 'AMC Metreon 16',
-    screen,
+  const layout = SEAT_LAYOUTS[DEFAULT_SCREEN];
+  return {
+    theater: (latest && latest.theater) || 'AMC Metreon 16',
+    screen: DEFAULT_SCREEN,
     format: (layout.formats || [])[0] || '',
-    price: latest && latest.screen === screen && typeof latest.price === 'number' ? latest.price : 17.49,
+    price: latest && latest.screen === DEFAULT_SCREEN && typeof latest.price === 'number' ? latest.price : 17.49,
     time: (latest && latest.time) || '19:00',
     date: todayISO()
   };
+}
+
+async function openDraftShowtime(movieId){
+  let movie;
   try{
-    const res = await fetch('/api/movies/' + encodeURIComponent(currentMovie.id) + '/showtimes', {
+    const res = await fetch('/api/movies/' + encodeURIComponent(movieId));
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok) throw new Error('failed');
+    movie = (await res.json()).movie;
+  }catch(e){
+    alert(t('admin.openFailed'));
+    location.replace('#/movies');
+    return;
+  }
+  if (parseRoute().id !== movieId) return;
+  currentId = null;
+  draftMovieId = movieId;
+  parentHash = '#/movie/' + encodeURIComponent(movieId);
+  const d = draftDefaults(movie);
+  document.getElementById('editorView').classList.add('is-draft');
+  document.getElementById('editorTitle').textContent = movie.title || '';
+  document.getElementById('theaterField').value = d.theater;
+  document.getElementById('showDate').value = d.date;
+  document.getElementById('showTime').value = d.time;
+  document.getElementById('screen').value = d.screen;
+  syncFormatOptions(d.format);
+  document.getElementById('price').value = d.price.toFixed(2);
+  document.getElementById('showInfo').value = '';
+  document.getElementById('aListSwap').checked = false;
+  const note = document.getElementById('draftNote');
+  note.classList.remove('is-error');
+  note.textContent = t('admin.draft.note');
+  document.getElementById('draftSave').disabled = false;
+  renderSavePill();
+}
+
+// Makes the showtime from what's in the form, then opens it for real --
+// in place of the draft in history, so Back doesn't land on an empty
+// form again.
+async function saveDraftShowtime(){
+  if (!draftMovieId) return;
+  const byId = (id) => document.getElementById(id);
+  const note = byId('draftNote');
+  if (!byId('showDate').value || !byId('showTime').value){
+    note.classList.add('is-error');
+    note.textContent = t('admin.draft.needWhen');
+    return;
+  }
+  const body = {
+    theater: byId('theaterField').value,
+    date: byId('showDate').value,
+    time: byId('showTime').value,
+    screen: byId('screen').value,
+    format: byId('format').value,
+    price: byId('price').value,
+    info: byId('showInfo').value,
+    aListSwap: byId('aListSwap').checked
+  };
+  const btn = byId('draftSave');
+  btn.disabled = true;
+  try{
+    const res = await fetch('/api/movies/' + encodeURIComponent(draftMovieId) + '/showtimes', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
@@ -2060,9 +2148,11 @@ async function addShowtime(){
     if (await handleAuthFailure(res)) return;
     if (!res.ok) throw new Error('failed');
     const showtime = (await res.json()).showtime;
-    navigate('#/showtime/' + encodeURIComponent(showtime.id));
+    location.replace('#/showtime/' + encodeURIComponent(showtime.id));
   }catch(e){
-    alert(t('admin.status.saveFailed'));
+    btn.disabled = false;
+    note.classList.add('is-error');
+    note.textContent = t('admin.status.saveFailed');
   }
 }
 
@@ -2215,6 +2305,8 @@ async function openShowtime(id){
   // The route may have moved on while this was loading.
   if (parseRoute().id !== id) return;
   currentId = id;
+  draftMovieId = null;
+  document.getElementById('editorView').classList.remove('is-draft');
   parentHash = '#/movie/' + encodeURIComponent(obj.movieId);
   ordersClosed = !!obj.ordersClosed;
   document.getElementById('editorTitle').textContent = obj.title || '';
