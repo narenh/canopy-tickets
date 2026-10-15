@@ -472,7 +472,7 @@ const SEAT_LAYOUTS = {
     theater: 'AMC Metreon',
     auditorium: '11',
     name: 'ScreenX',
-    formats: ['Single Laser'],
+    formats: ['ScreenX'],
     rows: [
       { letter: 'A', count: 14, special: {}, padStart: 2 },
       { letter: 'B', count: 18, special: {} },
