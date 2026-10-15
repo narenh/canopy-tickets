@@ -450,11 +450,17 @@ const COPY = {
 
     seatSummary: {
       none: 'Your seats: <b>none</b>',
-      heading: 'Your seats ({count}):',
+      heading: 'Your seats ({count})',
       available: 'AVAILABLE',
       empty: 'No seats in your block yet',
       owes: ' owes {amount}',
-      paid: ' ✓paid'
+      paid: ' ✓paid',
+      open: 'Open',
+      guest: 'guest',
+      owesRow: 'Owes {amount}',
+      paidRow: '✓ Paid',
+      remove: 'Remove {name} from {seat}',
+      removeConfirm: 'Remove {name} from {seat}? Their order and what they’ve paid go with them. The seat stays in your block.'
     },
 
     orders: {
@@ -463,6 +469,8 @@ const COPY = {
       seatHeadingOne: 'Concessions ({count} seat)',
       seatHeadingMany: 'Concessions ({count} seats)',
       choices: 'Choices',
+      tabPeople: 'By person',
+      tabOne: 'One order',
       tax: 'Tax ({rate})',
       total: 'Total to buy',
       finalize: 'Finalize Order',
@@ -500,6 +508,13 @@ const COPY = {
       uploaded: 'Uploaded.',
       uploadFailed: 'Upload failed. Try again.',
       chooseImage: 'Choose an image first.'
+    },
+
+    // A saved showtime's details, folded.
+    infoCard: {
+      edit: 'Edit info',
+      done: 'Done',
+      auditorium: 'Aud {name}'
     },
 
     // A new showtime, before Save.

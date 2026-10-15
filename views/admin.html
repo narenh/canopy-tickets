@@ -528,6 +528,20 @@
   .sf-price{position:relative;display:block;}
   .sf-dollar{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#aaa;font-size:16px;pointer-events:none;}
   .sf-price .sf-input{padding-left:24px;}
+  /* A saved showtime's details, folded: the card, and Edit info opens the
+     form (is-editing-info). A draft always has the form open. */
+  #editorView:not(.is-draft):not(.is-editing-info) #showFormWrap{display:none;}
+  #editorView.is-draft #showInfoCard, #editorView.is-editing-info #showInfoCard{display:none;}
+  .info-card{
+    margin-top:12px;padding:14px 16px;background:#151517;border:1px solid #2a2a2a;border-radius:14px;max-width:560px;
+  }
+  .info-card-when{font-size:18px;font-weight:700;}
+  .info-card-where{color:#ccc;font-size:14px;margin-top:3px;}
+  .info-card-note{color:var(--info-blue);font-size:14px;font-weight:700;margin-top:6px;}
+  .info-card-tag{display:inline-block;margin-top:8px;font-size:12px;color:var(--gold);border:1px solid #5a4a22;border-radius:999px;padding:3px 10px;}
+  .info-card-edit{display:block;width:100%;margin-top:12px;height:44px;font-size:15px;border-radius:10px;}
+  .info-done{display:none;width:100%;max-width:560px;margin-top:14px;height:46px;font-size:15px;font-weight:700;border-radius:12px;background:var(--gold);color:#241c07;border:none;}
+  #editorView.is-editing-info .info-done{display:block;}
   /* A showtime not made yet (#/new-showtime/<movie>): the form and Save. */
   .draft-bar{display:none;padding:6px 20px 24px;max-width:600px;}
   #editorView.is-draft .draft-bar{display:block;}
@@ -678,8 +692,31 @@
     position:absolute;top:-2px;right:-2px;width:6px;height:6px;border-radius:50%;
     background:var(--green);border:1px solid #0b0b0d;
   }
-  .summary{padding:16px 20px 4px;font-size:14px;color:#fff;}
+  .summary{padding:16px 20px 4px;font-size:14px;color:#fff;max-width:600px;}
   .summary b{color:var(--gold);}
+  .summary-head{font-size:15px;font-weight:700;margin-bottom:6px;}
+  /* One row per seat in your block: tap to open the seat, × to take the
+     person off it (the seat stays yours, open). */
+  .seat-row{
+    display:flex;align-items:center;gap:12px;min-height:54px;padding:6px 0;
+    border-top:1px solid #222;cursor:pointer;
+  }
+  .seat-row:first-of-type{border-top:none;}
+  .seat-row-id{
+    flex:0 0 auto;min-width:46px;height:30px;padding:0 6px;border-radius:8px;background:#1d1d20;
+    display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#ddd;
+  }
+  .seat-row-main{flex:1;min-width:0;}
+  .seat-row-name{font-size:16px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .seat-row.is-open .seat-row-name{color:var(--muted);font-weight:400;}
+  .seat-row-sub{font-size:12.5px;color:var(--muted);margin-top:1px;}
+  .seat-row-sub.owes{color:#e2857a;}
+  .seat-row-sub.paid{color:var(--green);}
+  .seat-row-x{
+    flex:0 0 auto;width:40px;height:40px;border-radius:50%;border:1px solid #3a3a3a;background:none;
+    color:#bbb;font-size:20px;line-height:1;cursor:pointer;padding:0;
+  }
+  .seat-row-x:hover{background:#2a1618;color:#e2857a;border-color:#5a2b2b;}
   .summary-line{margin-top:4px;}
   button{
     background:#1e1e1e;
@@ -1015,7 +1052,20 @@
     padding:6px 20px 4px;
     font-size:13px;
     color:#ddd;
+    max-width:600px;
   }
+  /* By person / One order. */
+  .orders-tabs{display:flex;background:#151517;border:1px solid #2a2a2a;border-radius:10px;padding:3px;margin:4px 0 12px;}
+  .orders-tabs button{
+    flex:1;height:36px;border:none;border-radius:8px;background:none;color:#aaa;font:inherit;font-size:14px;font-weight:600;cursor:pointer;
+  }
+  .orders-tabs button.is-on{background:#2a2a2e;color:#fff;}
+  .order-card{background:#151517;border:1px solid #2a2a2a;border-radius:12px;padding:10px 12px;margin-bottom:8px;}
+  .order-card-head{display:flex;justify-content:space-between;gap:10px;font-size:14px;margin-bottom:4px;}
+  .order-card-head b{color:var(--gold);}
+  .order-card-item{font-size:14px;color:#ddd;padding:3px 0;border-top:1px solid #222;overflow-wrap:anywhere;}
+  .order-card-item:first-of-type{border-top:none;}
+  .order-card-item .order-note{color:var(--muted);}
   .orders h4{
     margin:12px 0 6px;
     font-size:13px;
@@ -1198,6 +1248,16 @@
         <div class="back-btn" onclick="goUp()">&#8592;</div>
         <div class="editor-title" id="editorTitle"></div>
       </div>
+      <!-- A saved showtime's details at a glance. Changing them is rare
+           once it exists, so the form stays folded away behind Edit info. -->
+      <div class="info-card" id="showInfoCard">
+        <div class="info-card-when" id="infoCardWhen"></div>
+        <div class="info-card-where" id="infoCardWhere"></div>
+        <div class="info-card-note hidden" id="infoCardNote"></div>
+        <div class="info-card-tag hidden" id="infoCardSwap" data-copy="admin.aListSwap"></div>
+        <button type="button" class="info-card-edit" onclick="setEditingInfo(true)" data-copy="admin.infoCard.edit"></button>
+      </div>
+      <div id="showFormWrap">
       <!-- The showtime's fields, each a full-size control with its label,
            so they're easy to hit on a phone. Auditorium comes before
            format: the auditorium decides which formats there are. -->
@@ -1250,6 +1310,8 @@
       <label class="a-list-row">
         <input type="checkbox" id="aListSwap"><span data-copy="admin.aListSwap"></span>
       </label>
+      <button type="button" class="info-done" onclick="setEditingInfo(false)" data-copy="admin.infoCard.done"></button>
+      </div>
     </div>
 
     <!-- A new showtime: nothing is made until Save. Everything below the
@@ -2052,6 +2114,32 @@ async function deleteMovie(){
 // A new showtime starts as a copy of the movie's latest one (same
 // theater, screen, format, price and time -- usually all that's the same
 // between showings), dated today; or the defaults, for a movie's first.
+// ---- The info card ----
+// A saved showtime opens folded: its details as a card, with Edit info to
+// open the form (which still saves as you go) and Done to fold it again.
+function setEditingInfo(on){
+  if (!on) flushPendingPatch();
+  document.getElementById('editorView').classList.toggle('is-editing-info', !!on);
+  renderInfoCard();
+}
+
+// Read off the form rather than the server's copy, so it shows what was
+// just typed even before that's been saved.
+function renderInfoCard(){
+  const byId = (id) => document.getElementById(id);
+  const date = byId('showDate').value, time = byId('showTime').value;
+  byId('infoCardWhen').textContent = [date ? formatDateDisplay(date) : '', time ? formatTimeDisplay(time) : ''].filter(Boolean).join(' \u00b7 ');
+  const screen = byId('screen');
+  const aud = screen.selectedOptions[0] ? t('admin.infoCard.auditorium', { name: screen.selectedOptions[0].textContent }) : '';
+  const price = parseFloat(byId('price').value);
+  byId('infoCardWhere').textContent = [byId('theaterField').value.trim(), aud, byId('format').value,
+    isFinite(price) && price > 0 ? formatPrice(price) : ''].filter(Boolean).join(' \u00b7 ');
+  const note = byId('showInfo').value.trim();
+  byId('infoCardNote').textContent = note;
+  byId('infoCardNote').classList.toggle('hidden', !note);
+  byId('infoCardSwap').classList.toggle('hidden', !byId('aListSwap').checked);
+}
+
 // "+ Add showtime" opens the editor on a draft: the form, filled in, and
 // nothing made until Save (saveDraftShowtime). While it's a draft there's
 // no currentId, so the editor's save-as-you-go has nothing to write to.
@@ -2098,6 +2186,7 @@ async function openDraftShowtime(movieId){
   draftMovieId = movieId;
   parentHash = '#/movie/' + encodeURIComponent(movieId);
   const d = draftDefaults(movie);
+  document.getElementById('editorView').classList.remove('is-editing-info');
   document.getElementById('editorView').classList.add('is-draft');
   document.getElementById('editorTitle').textContent = movie.title || '';
   document.getElementById('theaterField').value = d.theater;
@@ -2306,7 +2395,7 @@ async function openShowtime(id){
   if (parseRoute().id !== id) return;
   currentId = id;
   draftMovieId = null;
-  document.getElementById('editorView').classList.remove('is-draft');
+  document.getElementById('editorView').classList.remove('is-draft', 'is-editing-info');
   parentHash = '#/movie/' + encodeURIComponent(obj.movieId);
   ordersClosed = !!obj.ordersClosed;
   document.getElementById('editorTitle').textContent = obj.title || '';
@@ -2319,6 +2408,7 @@ async function openShowtime(id){
   document.getElementById('showInfo').value = obj.info || '';
   document.getElementById('aListSwap').checked = !!obj.aListSwap;
   seatStates = normalizeSeats(obj.seats);
+  renderInfoCard();
   saveFailed = null;
   renderSavePill();
   // Build after the view is showing -- buildSeatGrid measures row widths,
@@ -2680,16 +2770,49 @@ function updateSummary(){
     summary.innerHTML = t('admin.seatSummary.none');
     return;
   }
-  const lines = blockIds.map(id => {
+  summary.innerHTML = '';
+  const head = document.createElement('div');
+  head.className = 'summary-head';
+  head.textContent = t('admin.seatSummary.heading', { count: blockIds.length });
+  summary.appendChild(head);
+  blockIds.forEach(id => {
     const s = seatStates[id];
-    const label = s.name ? escapeHtml(s.name) : escapeHtml(t('admin.seatSummary.available'));
+    const row = document.createElement('div');
+    row.className = 'seat-row' + (s.name ? '' : ' is-open');
+    row.addEventListener('click', () => openSeatEditor(id));
     const outstanding = seatOutstanding(s, currentShowtimePrice());
-    const paidTag = s.name
-      ? (outstanding > 0 ? t('admin.seatSummary.owes', { amount: formatPrice(outstanding) }) : t('admin.seatSummary.paid'))
-      : '';
-    return '<div class="summary-line">' + escapeHtml(id) + ': <b>' + label + '</b>' + paidTag + '</div>';
+    const sub = !s.name ? '' : outstanding > 0
+      ? '<div class="seat-row-sub owes">' + escapeHtml(t('admin.seatSummary.owesRow', { amount: formatPrice(outstanding) })) + '</div>'
+      : '<div class="seat-row-sub paid">' + escapeHtml(t('admin.seatSummary.paidRow')) + '</div>';
+    row.innerHTML = '<div class="seat-row-id">' + escapeHtml(id) + '</div>' +
+      '<div class="seat-row-main"><div class="seat-row-name">' +
+      escapeHtml(s.name || t('admin.seatSummary.open')) + (s.guest ? ' <span class="seat-id">(' + escapeHtml(t('admin.seatSummary.guest')) + ')</span>' : '') +
+      '</div>' + sub + '</div>';
+    if (s.name){
+      const x = document.createElement('button');
+      x.type = 'button';
+      x.className = 'seat-row-x';
+      x.setAttribute('aria-label', t('admin.seatSummary.remove', { name: s.name, seat: id }));
+      x.innerHTML = '&#215;';
+      x.addEventListener('click', (e) => { e.stopPropagation(); removePersonFromSeat(id); });
+      row.appendChild(x);
+    }
+    summary.appendChild(row);
   });
-  summary.innerHTML = escapeHtml(t('admin.seatSummary.heading', { count: blockIds.length })) + lines.join('');
+}
+
+// The × on a seat's row: the person comes off it, the seat stays in your
+// block, open (same as clearing the name in the seat editor). Their order
+// and what they've paid go with them, so that asks first.
+function removePersonFromSeat(id){
+  const s = seatStates[id];
+  if (!s || !s.name) return;
+  const settled = s.paid || s.concessionsPaid || (s.concessions || []).length;
+  if (settled && !confirm(t('admin.seatSummary.removeConfirm', { name: s.name, seat: id }))) return;
+  seatStates[id] = { status: 'assigned', name: '', paid: false, concessionsPaid: false, concessions: [] };
+  renderSeat(id);
+  updateSummary();
+  writeSeat(id);
 }
 
 // Per-seat orders plus the summed shopping list, rebuilt whenever the
@@ -2763,19 +2886,19 @@ function renderOrders(){
   const perSeat = ordered.map(id => {
     const seat = seatStates[id];
     const lines = seat.concessions || [];
-    const detail = lines.map(l => {
-      const note = l.note ? ' \u2014 ' + escapeHtml(l.note) : '';
-      return escapeHtml(concessionLineLabel(l)) + note;
-    }).join(', ');
+    const items = lines.map(l => {
+      const note = l.note ? ' <span class="order-note">\u2014 ' + escapeHtml(l.note) + '</span>' : '';
+      return '<div class="order-card-item">' + escapeHtml(concessionLineLabel(l)) + note + '</div>';
+    }).join('');
     // Tax included, because this is the figure that person was quoted and
     // so the figure they'll hand over. (Rounding each seat separately can
     // leave the seats summing a cent or two from the tax on the whole
     // order below -- which is real, not a bug: the counter taxes one
     // receipt, four friends each round their own.)
     const seatSubtotal = concessionsTotal(lines);
-    return '<div class="order-line"><b>' + escapeHtml(seat.name) + '</b> <span class="seat-id">(' + escapeHtml(id) + ')</span>' +
-      ' &mdash; ' + formatPrice(Math.round((seatSubtotal + concessionTax(seatSubtotal)) * 100) / 100) +
-      '<div class="order-items">' + detail + '</div></div>';
+    return '<div class="order-card"><div class="order-card-head"><span><b>' + escapeHtml(seat.name) + '</b> <span class="seat-id">(' + escapeHtml(id) + ')</span></span>' +
+      '<span>' + formatPrice(Math.round((seatSubtotal + concessionTax(seatSubtotal)) * 100) / 100) + '</span></div>' +
+      items + '</div>';
   }).join('');
 
   // Summed by item NAME, not id: two lines for the same snack placed
@@ -2826,12 +2949,25 @@ function renderOrders(){
       escapeHtml(formatPrice(tax)) + '</span></div>'
     : '';
 
+  // Two ways to read it: each person's order on its own (checking a big
+  // order line by line is where things go missing), or the whole lot as
+  // one shopping list for the counter.
+  const tab = (name, label) => '<button type="button" class="' + (ordersTab === name ? 'is-on' : '') +
+    '" onclick="setOrdersTab(\'' + name + '\')">' + escapeHtml(label) + '</button>';
   el.innerHTML =
     '<h4>' + escapeHtml(t(ordered.length === 1 ? 'admin.orders.seatHeadingOne' : 'admin.orders.seatHeadingMany', { count: ordered.length })) + '</h4>' +
-    perSeat +
-    '<div class="order-rollup">' + rollupLines + optionRollup + taxRow +
-    '<div class="rollup-line is-total"><span>' + escapeHtml(t('admin.orders.total')) + '</span><span>' +
-    escapeHtml(formatPrice(Math.round((subtotal + tax) * 100) / 100)) + '</span></div></div>';
+    '<div class="orders-tabs" role="tablist">' + tab('people', t('admin.orders.tabPeople')) + tab('one', t('admin.orders.tabOne')) + '</div>' +
+    (ordersTab === 'people' ? perSeat :
+      '<div class="order-rollup" style="margin-top:0">' + rollupLines + optionRollup + taxRow +
+      '<div class="rollup-line is-total"><span>' + escapeHtml(t('admin.orders.total')) + '</span><span>' +
+      escapeHtml(formatPrice(Math.round((subtotal + tax) * 100) / 100)) + '</span></div></div>');
+}
+
+// Which concessions tab is showing; kept across showtimes.
+let ordersTab = 'people';
+function setOrdersTab(name){
+  ordersTab = name;
+  renderOrders();
 }
 
 // ---------------- SAVING AS YOU GO ----------------
