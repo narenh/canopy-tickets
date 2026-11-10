@@ -4011,7 +4011,7 @@ function renderFavList(which, el, reorder){
     const row = document.createElement('div');
     row.className = 'fav-row';
     row.innerHTML = '<div class="fav-row-main"><div class="fav-row-name">' + favLineHtml(line) + '</div>' +
-      '<div class="fav-row-price">' + escapeHtml(item && item.price > 0 ? formatPrice(item.price) : '') + '</div></div>';
+      '<div class="fav-row-price">' + escapeHtml(item ? [item.price > 0 ? formatPrice(item.price) : '', item.note || ''].filter(Boolean).join(' · ') : '') + '</div></div>';
     const move = (delta) => {
       const j = i + delta;
       [lines[i], lines[j]] = [lines[j], lines[i]];
@@ -4075,7 +4075,8 @@ function openFavPicker(which){
     el.querySelector('.ci-name').textContent = row.name;
     el.querySelector('.ci-price').textContent = [
       row.price > 0 ? formatPrice(row.price) : '',
-      choices.length ? t(choices.length === 1 ? 'friend.cart.choicesOne' : 'friend.cart.choicesMany', { count: choices.length, label: label.toLowerCase() }) : ''
+      choices.length ? t(choices.length === 1 ? 'friend.cart.choicesOne' : 'friend.cart.choicesMany', { count: choices.length, label: label.toLowerCase() }) : '',
+      row.note || ''
     ].filter(Boolean).join(' · ');
     const plus = document.createElement('button');
     plus.type = 'button';
@@ -4907,7 +4908,7 @@ function buildFavoritesSectionEl(favs, usual){
   favs.forEach(l => {
     const item = favItem(l);
     inner.appendChild(favCartRow(
-      item.name, item.price > 0 ? formatPrice(item.price) : '', '',
+      item.name, [item.price > 0 ? formatPrice(item.price) : '', item.note || ''].filter(Boolean).join(' · '), '',
       () => addOrderLine(menuRowFor(item), l.option),
       l.option
     ));
