@@ -1605,12 +1605,13 @@
   .dayof-breakdown{font-size:14px;color:var(--do-mute);margin-bottom:10px;}
   .dayof-breakdown div{display:flex;justify-content:space-between;padding:2px 0;}
   .dayof-breakdown .is-total{color:#f5f5f5;font-weight:600;border-top:1px solid var(--do-line);margin-top:3px;padding-top:5px;}
-  .dayof-order{background:var(--do-card);border-radius:14px;padding:10px 12px;}
-  .dayof-order-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:14px;font-weight:600;margin-bottom:2px;}
+  .dayof-order{background:var(--do-card);border-radius:14px;padding:12px 14px;}
+  .dayof-order-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:18px;font-weight:700;padding-bottom:10px;}
   .dayof-order-status{font-size:13px;font-weight:400;color:var(--do-mute);white-space:nowrap;}
   .dayof-order-status.is-paid{color:var(--do-acc);}
   .dayof-order-who{font-size:12px;color:var(--do-mute);margin-top:8px;display:flex;justify-content:space-between;}
-  .dayof-order-line{font-size:15px;padding:6px 0;border-top:1px solid var(--do-line);}
+  .dayof-order-line{font-size:15px;line-height:20px;padding:10px 0;border-top:1px solid var(--do-line);}
+  .dayof-order-line:last-child{padding-bottom:2px;}
   .dayof-order + .dayof-btn, .dayof-order + .dayof-sublinks{margin-top:10px;}
   /* The ticket: title, QR, and Aud / Time / Seat under it, centred in
      whatever room the order (if any) leaves. */
@@ -5894,8 +5895,8 @@ function dayOfOrderCard(obj, owe){
   head.className = 'dayof-order-head';
   const paid = !owe.ordersOpen && ids.every(id => seats[id].concessionsPaid || seats[id].host);
   head.innerHTML = '<span>' + escapeHtml(t('friend.dayOf.order', { amount: formatPrice(total) })) + '</span>' +
-    '<span class="dayof-order-status' + (paid ? ' is-paid' : '') + '">' +
-    escapeHtml(owe.ordersOpen ? t('friend.dayOf.orderEditable') : paid ? t('friend.dayOf.orderPaid') : t('friend.dayOf.orderClosed')) + '</span>';
+    (owe.ordersOpen ? '' : '<span class="dayof-order-status' + (paid ? ' is-paid' : '') + '">' +
+    escapeHtml(paid ? t('friend.dayOf.orderPaid') : t('friend.dayOf.orderClosed')) + '</span>');
   card.appendChild(head);
   ids.forEach(id => {
     if (ids.length > 1 || seats[id].guest){
