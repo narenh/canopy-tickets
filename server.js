@@ -1750,7 +1750,11 @@ function createShowtimeFromPass(parsed) {
     if (!made.ok) return null;
     movie = made.movie;
   }
-  const made = store.createShowtime(movie.id, { theater: parsed.theater, date, time, screen });
+  // The screen's first listed format, as the admin editor picks for a new
+  // showtime (16 is IMAX with Laser, 13 Dolby, 11 ScreenX without 3D).
+  const at = SEAT_LAYOUT_SRC.indexOf(`'${screen}'`);
+  const fm = /formats:\s*\[\s*'([^']+)'/.exec(SEAT_LAYOUT_SRC.slice(at));
+  const made = store.createShowtime(movie.id, { theater: parsed.theater, date, time, screen, format: fm ? fm[1] : '' });
   if (!made.ok) return null;
   console.log(`[canopy-tickets] created showtime from Wallet pass ${parsed.serial}: ${movie.title} ${date} ${time} ${screen}`);
   return made.showtime;

@@ -276,6 +276,7 @@ test('the admin page uploads as a form, signed in', async () => {
   const made = shows.showtimes.find((x) => x.id === body.pass.showtime.id);
   assert.strictEqual(made.screen, 'amc-metreon-13');
   assert.strictEqual(made.theater, 'AMC Metreon 16');
+  assert.strictEqual(made.format, 'Dolby Cinema');
   // The same film (any case) at another time reuses the movie.
   const startsAt2 = minute(Date.now() + 28 * 60 * 60 * 1000);
   const second = await json(await fetch(`${base}/api/passes`, { method: 'POST', body: (() => { const f = new FormData(); f.append('file', new Blob([amcPass({ serial: 'form-2', startsAt: startsAt2, film: 'TEST MOVIE' })]), 'Pass.pkpass'); return f; })(), headers: { Origin: base, Cookie: `canopy_session=${ADA}` } }), 201);

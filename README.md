@@ -743,7 +743,7 @@ on auditorium (`amc-metreon-13` is 13), and then on which block holds its
 seats. If no showtime matches and the show is still in the future, at a
 Metreon auditorium with a seat map, the upload creates it: the movie (found
 by title, ignoring case, or added) and a showtime at that time and
-auditorium, with no seats assigned yet. A pass it still can't place (a show
+auditorium, with its screen's default format and no seats assigned yet. A pass it still can't place (a show
 that's over, another theater, two showtimes that fit) waits in Settings
 under **Not placed yet**, with the reason and a showtime picker. Uploading the same pass again
 (same serial number) replaces it. The file is served back untouched,
