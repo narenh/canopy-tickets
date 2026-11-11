@@ -266,9 +266,24 @@ test('the admin page uploads as a form, signed in', async () => {
   form.append('file', new Blob([amcPass({ serial: 'form-1', startsAt })]), 'Pass.pkpass');
   const res = await fetch(`${base}/api/passes`, { method: 'POST', body: form, headers: { Origin: base, Cookie: `canopy_session=${ADA}` } });
   const body = await json(res, 201);
-  // Nothing at that time: kept, unplaced, with why.
-  assert.strictEqual(body.status, 'unplaced');
-  assert.match(body.message, /no showtime starts at that time/);
+  // Nothing at that time yet, and it's in the future: the movie and the
+  // showtime are made from the pass.
+  assert.strictEqual(body.status, 'matched');
+  assert.strictEqual(body.createdShowtime, true);
+  assert.match(body.message, /^Created showtime and added: Test Movie, /);
+  assert.strictEqual(body.pass.showtime.title, 'Test Movie');
+  const shows = await json(await api('/api/showtimes', ADA), 200);
+  const made = shows.showtimes.find((x) => x.id === body.pass.showtime.id);
+  assert.strictEqual(made.screen, 'amc-metreon-13');
+  assert.strictEqual(made.theater, 'AMC Metreon 16');
+  // The same film (any case) at another time reuses the movie.
+  const startsAt2 = minute(Date.now() + 28 * 60 * 60 * 1000);
+  const second = await json(await fetch(`${base}/api/passes`, { method: 'POST', body: (() => { const f = new FormData(); f.append('file', new Blob([amcPass({ serial: 'form-2', startsAt: startsAt2, film: 'TEST MOVIE' })]), 'Pass.pkpass'); return f; })(), headers: { Origin: base, Cookie: `canopy_session=${ADA}` } }), 201);
+  assert.strictEqual(second.pass.showtime.movieId, body.pass.showtime.movieId);
+  // A show that's already over isn't made: kept, unplaced, with why.
+  const past = await json(await fetch(`${base}/api/passes`, { method: 'POST', body: (() => { const f = new FormData(); f.append('file', new Blob([amcPass({ serial: 'old-1', when: '2026-03-02T19:00:00-08:00' })]), 'Pass.pkpass'); return f; })(), headers: { Origin: base, Cookie: `canopy_session=${ADA}` } }), 201);
+  assert.strictEqual(past.status, 'unplaced');
+  assert.match(past.message, /no showtime starts at that time/);
   // A friend can't upload.
   const fred = await fetch(`${base}/api/passes`, { method: 'POST', body: form, headers: { Origin: base, Cookie: `canopy_session=${FRED}` } });
   assert.strictEqual(fred.status, 401);
@@ -370,11 +385,11 @@ test("a December show's pass carrying October's offset still matches, by its wal
 
 test('a pass uploaded before its showtime existed gets placed once it does', async () => {
   const { token } = await json(await api('/api/pass-upload-token', ADA), 200);
-  const up = await json(await shortcutUpload(amcPass({ serial: 'early-1', when: '2026-12-20T13:30:00-07:00', auditorium: '16' }), token), 201);
+  const up = await json(await shortcutUpload(amcPass({ serial: 'early-1', when: '2026-03-02T13:30:00-08:00', auditorium: '16' }), token), 201);
   assert.strictEqual(up.status, 'unplaced');
   const { movie } = await json(await api('/api/movies', ADA, { method: 'POST', body: JSON.stringify({ title: 'Matinee Movie' }) }));
   const { showtime } = await json(await api(`/api/movies/${movie.id}/showtimes`, ADA, {
-    method: 'POST', body: JSON.stringify({ date: '2026-12-20', time: '13:30', screen: 'amc-metreon-16' })
+    method: 'POST', body: JSON.stringify({ date: '2026-03-02', time: '13:30', screen: 'amc-metreon-16' })
   }), 201);
   // Settings asks for the list, which tries the unplaced ones again.
   const { passes } = await json(await api('/api/passes', ADA), 200);

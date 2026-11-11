@@ -740,8 +740,12 @@ the pass went. A showtime's editor and Settings can upload one too.
 `lib/pkpass.js` reads the pass's `pass.json` and places it on the
 showtime that matches. It matches on start time (`relevantDate`), then
 on auditorium (`amc-metreon-13` is 13), and then on which block holds its
-seats. A pass it can't place waits in Settings under **Not placed yet**,
-with the reason and a showtime picker. Uploading the same pass again
+seats. If no showtime matches and the show is still in the future, at a
+Metreon auditorium with a seat map, the upload creates it: the movie (found
+by title, ignoring case, or added) and a showtime at that time and
+auditorium, with no seats assigned yet. A pass it still can't place (a show
+that's over, another theater, two showtimes that fit) waits in Settings
+under **Not placed yet**, with the reason and a showtime picker. Uploading the same pass again
 (same serial number) replaces it. The file is served back untouched,
 because AMC signs it. It lives in `DATA_DIR/passes/` and is deleted 12
 hours after its showtime.

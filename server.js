@@ -1723,6 +1723,39 @@ function placeUnplacedPasses() {
   });
 }
 
+// A pass for a showtime that isn't here yet makes it: the movie (found by
+// title, or added) and a showtime at that time and auditorium. Only for a
+// future show at a theater and auditorium this app has a seat map for --
+// anything else stays unplaced for the host to sort out. Seats aren't
+// assigned; the host's block is theirs to set up.
+const SEAT_LAYOUT_SRC = fs.readFileSync(path.join(__dirname, 'public', 'seat-layout.js'), 'utf8');
+function createShowtimeFromPass(parsed) {
+  if (!parsed.film || parsed.startsAt === null || parsed.startsAt <= Date.now()) return null;
+  if (!/metreon/i.test(parsed.theater) || !/^\d{1,2}$/.test(parsed.auditorium)) return null;
+  const screen = `amc-metreon-${Number(parsed.auditorium)}`;
+  if (!SEAT_LAYOUT_SRC.includes(`'${screen}'`)) return null;
+  let date = parsed.wallDate;
+  let time = parsed.wallTime;
+  if (!date || !time) {
+    const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
+      timeZone: SHOWTIME_TIMEZONE, hour12: false, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
+    }).formatToParts(new Date(parsed.startsAt)).map((x) => [x.type, x.value]));
+    date = `${p.year}-${p.month}-${p.day}`;
+    time = `${p.hour === '24' ? '00' : p.hour}:${p.minute}`;
+  }
+  const wanted = parsed.film.trim().toLowerCase();
+  let movie = store.listMovies().find((m) => m.title.trim().toLowerCase() === wanted);
+  if (!movie) {
+    const made = store.createMovie(parsed.film);
+    if (!made.ok) return null;
+    movie = made.movie;
+  }
+  const made = store.createShowtime(movie.id, { theater: parsed.theater, date, time, screen });
+  if (!made.ok) return null;
+  console.log(`[canopy-tickets] created showtime from Wallet pass ${parsed.serial}: ${movie.title} ${date} ${time} ${screen}`);
+  return made.showtime;
+}
+
 function showtimesById() {
   return new Map(store.listShowtimes().map((s) => [s.id, s]));
 }
@@ -1735,16 +1768,25 @@ app.post('/api/passes', requirePassUploader, passUploadBody, (req, res) => {
   } catch (e) {
     return res.status(400).json({ error: e.message, message: `Couldn't read that: ${e.message}.` });
   }
-  const showtimes = store.listShowtimes();
-  const match = pkpass.matchShowtime(parsed, showtimes, showtimeInstantMs);
+  let showtimes = store.listShowtimes();
+  let match = pkpass.matchShowtime(parsed, showtimes, showtimeInstantMs);
+  let created = null;
+  if (!match.showtime && /^no showtime /.test(match.reason || '')) {
+    created = createShowtimeFromPass(parsed);
+    if (created) {
+      showtimes = store.listShowtimes();
+      match = pkpass.matchShowtime(parsed, showtimes, showtimeInstantMs);
+    }
+  }
   const { pass, replaced } = store.savePass(parsed, req.passFile, match.showtime ? match.showtime.id : null, match.reason);
   const seatText = `${parsed.ticketCount} ${parsed.ticketCount === 1 ? 'seat' : 'seats'}${parsed.seats.length ? ` (${seatRange(parsed.seats)})` : ''}`;
   const message = match.showtime
-    ? `${replaced ? 'Updated' : 'Added'}: ${match.showtime.title}, ${formatShowtimeInstant(showtimeInstantMs(match.showtime.date, match.showtime.time))}, ${seatText}.`
+    ? `${created ? 'Created showtime and added' : replaced ? 'Updated' : 'Added'}: ${match.showtime.title}, ${formatShowtimeInstant(showtimeInstantMs(match.showtime.date, match.showtime.time))}, ${seatText}.`
     : `Saved, but not placed: ${match.reason}. Place it in Canopy Tickets → Settings.`;
   res.status(replaced ? 200 : 201).json({
     ok: true,
     status: match.showtime ? 'matched' : 'unplaced',
+    createdShowtime: !!created,
     message,
     pass: adminPassView(pass, new Map(showtimes.map((s) => [s.id, s])))
   });
