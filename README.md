@@ -228,7 +228,7 @@ tickets asks the account service, server to server, who it belongs to
   for **Can see everyone's Venmo and Cash App** (Sites tab, with the
   Venmo box ticked). The list asks the account service about everyone
   (`GET /api/people`) and saves any Venmo that's changed, so the host's
-  Venmo requests (Movies home, "Still owed for food") and refunds go to
+  Venmo requests (Movies home, "Still owed") and refunds go to
   the handle they use now.
 - **Photos load straight from the account service**:
   `https://account.canopysf.com/photo/<id>?v=<photo time>` in an `<img>`.
@@ -334,6 +334,19 @@ and back). The admin is also the host (below).
   running locally: sign in first yourself.
 - **A lost passkey** is the account service's business too: an email and
   a code there makes a new one.
+- **"Still owed" on Movies home** lists who owes the host money, one row
+  per person per showtime (a guest's seat goes on whoever booked them),
+  with a Venmo request for the lot and a **Paid** button. Tickets count
+  from the day of the show, not before: until then people still drop
+  out and get refunded. Food counts once that showtime's order is
+  finalized. A ticket someone swaps with their own AMC A-List isn't
+  counted. The request notes match the friends' own pay links: `Title
+  (11/13/26, F8)` for a ticket, `... concessions` for food, `... +
+  concessions` for both. Today's showtimes are always listed, with
+  **Finalize Order** (the editor's button, there for when you're at the
+  counter) and, once it's final, a link to **Everyone's order**
+  (`#/orders/<id>`): each person's food, what they owe, and the same
+  Request and Paid buttons.
 
 ## Calendar feed
 
@@ -628,7 +641,8 @@ A few things worth knowing about how this actually works:
   have owners, limiting carts to your own seats and guests is possible
   later.
 - **Orders close when you finalize them**, from the **Finalize Order**
-  button under the roll-up in the editor. After that the cart opens as
+  button under the roll-up in the editor, or beside today's showtime in
+  "Still owed" on Movies home. After that the cart opens as
   a receipt — no menu, just what was ordered, the total and the pay
   buttons — under "This order has been placed and can no longer be
   changed or refunded." A change someone was in the middle of when you

@@ -480,16 +480,37 @@ const COPY = {
       finalizeFailed: 'Could not change that. Try again.'
     },
 
-    // Above the movies: who hasn't paid for their food on a showtime
-    // whose order is final.
+    // Above the movies: who owes for tickets (today and back) and food
+    // (once that showtime's order is final).
     owed: {
-      heading: 'Still owed for food',
+      heading: 'Still owed',
       request: 'Request {amount}',
+      // The same notes as the friends' own pay links.
       requestNote: '{title} ({date}, {seats}) concessions',
+      requestNoteTickets: '{title} ({date}, {seats})',
+      requestNoteBoth: '{title} ({date}, {seats}) + concessions',
+      ticket: 'Ticket {amount}',
+      tickets: 'Tickets {amount}',
+      food: 'Food {amount}',
+      today: 'Today {time}',
+      everyone: 'Everyone’s order',
+      none: 'Everyone’s paid',
+      noneYet: 'Nothing owed yet. Food is added once you finalize.',
       markPaid: 'Paid',
       markFailed: 'Could not mark that paid. Try again.',
       noVenmo: 'No Venmo on their account',
       noAccount: 'Not linked to an account'
+    },
+
+    // #/orders/<id>: one showtime's people, orders and what each owes.
+    everyone: {
+      heading: 'Everyone’s order',
+      notFinal: 'The order isn’t final, so food isn’t asked for yet.',
+      noFood: 'No food',
+      host: 'Host',
+      paid: '✓ Paid',
+      empty: 'Nobody has a seat yet.',
+      loadFailed: 'Could not load this showtime.'
     },
 
     menuEditor: {

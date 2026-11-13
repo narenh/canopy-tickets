@@ -1085,7 +1085,7 @@
     color:#fff;
   }
   .orders-empty{color:var(--muted);font-size:12.5px;}
-  /* Still owed for food, above the movie grid. */
+  /* Still owed, above the movie grid. */
   .owed{background:#151517;border:1px solid #2a2a2a;border-radius:12px;padding:10px 12px;margin:14px 20px 0;}
   .owed-head{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-bottom:4px;}
   .owed-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid #222;}
@@ -1101,6 +1101,27 @@
   }
   .owed-paid{height:34px;padding:0 10px;font-size:13px;border-radius:9px;}
   .owed-why{color:var(--muted);font-size:12px;max-width:130px;text-align:right;}
+  .owed-show-head{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    margin-top:8px;padding-top:10px;border-top:1px solid #2a2a2a;font-size:13.5px;font-weight:700;color:#fff;
+  }
+  .owed-head + .owed-show-head{margin-top:0;border-top:none;padding-top:2px;}
+  .owed-show-head + .owed-row{border-top:none;}
+  .owed-none{color:var(--muted);font-size:12.5px;padding:6px 0 2px;}
+  .owed-finalize{height:34px;padding:0 12px;font-size:13px;border-radius:9px;flex-shrink:0;white-space:nowrap;}
+  .owed-everyone{color:var(--gold);font-size:13.5px;font-weight:600;text-decoration:none;white-space:nowrap;flex-shrink:0;}
+  /* Everyone's order (#/orders/<id>). */
+  .everyone-sub{color:var(--muted);font-size:13.5px;margin-top:6px;}
+  .everyone{padding:0 20px 30px;max-width:600px;}
+  .everyone-total{padding:0 2px 8px;}
+  .everyone-note{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    color:var(--muted);font-size:13px;line-height:1.4;margin-bottom:12px;
+  }
+  .everyone-nofood{color:var(--muted);}
+  .everyone-host, .everyone-paid{color:var(--muted);font-size:13px;}
+  .everyone-paid{color:var(--green);}
+  .everyone-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:8px;margin-top:4px;border-top:1px solid #222;}
   .orders-close{
     display:flex;
     align-items:center;
@@ -1218,14 +1239,27 @@
         <div class="og-status" id="addMovieStatus"></div>
       </form>
     </div>
-    <!-- Who hasn't paid for their food, on finalized showtimes; see
-         loadOwedFood(). -->
+    <!-- Who owes for tickets and food, today and back, and today's
+         Finalize Order; see loadOwed(). -->
     <div class="owed hidden" id="owedFood"></div>
     <div class="movie-grid" id="movieGrid"><div class="loading-state">Loading...</div></div>
     <details class="past-section hidden" id="pastMovies">
       <summary>Past movies (<span id="pastMovieCount">0</span>)</summary>
       <div class="movie-grid" id="pastMovieGrid"></div>
     </details>
+  </div>
+
+  <!-- ===================== EVERYONE'S ORDER ===================== -->
+  <!-- One showtime's people, orders and what each owes; see openEveryone(). -->
+  <div id="everyoneView" class="view hidden">
+    <div class="header">
+      <div class="top-row">
+        <div class="back-btn" onclick="goUp()">&#8592;</div>
+        <div class="editor-title" id="everyoneTitle"></div>
+      </div>
+      <div class="everyone-sub" id="everyoneSub"></div>
+    </div>
+    <div class="everyone" id="everyoneList"><div class="loading-state">Loading...</div></div>
   </div>
 
   <!-- ===================== ONE MOVIE ===================== -->
@@ -1732,9 +1766,9 @@ async function handleAuthFailure(res){
 // ---------------- ROUTING ----------------
 //
 // The screen is named in the URL hash -- #/movies, #/movie/<id>,
-// #/showtime/<id>, #/menu, #/settings -- so the browser's back button and
+// #/showtime/<id>, #/orders/<id>, #/menu, #/settings -- so the browser's back button and
 // a phone's back swipe go up a level, and a reload stays put.
-const VIEWS = ['moviesView', 'movieView', 'editorView', 'menuView', 'peopleView', 'settingsView'];
+const VIEWS = ['moviesView', 'movieView', 'editorView', 'everyoneView', 'menuView', 'peopleView', 'settingsView'];
 
 function parseRoute(){
   const parts = (location.hash || '').replace(/^#\/?/, '').split('/');
@@ -1775,6 +1809,7 @@ async function route(){
   if (r.name === 'movie' && r.id) view = 'movieView';
   else if (r.name === 'showtime' && r.id) view = 'editorView';
   else if (r.name === 'new-showtime' && r.id) view = 'editorView';
+  else if (r.name === 'orders' && r.id) view = 'everyoneView';
   else if (r.name === 'menu') view = 'menuView';
   else if (r.name === 'settings') view = 'settingsView';
   else if (r.name === 'people') view = 'peopleView';
@@ -1792,6 +1827,7 @@ async function route(){
 
   if (view === 'moviesView'){ parentHash = '#/movies'; await loadMovies(); }
   else if (view === 'movieView'){ parentHash = '#/movies'; await openMovie(r.id); }
+  else if (view === 'everyoneView'){ parentHash = '#/movies'; await openEveryone(r.id); }
   else if (view === 'editorView' && r.name === 'new-showtime'){ await openDraftShowtime(r.id); }
   else if (view === 'editorView'){ await openShowtime(r.id); loadPasses(); }
   else if (view === 'settingsView'){ parentHash = '#/movies'; loadPasses(); }
@@ -1827,7 +1863,7 @@ async function loadInfoSuggestions(){
 
 // ---------------- MOVIES ----------------
 async function loadMovies(){
-  loadOwedFood();
+  loadOwed();
   const grid = document.getElementById('movieGrid');
   const pastWrap = document.getElementById('pastMovies');
   try{
@@ -1864,107 +1900,204 @@ async function loadMovies(){
   }
 }
 
-// ---------------- STILL OWED FOR FOOD ----------------
+// ---------------- STILL OWED ----------------
 //
-// Above the movies: everyone who hasn't paid for their concessions, on
-// every showtime whose order is final (before that the cart is a draft
-// nobody's been asked to pay for). One row per person per showtime -- a
-// guest's tray goes on whoever booked them, the way a refund goes back
-// to them -- with a Venmo request for that total and a Paid button. One
-// request per showtime, not one per person across showtimes, so each
-// carries the same note as the friends' own pay links and the two read
-// alike in the Venmo feed. Hidden when nobody owes anything.
+// Above the movies: everyone who owes the host money, on showtimes from
+// today back. Tickets count from the day of the show -- before that
+// people still drop out and get refunded, so asking is premature. Food
+// counts once that showtime's order is final (before that the cart is a
+// draft nobody's been asked to pay for). One row per person per
+// showtime -- a guest's seat goes on whoever booked them, the way a
+// refund goes back to them -- with one Venmo request for the lot and a
+// Paid button. One request per showtime, not one per person across
+// showtimes, so each carries the same note as the friends' own pay
+// links and the two read alike in the Venmo feed.
+//
+// Today's showtimes are always listed, owing or not, with Finalize Order
+// (the editor's button, here because the host is at the counter with a
+// phone) and then a link to everyone's order (#/orders/<id>).
 let owedGroups = [];
+let owedToday = [];
+let owedPeople = [];
 
-async function loadOwedFood(){
+async function loadOwed(){
   const el = document.getElementById('owedFood');
+  let showtimes = [];
   try{
     const [showRes, peopleRes, menuRes] = await Promise.all([
       fetch('/api/showtimes'), fetch('/api/people'), fetch('/api/concession-menu')
     ]);
     if (await handleAuthFailure(showRes)) return;
     if (!showRes.ok) throw new Error('failed to load');
-    const showtimes = (await showRes.json()).showtimes || [];
-    const people = peopleRes.ok ? ((await peopleRes.json()).people || []) : [];
+    showtimes = (await showRes.json()).showtimes || [];
+    owedPeople = peopleRes.ok ? ((await peopleRes.json()).people || []) : [];
     // The tax is part of what each person was quoted; this can run before
     // the menu panel has loaded it.
     if (menuRes.ok){
       const menu = await menuRes.json();
       if (typeof menu.taxRate === 'number') concessionTaxRate = menu.taxRate;
     }
-    owedGroups = owedFoodGroups(showtimes, people);
   }catch(e){
-    owedGroups = [];
+    showtimes = [];
   }
-  renderOwedFood();
-  el.classList.toggle('hidden', !owedGroups.length);
-}
-
-function owedFoodGroups(showtimes, people){
-  const groups = [];
-  showtimes.filter(s => s.ordersClosed).forEach(show => {
-    const seats = normalizeSeats(show.seats);
-    const byPerson = new Map();
-    Object.keys(seats).sort(compareSeatIds).forEach(id => {
-      const s = seats[id];
-      if (s.status !== 'assigned' || !s.name || s.host || s.concessionsPaid) return;
-      const amount = concessionsGrandTotal(s.concessions);
-      if (!(amount > 0)) return;
-      const key = s.personId || 'seat:' + id;
-      let g = byPerson.get(key);
-      if (!g){
-        const person = people.find(p => p.id === s.personId) || null;
-        g = { show, person, name: person ? (person.firstName + ' ' + person.lastName).trim() : s.name, seats: [], amount: 0 };
-        byPerson.set(key, g);
-        groups.push(g);
-      }
-      g.seats.push(id);
-      g.amount = Math.round((g.amount + amount) * 100) / 100;
-    });
+  const today = todayISO();
+  owedToday = showtimes.filter(s => s.date === today && Object.values(normalizeSeats(s.seats)).some(x => x.status === 'assigned' && x.name && !x.host))
+    .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+  owedGroups = [];
+  showtimes.filter(s => s.date && s.date <= today).forEach(show => {
+    seatGroups(show, owedPeople).forEach(g => { if (g.owed > 0) owedGroups.push(g); });
   });
-  // Oldest showtime first: the longest-owed is the one to chase.
-  return groups.sort((a, b) => ((a.show.date || '') + (a.show.time || '')).localeCompare((b.show.date || '') + (b.show.time || '')));
+  renderOwed();
+  el.classList.toggle('hidden', !owedGroups.length && !owedToday.length);
 }
 
-function renderOwedFood(){
-  const el = document.getElementById('owedFood');
-  const total = owedGroups.reduce((sum, g) => sum + g.amount, 0);
-  const rows = owedGroups.map((g, i) => {
-    const date = shortDate(g.show.date);
-    const note = t('admin.owed.requestNote', { title: g.show.title || 'Movie', date, seats: g.seats.join(', ') });
-    let ask;
-    if (g.person && g.person.venmo){
-      const href = venmoPayLink(g.person.venmo, g.amount, note, 'charge');
-      const newTab = /^https?:/.test(href) ? ' target="_blank" rel="noopener"' : '';
-      ask = '<a class="owed-request" href="' + escapeHtml(href) + '"' + newTab + '>' +
-        escapeHtml(t('admin.owed.request', { amount: formatPrice(g.amount) })) + '</a>';
-    } else {
-      ask = '<span class="owed-why">' + escapeHtml(t(g.person ? 'admin.owed.noVenmo' : 'admin.owed.noAccount')) + '</span>';
+// Each person's seats on one showtime, and what they owe for them. The
+// ticket: unpaid, on a showtime that's today or past, and not one they
+// swap with their own AMC A-List. The food: on a final order, not yet
+// paid. `withHost` keeps the host's own seats in (owing nothing), for
+// the everyone's-order list.
+function seatGroups(show, people, withHost){
+  const seats = normalizeSeats(show.seats);
+  const ticketsDue = !!show.date && show.date <= todayISO();
+  const price = typeof show.price === 'number' ? show.price : 0;
+  const byPerson = new Map();
+  const groups = [];
+  Object.keys(seats).sort(compareSeatIds).forEach(id => {
+    const s = seats[id];
+    if (s.status !== 'assigned' || !s.name || (s.host && !withHost)) return;
+    const key = s.host ? 'host' : (s.personId || 'seat:' + id);
+    let g = byPerson.get(key);
+    if (!g){
+      const person = people.find(p => p.id === s.personId) || null;
+      g = { show, person, host: !!s.host, name: person ? (person.firstName + ' ' + person.lastName).trim() : s.name,
+        seats: [], ticketSeats: [], foodSeats: [], ticket: 0, food: 0, foodTotal: 0, owed: 0, orders: [] };
+      byPerson.set(key, g);
+      groups.push(g);
     }
-    return '<div class="owed-row">' +
-      '<div class="owed-who"><b>' + escapeHtml(g.name) + '</b> <span class="seat-id">(' + escapeHtml(g.seats.join(', ')) + ')</span>' +
-      '<div class="owed-show">' + escapeHtml((g.show.title || 'Movie') + ' · ' + date) + ' · <span class="owed-amount">' + escapeHtml(formatPrice(g.amount)) + '</span></div></div>' +
-      '<div class="owed-actions">' + ask +
-      '<button type="button" class="owed-paid" onclick="markOwedPaid(' + i + ')">' + escapeHtml(t('admin.owed.markPaid')) + '</button></div></div>';
-  }).join('');
-  el.innerHTML = '<div class="owed-head"><span>' + escapeHtml(t('admin.owed.heading')) + '</span><span>' +
-    escapeHtml(formatPrice(Math.round(total * 100) / 100)) + '</span></div>' + rows;
+    g.seats.push(id);
+    const foodTotal = concessionsGrandTotal(s.concessions);
+    if ((s.concessions || []).length) g.orders.push({ seat: id, guest: s.guest ? s.name : '', lines: s.concessions });
+    g.foodTotal = Math.round((g.foodTotal + foodTotal) * 100) / 100;
+    if (s.host) return;
+    const swaps = show.aListSwap && !s.guest && g.person && g.person.amcAList;
+    if (ticketsDue && !s.paid && price > 0 && !swaps){
+      g.ticketSeats.push(id);
+      g.ticket = Math.round((g.ticket + price) * 100) / 100;
+    }
+    if (show.ordersClosed && !s.concessionsPaid && foodTotal > 0){
+      g.foodSeats.push(id);
+      g.food = Math.round((g.food + foodTotal) * 100) / 100;
+    }
+    g.owed = Math.round((g.ticket + g.food) * 100) / 100;
+  });
+  return groups;
 }
 
-// Venmo can't tell this app the money came in, so the host says so: the
-// food on each seat in the row is marked paid, the rest of the seat as
-// it was.
-async function markOwedPaid(i){
-  const g = owedGroups[i];
+// "Ticket $17.49 + food $12.30", or just the one that's owed.
+function owedBreakdown(g){
+  const parts = [];
+  if (g.ticket > 0) parts.push(t(g.ticketSeats.length > 1 ? 'admin.owed.tickets' : 'admin.owed.ticket', { amount: formatPrice(g.ticket) }));
+  if (g.food > 0) parts.push(t('admin.owed.food', { amount: formatPrice(g.food) }));
+  return parts.join(' + ');
+}
+
+// The Request link (or why there isn't one) and the Paid button for one
+// group. `list` names which array onclick looks the group up in.
+function owedActions(list, i, g){
+  const seats = g.ticketSeats.concat(g.foodSeats.filter(id => !g.ticketSeats.includes(id))).sort(compareSeatIds);
+  const vars = { title: g.show.title || 'Movie', date: shortDate(g.show.date), seats: seats.join(', ') };
+  const note = t(g.food > 0 ? (g.ticket > 0 ? 'admin.owed.requestNoteBoth' : 'admin.owed.requestNote') : 'admin.owed.requestNoteTickets', vars);
+  let ask;
+  if (g.person && g.person.venmo){
+    const href = venmoPayLink(g.person.venmo, g.owed, note, 'charge');
+    const newTab = /^https?:/.test(href) ? ' target="_blank" rel="noopener"' : '';
+    ask = '<a class="owed-request" href="' + escapeHtml(href) + '"' + newTab + '>' +
+      escapeHtml(t('admin.owed.request', { amount: formatPrice(g.owed) })) + '</a>';
+  } else {
+    ask = '<span class="owed-why">' + escapeHtml(t(g.person ? 'admin.owed.noVenmo' : 'admin.owed.noAccount')) + '</span>';
+  }
+  return '<div class="owed-actions">' + ask +
+    '<button type="button" class="owed-paid" onclick="markOwedPaid(\'' + list + '\', ' + i + ')">' + escapeHtml(t('admin.owed.markPaid')) + '</button></div>';
+}
+
+function renderOwed(){
+  const el = document.getElementById('owedFood');
+  const total = owedGroups.reduce((sum, g) => sum + g.owed, 0);
+  // Today's first -- that's where the host is standing -- then the rest,
+  // oldest first: the longest-owed is the one to chase.
+  const shows = owedToday.slice();
+  owedGroups.map(g => g.show)
+    .sort((a, b) => ((a.date || '') + (a.time || '')).localeCompare((b.date || '') + (b.time || '')))
+    .forEach(s => { if (!shows.includes(s)) shows.push(s); });
+
+  const blocks = shows.map(show => {
+    const isToday = owedToday.includes(show);
+    const when = isToday ? t('admin.owed.today', { time: formatTimeDisplay(show.time || '') }) : shortDate(show.date);
+    let action = '';
+    if (isToday){
+      const anyFood = Object.values(normalizeSeats(show.seats)).some(s => s.status === 'assigned' && s.name && (s.concessions || []).length);
+      action = !show.ordersClosed && anyFood
+        ? '<button type="button" class="owed-finalize" onclick="finalizeFromHome(\'' + escapeHtml(show.id) + '\')">' + escapeHtml(t('admin.orders.finalize')) + '</button>'
+        : '<a class="owed-everyone" href="#/orders/' + encodeURIComponent(show.id) + '">' + escapeHtml(t('admin.owed.everyone')) + ' ›</a>';
+    }
+    const rows = owedGroups.map((g, i) => g.show !== show ? '' :
+      '<div class="owed-row">' +
+        '<div class="owed-who"><b>' + escapeHtml(g.name) + '</b> <span class="seat-id">(' + escapeHtml(g.seats.join(', ')) + ')</span>' +
+        '<div class="owed-show"><span class="owed-amount">' + escapeHtml(owedBreakdown(g)) + '</span></div></div>' +
+        owedActions('home', i, g) +
+      '</div>').join('');
+    return '<div class="owed-show-head"><span>' + escapeHtml((show.title || 'Movie') + ' · ' + when) + '</span>' + action + '</div>' +
+      (rows || '<div class="owed-none">' + escapeHtml(t(isToday && !show.ordersClosed ? 'admin.owed.noneYet' : 'admin.owed.none')) + '</div>');
+  }).join('');
+
+  el.innerHTML = '<div class="owed-head"><span>' + escapeHtml(t('admin.owed.heading')) + '</span><span>' +
+    escapeHtml(formatPrice(Math.round(total * 100) / 100)) + '</span></div>' + blocks;
+}
+
+// The same switch as the editor's Finalize Order, then the home card
+// again -- which now has the food on it and the link to everyone's order.
+async function finalizeFromHome(id){
+  if (!confirm(t('admin.orders.finalizeConfirm'))) return;
+  if (await setOrdersClosed(id, true)) loadOwed();
+}
+
+async function setOrdersClosed(id, closed){
+  try{
+    const res = await fetch('/api/showtimes/' + encodeURIComponent(id) + '/orders-closed', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ closed })
+    });
+    if (await handleAuthFailure(res)) return false;
+    if (!res.ok){ alert(t('admin.orders.finalizeFailed')); return false; }
+    return true;
+  }catch(e){
+    alert(t('admin.orders.finalizeFailed'));
+    return false;
+  }
+}
+
+// Venmo can't tell this app the money came in, so the host says so: what
+// the row was asking for -- the ticket, the food, or both -- is marked
+// paid on each of its seats, the rest of the seat as it was.
+async function markOwedPaid(list, i){
+  const g = (list === 'home' ? owedGroups : everyoneGroups)[i];
   if (!g) return;
   const seats = normalizeSeats(g.show.seats);
+  const ids = Array.from(new Set(g.ticketSeats.concat(g.foodSeats)));
   try{
-    for (const id of g.seats){
+    for (const id of ids){
       const s = seats[id];
       const res = await fetch('/api/showtimes/' + encodeURIComponent(g.show.id) + '/seats/' + encodeURIComponent(id), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: s.name, paid: !!s.paid, concessionsPaid: true, personId: s.personId || null, guest: !!s.guest })
+        body: JSON.stringify({
+          name: s.name,
+          paid: !!s.paid || g.ticketSeats.includes(id),
+          concessionsPaid: !!s.concessionsPaid || g.foodSeats.includes(id),
+          personId: s.personId || null,
+          guest: !!s.guest
+        })
       });
       if (await handleAuthFailure(res)) return;
       if (!res.ok) throw new Error('failed');
@@ -1972,7 +2105,75 @@ async function markOwedPaid(i){
   }catch(e){
     alert(t('admin.owed.markFailed'));
   }
-  loadOwedFood();
+  if (list === 'home') loadOwed();
+  else openEveryone(g.show.id);
+}
+
+// ---------------- EVERYONE'S ORDER ----------------
+//
+// #/orders/<id>: one showtime, everyone with a seat -- what they ordered,
+// what they owe, a Venmo request and Paid for each. Reached from today's
+// showtime on the home card once the order's final.
+let everyoneGroups = [];
+
+async function openEveryone(id){
+  const list = document.getElementById('everyoneList');
+  let show;
+  try{
+    const [showRes, peopleRes, menuRes] = await Promise.all([
+      fetch('/api/showtimes/' + encodeURIComponent(id)), fetch('/api/people'), fetch('/api/concession-menu')
+    ]);
+    if (await handleAuthFailure(showRes)) return;
+    if (showRes.status === 404){ location.replace('#/movies'); return; }
+    if (!showRes.ok) throw new Error('failed');
+    show = (await showRes.json()).showtime;
+    owedPeople = peopleRes.ok ? ((await peopleRes.json()).people || []) : owedPeople;
+    if (menuRes.ok){
+      const menu = await menuRes.json();
+      if (typeof menu.taxRate === 'number') concessionTaxRate = menu.taxRate;
+    }
+  }catch(e){
+    list.innerHTML = '<div class="empty-state">' + escapeHtml(t('admin.everyone.loadFailed')) + '</div>';
+    return;
+  }
+  if (parseRoute().id !== id) return;
+  document.getElementById('everyoneTitle').textContent = show.title || 'Movie';
+  document.getElementById('everyoneSub').textContent =
+    [formatDateDisplay(show.date), formatTimeDisplay(show.time || ''), t('admin.everyone.heading')].filter(Boolean).join(' · ');
+  everyoneGroups = seatGroups(show, owedPeople, true);
+
+  const total = everyoneGroups.reduce((sum, g) => sum + g.owed, 0);
+  const notFinal = show.ordersClosed ? '' :
+    '<div class="everyone-note">' + escapeHtml(t('admin.everyone.notFinal')) +
+    ' <button type="button" class="owed-finalize" onclick="finalizeEveryone(\'' + escapeHtml(show.id) + '\')">' + escapeHtml(t('admin.orders.finalize')) + '</button></div>';
+  const cards = everyoneGroups.map((g, i) => {
+    const several = g.orders.length > 1;
+    const items = g.orders.map(o => o.lines.map(l => {
+      const note = l.note ? ' <span class="order-note">— ' + escapeHtml(l.note) + '</span>' : '';
+      // Whose tray is whose, when one person ordered for a guest too.
+      const whose = several || o.guest ? '<span class="seat-id">' + escapeHtml(o.seat + (o.guest ? ' (' + o.guest + ')' : '')) + '</span> ' : '';
+      return '<div class="order-card-item">' + whose +
+        escapeHtml(concessionLineLabel(l)) + note + '</div>';
+    }).join('')).join('') || '<div class="order-card-item everyone-nofood">' + escapeHtml(t('admin.everyone.noFood')) + '</div>';
+    let right;
+    if (g.host) right = '<span class="everyone-host">' + escapeHtml(t('admin.everyone.host')) + '</span>';
+    else if (g.owed > 0) right = '<span class="owed-amount">' + escapeHtml(formatPrice(g.owed)) + '</span>';
+    else right = '<span class="everyone-paid">' + escapeHtml(t('admin.everyone.paid')) + '</span>';
+    const foot = g.owed > 0
+      ? '<div class="everyone-foot"><span class="owed-show">' + escapeHtml(owedBreakdown(g)) + '</span>' + owedActions('everyone', i, g) + '</div>'
+      : '';
+    return '<div class="order-card"><div class="order-card-head"><span><b>' + escapeHtml(g.name) + '</b> <span class="seat-id">(' +
+      escapeHtml(g.seats.join(', ')) + ')</span></span>' + right + '</div>' + items + foot + '</div>';
+  }).join('');
+  list.innerHTML = notFinal +
+    (cards ? '<div class="owed-head everyone-total"><span>' + escapeHtml(t('admin.owed.heading')) + '</span><span>' +
+      escapeHtml(formatPrice(Math.round(total * 100) / 100)) + '</span></div>' + cards
+      : '<div class="empty-state">' + escapeHtml(t('admin.everyone.empty')) + '</div>');
+}
+
+async function finalizeEveryone(id){
+  if (!confirm(t('admin.orders.finalizeConfirm'))) return;
+  if (await setOrdersClosed(id, true)) openEveryone(id);
 }
 
 function buildMovieTile(m, isPast){
@@ -3151,22 +3352,12 @@ async function toggleOrdersClosed(){
 
   const btn = document.getElementById('ordersCloseBtn');
   btn.disabled = true;
-  try{
-    const res = await fetch('/api/showtimes/' + currentId + '/orders-closed', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ closed: next })
-    });
-    if (await handleAuthFailure(res)) return;
-    if (!res.ok){ alert(t('admin.orders.finalizeFailed')); return; }
-    ordersClosed = next;
-    // What each seat owes changes with it.
-    updateSummary();
-  }catch(e){
-    alert(t('admin.orders.finalizeFailed'));
-  }finally{
-    btn.disabled = false;
-  }
+  const ok = await setOrdersClosed(currentId, next);
+  btn.disabled = false;
+  if (!ok) return;
+  ordersClosed = next;
+  // What each seat owes changes with it.
+  updateSummary();
 }
 
 // The price in the editor form, which is what the seat summary above is
