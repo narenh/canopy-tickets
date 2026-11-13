@@ -1085,6 +1085,22 @@
     color:#fff;
   }
   .orders-empty{color:var(--muted);font-size:12.5px;}
+  /* Still owed for food, above the movie grid. */
+  .owed{background:#151517;border:1px solid #2a2a2a;border-radius:12px;padding:10px 12px;margin:14px 20px 0;}
+  .owed-head{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-bottom:4px;}
+  .owed-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid #222;}
+  .owed-head + .owed-row{border-top:none;}
+  .owed-who{font-size:14px;min-width:0;overflow-wrap:anywhere;}
+  .owed-who b{color:var(--gold);}
+  .owed-show{color:var(--muted);font-size:12.5px;margin-top:2px;}
+  .owed-amount{color:#e2857a;}
+  .owed-actions{display:flex;align-items:center;gap:6px;flex-shrink:0;}
+  .owed-request{
+    display:inline-flex;align-items:center;height:34px;padding:0 12px;border-radius:9px;
+    background:#008CFF;color:#fff;font-size:14px;font-weight:700;text-decoration:none;white-space:nowrap;
+  }
+  .owed-paid{height:34px;padding:0 10px;font-size:13px;border-radius:9px;}
+  .owed-why{color:var(--muted);font-size:12px;max-width:130px;text-align:right;}
   .orders-close{
     display:flex;
     align-items:center;
@@ -1202,6 +1218,9 @@
         <div class="og-status" id="addMovieStatus"></div>
       </form>
     </div>
+    <!-- Who hasn't paid for their food, on finalized showtimes; see
+         loadOwedFood(). -->
+    <div class="owed hidden" id="owedFood"></div>
     <div class="movie-grid" id="movieGrid"><div class="loading-state">Loading...</div></div>
     <details class="past-section hidden" id="pastMovies">
       <summary>Past movies (<span id="pastMovieCount">0</span>)</summary>
@@ -1808,6 +1827,7 @@ async function loadInfoSuggestions(){
 
 // ---------------- MOVIES ----------------
 async function loadMovies(){
+  loadOwedFood();
   const grid = document.getElementById('movieGrid');
   const pastWrap = document.getElementById('pastMovies');
   try{
@@ -1842,6 +1862,117 @@ async function loadMovies(){
   }catch(e){
     grid.innerHTML = '<div class="empty-state">' + escapeHtml(t('admin.movies.loadFailed')) + '</div>';
   }
+}
+
+// ---------------- STILL OWED FOR FOOD ----------------
+//
+// Above the movies: everyone who hasn't paid for their concessions, on
+// every showtime whose order is final (before that the cart is a draft
+// nobody's been asked to pay for). One row per person per showtime -- a
+// guest's tray goes on whoever booked them, the way a refund goes back
+// to them -- with a Venmo request for that total and a Paid button. One
+// request per showtime, not one per person across showtimes, so each
+// carries the same note as the friends' own pay links and the two read
+// alike in the Venmo feed. Hidden when nobody owes anything.
+let owedGroups = [];
+
+async function loadOwedFood(){
+  const el = document.getElementById('owedFood');
+  try{
+    const [showRes, peopleRes, menuRes] = await Promise.all([
+      fetch('/api/showtimes'), fetch('/api/people'), fetch('/api/concession-menu')
+    ]);
+    if (await handleAuthFailure(showRes)) return;
+    if (!showRes.ok) throw new Error('failed to load');
+    const showtimes = (await showRes.json()).showtimes || [];
+    const people = peopleRes.ok ? ((await peopleRes.json()).people || []) : [];
+    // The tax is part of what each person was quoted; this can run before
+    // the menu panel has loaded it.
+    if (menuRes.ok){
+      const menu = await menuRes.json();
+      if (typeof menu.taxRate === 'number') concessionTaxRate = menu.taxRate;
+    }
+    owedGroups = owedFoodGroups(showtimes, people);
+  }catch(e){
+    owedGroups = [];
+  }
+  renderOwedFood();
+  el.classList.toggle('hidden', !owedGroups.length);
+}
+
+function owedFoodGroups(showtimes, people){
+  const groups = [];
+  showtimes.filter(s => s.ordersClosed).forEach(show => {
+    const seats = normalizeSeats(show.seats);
+    const byPerson = new Map();
+    Object.keys(seats).sort(compareSeatIds).forEach(id => {
+      const s = seats[id];
+      if (s.status !== 'assigned' || !s.name || s.host || s.concessionsPaid) return;
+      const amount = concessionsGrandTotal(s.concessions);
+      if (!(amount > 0)) return;
+      const key = s.personId || 'seat:' + id;
+      let g = byPerson.get(key);
+      if (!g){
+        const person = people.find(p => p.id === s.personId) || null;
+        g = { show, person, name: person ? (person.firstName + ' ' + person.lastName).trim() : s.name, seats: [], amount: 0 };
+        byPerson.set(key, g);
+        groups.push(g);
+      }
+      g.seats.push(id);
+      g.amount = Math.round((g.amount + amount) * 100) / 100;
+    });
+  });
+  // Oldest showtime first: the longest-owed is the one to chase.
+  return groups.sort((a, b) => ((a.show.date || '') + (a.show.time || '')).localeCompare((b.show.date || '') + (b.show.time || '')));
+}
+
+function renderOwedFood(){
+  const el = document.getElementById('owedFood');
+  const total = owedGroups.reduce((sum, g) => sum + g.amount, 0);
+  const rows = owedGroups.map((g, i) => {
+    const date = shortDate(g.show.date);
+    const note = t('admin.owed.requestNote', { title: g.show.title || 'Movie', date, seats: g.seats.join(', ') });
+    let ask;
+    if (g.person && g.person.venmo){
+      const href = venmoPayLink(g.person.venmo, g.amount, note, 'charge');
+      const newTab = /^https?:/.test(href) ? ' target="_blank" rel="noopener"' : '';
+      ask = '<a class="owed-request" href="' + escapeHtml(href) + '"' + newTab + '>' +
+        escapeHtml(t('admin.owed.request', { amount: formatPrice(g.amount) })) + '</a>';
+    } else {
+      ask = '<span class="owed-why">' + escapeHtml(t(g.person ? 'admin.owed.noVenmo' : 'admin.owed.noAccount')) + '</span>';
+    }
+    return '<div class="owed-row">' +
+      '<div class="owed-who"><b>' + escapeHtml(g.name) + '</b> <span class="seat-id">(' + escapeHtml(g.seats.join(', ')) + ')</span>' +
+      '<div class="owed-show">' + escapeHtml((g.show.title || 'Movie') + ' · ' + date) + ' · <span class="owed-amount">' + escapeHtml(formatPrice(g.amount)) + '</span></div></div>' +
+      '<div class="owed-actions">' + ask +
+      '<button type="button" class="owed-paid" onclick="markOwedPaid(' + i + ')">' + escapeHtml(t('admin.owed.markPaid')) + '</button></div></div>';
+  }).join('');
+  el.innerHTML = '<div class="owed-head"><span>' + escapeHtml(t('admin.owed.heading')) + '</span><span>' +
+    escapeHtml(formatPrice(Math.round(total * 100) / 100)) + '</span></div>' + rows;
+}
+
+// Venmo can't tell this app the money came in, so the host says so: the
+// food on each seat in the row is marked paid, the rest of the seat as
+// it was.
+async function markOwedPaid(i){
+  const g = owedGroups[i];
+  if (!g) return;
+  const seats = normalizeSeats(g.show.seats);
+  try{
+    for (const id of g.seats){
+      const s = seats[id];
+      const res = await fetch('/api/showtimes/' + encodeURIComponent(g.show.id) + '/seats/' + encodeURIComponent(id), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: s.name, paid: !!s.paid, concessionsPaid: true, personId: s.personId || null, guest: !!s.guest })
+      });
+      if (await handleAuthFailure(res)) return;
+      if (!res.ok) throw new Error('failed');
+    }
+  }catch(e){
+    alert(t('admin.owed.markFailed'));
+  }
+  loadOwedFood();
 }
 
 function buildMovieTile(m, isPast){
@@ -2857,14 +2988,29 @@ function seatPaidAmount(s){
   return Math.round((ticket + food) * 100) / 100;
 }
 
-// A Venmo payment TO someone, pre-filled. The app on a phone, the site
-// anywhere else (a desktop browser has nothing to open venmo:// with).
-function venmoPayLink(handle, amount, note){
-  const q = 'txn=pay&amount=' + encodeURIComponent(amount.toFixed(2)) + '&note=' + encodeURIComponent(note);
+// A Venmo payment TO someone (txn 'pay') or a request FROM them (txn
+// 'charge'), pre-filled. The app on a phone, the site anywhere else (a
+// desktop browser has nothing to open venmo:// with).
+function venmoPayLink(handle, amount, note, txn){
+  const q = 'txn=' + (txn || 'pay') + '&amount=' + encodeURIComponent(amount.toFixed(2)) + '&note=' + encodeURIComponent(note);
   const phone = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || '') || (/Macintosh/.test(navigator.userAgent || '') && navigator.maxTouchPoints > 1);
   return phone
     ? 'venmo://paycharge?recipients=' + encodeURIComponent(handle) + '&' + q
     : 'https://venmo.com/' + encodeURIComponent(handle) + '?' + q;
+}
+
+function showtimeTitle(){
+  return document.getElementById('editorTitle').textContent || 'Movie';
+}
+
+// "2026-10-14" -> "10/14/26", the same short date as the friends' pay
+// notes.
+function shortDate(iso){
+  const [y, m, d] = (iso || '').split('-').map(Number);
+  return y ? m + '/' + d + '/' + String(y).slice(-2) : '';
+}
+function showtimeShortDate(){
+  return shortDate(document.getElementById('showDate').value);
 }
 
 async function openRemoveSheet(id){
@@ -2895,11 +3041,8 @@ async function openRemoveSheet(id){
   const person = (editorPeople || []).find(p => p.id === s.personId);
   if (person && person.venmo){
     const a = byId('removeRefund');
-    const title = byId('editorTitle').textContent || 'Movie';
-    // "2026-10-14" -> "10/14/26", the same short date as the friends'
-    // pay notes.
-    const [y, m, d] = (byId('showDate').value || '').split('-').map(Number);
-    const date = y ? m + '/' + d + '/' + String(y).slice(-2) : '';
+    const title = showtimeTitle();
+    const date = showtimeShortDate();
     a.href = venmoPayLink(person.venmo, paid, t('admin.removeSheet.refundNote', { title, date }).trim());
     if (/^https?:/.test(a.href)){ a.target = '_blank'; a.rel = 'noopener'; } else { a.removeAttribute('target'); }
     a.textContent = t('admin.removeSheet.refund', { amount: formatPrice(paid), name: person.firstName });

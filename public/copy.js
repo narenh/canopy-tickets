@@ -480,6 +480,18 @@ const COPY = {
       finalizeFailed: 'Could not change that. Try again.'
     },
 
+    // Above the movies: who hasn't paid for their food on a showtime
+    // whose order is final.
+    owed: {
+      heading: 'Still owed for food',
+      request: 'Request {amount}',
+      requestNote: '{title} ({date}, {seats}) concessions',
+      markPaid: 'Paid',
+      markFailed: 'Could not mark that paid. Try again.',
+      noVenmo: 'No Venmo on their account',
+      noAccount: 'Not linked to an account'
+    },
+
     menuEditor: {
       blurb: "What friends can order from the reservation page. Ships with the AMC menu already filled in -- edit, reprice, add or remove anything and save, and your version takes over. One list for every showtime; orders are attached to each reserved seat, and friends can change theirs until you finalize that showtime's order. Removing an item here doesn't disturb orders already placed -- those keep the name and price they were placed at.",
       groupsBlurb: "Lists of choices an item comes with, one option per line. Friends pick one per unit ordered, so two chicken tenders get two picks. A group can be shared by several items (everything fried points at Sauce) or belong to just one (a pizza's toppings) -- assign it with the dropdown on each item above.",
