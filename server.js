@@ -661,13 +661,28 @@ app.patch('/api/movies/:id', (req, res) => {
 
 app.use('/api/people', requireAdmin);
 
+// Everyone with a profile here, each asked about at the account service:
+// anyone it doesn't know any more is a former member. When the account
+// admin has let tickets see everyone's payment handles (the Sites tab's
+// "Can see everyone's Venmo and Cash App"), the answer also carries each
+// person's Venmo, and a changed one is saved here. Otherwise tickets
+// only hears about a new handle when that person next visits, and the
+// host's Venmo requests would go to the old one until then.
 app.get('/api/people', async (req, res) => {
-  const people = store.listPeople();
+  let people = store.listPeople();
   let current = null;
   try {
     current = await canopy.people(people.map((p) => p.id));
   } catch (err) {
     console.warn(`[canopy-tickets] couldn't ask Canopy accounts who's still a member: ${err.message}`);
+  }
+  if (current) {
+    people = people.map((p) => {
+      const account = current.get(p.id);
+      if (!account || !Object.prototype.hasOwnProperty.call(account, 'venmo')) return p;
+      if ((account.venmo || null) === (p.venmo || null)) return p;
+      return store.setPersonVenmo(p.id, account.venmo) || p;
+    });
   }
   res.json({
     people: people.map((p) => {

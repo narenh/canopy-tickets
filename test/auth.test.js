@@ -21,6 +21,8 @@ const QUICK = 'q'.repeat(43);       // Quinn, a quick sign-up, not confirmed (ye
 const sessions = new Map();
 // token -> how many times /api/session was asked about it.
 const asked = new Map();
+// What /api/people answers, or null for a 404 (as if it can't be asked).
+let peopleAnswer = null;
 
 const vera = { id: 'p-vera', email: 'vera@example.com', emailVerified: true, firstName: 'Vera', lastName: 'V', shortName: 'Vera V.', photoUrl: null, findable: true, venmo: null, phone: null, instagram: null, cashapp: null };
 const quinn = { id: 'p-quinn', email: 'quinn@example.com', emailVerified: true, firstName: 'Quinn', lastName: 'Q', shortName: 'Quinn Q.', photoUrl: null, findable: true, venmo: null, phone: null, instagram: null, cashapp: null };
@@ -49,6 +51,9 @@ before(async () => {
       const token = req.headers['x-canopy-session'];
       asked.set(token, (asked.get(token) || 0) + 1);
       return res.end(JSON.stringify(sessions.get(token) || { person: null }));
+    }
+    if (req.url.startsWith('/api/people') && peopleAnswer) {
+      return res.end(JSON.stringify({ people: peopleAnswer }));
     }
     res.statusCode = 404;
     res.end('{}');
@@ -203,4 +208,34 @@ test('the calendar endpoint still checks the account service signature', async (
   assert.strictEqual((await ask(vera.id, `Canopy-Calendar t=${now}, sig=${sign(CALENDAR_SECRET, 'p-someone-else', now)}`)).status, 401);
   // A session cookie or bearer token is no way in either.
   assert.strictEqual((await ask(vera.id, `Bearer ${VERIFIED}`)).status, 401);
+});
+
+test("the admin's people list picks up a new Venmo from the account service", async () => {
+  // Vera signed in first, so she's the admin. Ana visited once, back when
+  // her Venmo was ana-old, and hasn't since.
+  const ANA = 'a'.repeat(43);
+  const ana = { ...vera, id: 'p-ana', email: 'ana@example.com', firstName: 'Ana', lastName: 'A', shortName: 'Ana A.', venmo: 'ana-old' };
+  sessions.set(ANA, { person: ana });
+  assert.strictEqual((await page('/', ANA)).status, 200);
+  assert.strictEqual((await page('/admin', VERIFIED)).status, 200);
+  const venmoOfAna = async () => {
+    const res = await api('/api/people', VERIFIED);
+    assert.strictEqual(res.status, 200);
+    return (await res.json()).people.find((p) => p.id === ana.id).venmo;
+  };
+  const publicPerson = (p) => ({ id: p.id, firstName: p.firstName, lastName: p.lastName, shortName: p.shortName, photoUrl: null });
+  try {
+    // A site not let see payment handles: no venmo in the answer, nothing changes.
+    peopleAnswer = [publicPerson(vera), publicPerson(ana)];
+    assert.strictEqual(await venmoOfAna(), 'ana-old');
+    // Let see them: the handle the account service has now.
+    peopleAnswer = [publicPerson(vera), { ...publicPerson(ana), venmo: 'ana-new' }];
+    assert.strictEqual(await venmoOfAna(), 'ana-new');
+    // Saved, not just passed through.
+    peopleAnswer = null;
+    assert.strictEqual(await venmoOfAna(), 'ana-new');
+  } finally {
+    peopleAnswer = null;
+    sessions.delete(ANA);
+  }
 });

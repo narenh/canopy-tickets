@@ -223,6 +223,13 @@ tickets asks the account service, server to server, who it belongs to
   to a minute to show here. If the account service can't be reached, a
   cached answer up to 15 minutes old stands in; past that, pages answer
   503 "Canopy accounts could not be reached".
+- **A new Venmo also shows when the admin's people list loads**, without
+  that person visiting, once the account admin has switched tickets on
+  for **Can see everyone's Venmo and Cash App** (Sites tab, with the
+  Venmo box ticked). The list asks the account service about everyone
+  (`GET /api/people`) and saves any Venmo that's changed, so the host's
+  Venmo requests (Movies home, "Still owed for food") and refunds go to
+  the handle they use now.
 - **Photos load straight from the account service**:
   `https://account.canopysf.com/photo/<id>?v=<photo time>` in an `<img>`.
   The browser sends the account cookie along, because it counts
