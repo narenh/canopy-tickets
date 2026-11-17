@@ -1731,6 +1731,7 @@ function placeUnplacedPasses() {
       const parsed = readPass(file);
       const match = pkpass.matchShowtime(parsed, showtimes, showtimeInstantMs);
       store.savePass(parsed, file, match.showtime ? match.showtime.id : null, match.reason);
+      if (match.showtime) addPassSeatsToBlock(match.showtime.id, parsed);
       if (match.showtime) console.log(`[canopy-tickets] placed Wallet pass ${p.serial} on ${match.showtime.title} ${match.showtime.date} ${match.showtime.time}`);
     } catch (e) {
       console.warn(`[canopy-tickets] couldn't re-read Wallet pass ${p.id}: ${e.message}`);
@@ -1741,9 +1742,37 @@ function placeUnplacedPasses() {
 // A pass for a showtime that isn't here yet makes it: the movie (found by
 // title, or added) and a showtime at that time and auditorium. Only for a
 // future show at a theater and auditorium this app has a seat map for --
-// anything else stays unplaced for the host to sort out. Seats aren't
-// assigned; the host's block is theirs to set up.
+// anything else stays unplaced for the host to sort out. The pass's seats
+// go into the block (see addPassSeatsToBlock), open, not anyone's yet.
 const SEAT_LAYOUT_SRC = fs.readFileSync(path.join(__dirname, 'public', 'seat-layout.js'), 'utf8');
+// The same SEAT_LAYOUTS the pages draw from, read out of the browser file.
+const SEAT_LAYOUTS = require('vm').runInNewContext(`${SEAT_LAYOUT_SRC}\n;SEAT_LAYOUTS`);
+
+// Every seat ID on a screen's map, or null for a screen with no map.
+function seatIdsOnMap(screen) {
+  const layout = SEAT_LAYOUTS[screen];
+  if (!layout) return null;
+  const ids = new Set();
+  layout.rows.forEach((row) => {
+    for (let i = 1; i <= row.count; i++) {
+      if (!(row.skip || []).includes(i)) ids.add(row.letter + i);
+    }
+  });
+  return ids;
+}
+
+// A pass is the host's tickets, so its seats belong in that showtime's
+// block. Adds the ones that aren't there yet, open; never touches a seat
+// already in the block (or marked sold out), and skips any seat that
+// isn't on that auditorium's map.
+function addPassSeatsToBlock(showtimeId, parsed) {
+  const show = store.getShowtime(showtimeId);
+  const onMap = show && seatIdsOnMap(show.screen);
+  if (!onMap || !parsed.seats || !parsed.seats.length) return [];
+  const result = store.addOpenSeats(showtimeId, parsed.seats.filter((id) => onMap.has(id)));
+  if (result.ok && result.added.length) console.log(`[canopy-tickets] added ${result.added.join(', ')} to the block from Wallet pass ${parsed.serial}`);
+  return result.ok ? result.added : [];
+}
 function createShowtimeFromPass(parsed) {
   if (!parsed.film || parsed.startsAt === null || parsed.startsAt <= Date.now()) return null;
   if (!/metreon/i.test(parsed.theater) || !/^\d{1,2}$/.test(parsed.auditorium)) return null;
@@ -1798,6 +1827,7 @@ app.post('/api/passes', requirePassUploader, passUploadBody, (req, res) => {
     }
   }
   const { pass, replaced } = store.savePass(parsed, req.passFile, match.showtime ? match.showtime.id : null, match.reason);
+  if (match.showtime) addPassSeatsToBlock(match.showtime.id, parsed);
   const seatText = `${parsed.ticketCount} ${parsed.ticketCount === 1 ? 'seat' : 'seats'}${parsed.seats.length ? ` (${seatRange(parsed.seats)})` : ''}`;
   const message = match.showtime
     ? `${created ? 'Created showtime and added' : replaced ? 'Updated' : 'Added'}: ${match.showtime.title}, ${formatShowtimeInstant(showtimeInstantMs(match.showtime.date, match.showtime.time))}, ${seatText}.`
@@ -1825,6 +1855,13 @@ app.patch('/api/passes/:id', (req, res) => {
   if (showtimeId !== null && typeof showtimeId !== 'string') return res.status(400).json({ error: 'showtimeId must be a string or null' });
   const result = store.assignPass(req.params.id, showtimeId);
   if (!result.ok) return sendResult(res, result);
+  if (showtimeId) {
+    try {
+      addPassSeatsToBlock(showtimeId, readPass(fs.readFileSync(store.passFilePath(req.params.id))));
+    } catch (e) {
+      console.warn(`[canopy-tickets] couldn't re-read Wallet pass ${req.params.id}: ${e.message}`);
+    }
+  }
   res.json({ pass: adminPassView(result.pass, showtimesById()) });
 });
 

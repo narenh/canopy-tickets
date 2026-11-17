@@ -290,6 +290,37 @@ test('the admin page uploads as a form, signed in', async () => {
   assert.strictEqual(fred.status, 401);
 });
 
+test("a pass's seats go into the block, open, without touching seats already there", async () => {
+  const form = (file) => { const f = new FormData(); f.append('file', new Blob([file]), 'Pass.pkpass'); return f; };
+  const upload = (file) => fetch(`${base}/api/passes`, { method: 'POST', body: form(file), headers: { Origin: base, Cookie: `canopy_session=${ADA}` } });
+
+  // A showtime made from the pass: its seats are the block, open. Z99
+  // isn't on Auditorium 6's map, so it's left out.
+  const startsAt = minute(Date.now() + 6 * 24 * 60 * 60 * 1000);
+  const made = await json(await upload(amcPass({ serial: 'block-1', startsAt, auditorium: '6', seats: 'D6, D5, Z99', film: 'Block Movie' })), 201);
+  assert.strictEqual(made.createdShowtime, true);
+  const { showtime } = await json(await api(`/api/showtimes/${made.pass.showtime.id}`, ADA), 200);
+  assert.deepStrictEqual(Object.keys(showtime.seats).sort(), ['D5', 'D6']);
+  for (const id of ['D5', 'D6']) {
+    assert.strictEqual(showtime.seats[id].status, 'assigned');
+    assert.strictEqual(showtime.seats[id].name, '');
+    assert.strictEqual(showtime.seats[id].personId, null);
+  }
+
+  // An existing showtime: E7 (Fred's) and E8 (his guest's) stay theirs,
+  // E9 stays open, and E10 -- not in the block yet -- comes in open.
+  const startsAt2 = minute(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  const show = await showtimeWithFred('Block Movie Two', startsAt2);
+  const up = await json(await upload(amcPass({ serial: 'block-2', startsAt: startsAt2, seats: 'E7, E8, E9, E10', tickets: '4 ADULT' })), 201);
+  assert.strictEqual(up.createdShowtime, false);
+  const after = (await json(await api(`/api/showtimes/${show.id}`, ADA), 200)).showtime;
+  assert.deepStrictEqual(Object.keys(after.seats).sort(), ['E10', 'E7', 'E8', 'E9']);
+  assert.strictEqual(after.seats.E7.name, 'Fred X');
+  assert.strictEqual(after.seats.E8.name, 'Gus');
+  assert.strictEqual(after.seats.E9.name, '');
+  assert.strictEqual(after.seats.E10.name, '');
+});
+
 test('the day-of screen: the next showtime today, and its ticket from an hour before', async () => {
   const { dayOf } = await json(await api('/api/public/day-of', FRED), 200);
   assert.ok(dayOf, 'Fred has a showtime in half an hour');
