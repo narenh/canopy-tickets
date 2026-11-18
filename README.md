@@ -855,7 +855,8 @@ guest's), until 20 minutes after it starts; with none, "Nothing booked".
 - **Buttons** under the card, with Wallet's own words (a pass can't set
   them): **Order Delivery or Pickup** (opens My Showtimes) while food
   orders are open and they're not A-List, or anything's owed, and **View
-  Schedule** always (Tickets
+  Schedule** (on the day of the show, **Go to Location**: the Metreon in
+  Apple Maps, by its place ID) (Tickets
   opened on All Movies, `/?tab=movies`).
   Paying is a **Pay for Ticket** Venmo link on the back (`venmo://` links
   aren't allowed in a pass). Checked against Wallet's own parser and

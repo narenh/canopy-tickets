@@ -217,6 +217,9 @@ test('day of, paid, AMC pass in: the poster style with the QR (no digits)', () =
   assert.strictEqual(json.semantics.venueName, 'AMC Metreon 16 \u00b7 Aud 13', 'the poster face shows the auditorium');
   assert.deepStrictEqual(json.barcodes, [{ format: 'PKBarcodeFormatQR', message: '1122707601-1', messageEncoding: 'iso-8859-1' }]);
   assert.strictEqual(fieldOf(json, 'paid').value, 'Paid ✓');
+  // On the day, Go to Location takes View Schedule's place.
+  assert.deepStrictEqual(json.featuredActions.map((x) => x.type), ['order', 'place']);
+  assert.strictEqual(json.featuredActions[1].placeIdentifier, 'IEFA03AAF404DD9DA');
   // No poster uploaded: still the QR, on the classic pass.
   const plain = pass(show, { now, passes: [AMC], hasPoster: false });
   assert.strictEqual(plain.poster, false);
