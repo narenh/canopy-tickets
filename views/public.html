@@ -1741,7 +1741,7 @@
           <div class="cal-banner-text" data-copy="friend.walletBanner.text"></div>
           <a class="wallet-banner-badge" href="/api/public/wallet-pass.pkpass"><img src="__WALLET_BADGE_SRC__" alt="Add to Apple Wallet"></a>
         </div>
-        <button type="button" class="cal-banner-close" onclick="markWalletBannerDone()" aria-label="Dismiss">&#215;</button>
+        <button type="button" class="cal-banner-close" id="walletBannerClose" onclick="markWalletBannerDone()" aria-label="Dismiss">&#215;</button>
       </div>
       <!-- Until it's dismissed or Subscribe is tapped (remembered on the
            person, not the phone). -->
@@ -4144,11 +4144,22 @@ async function updateClaimBanner(){
 // One Wallet pass that always shows your next showtime (lib/wallet/ on the
 // server). Offered on Apple devices: a banner until it's on a device or the
 // banner's dismissed (remembered on this browser), and always in the menu.
+// On an iPhone or iPad the banner can't be dismissed: it shows until the
+// pass is on a device, since the pass is how reminders and the ticket
+// reach them. On a Mac (no Wallet reminders worth chasing) × still hides it.
+function isIOSDevice(){
+  const ua = navigator.userAgent || '';
+  // iPadOS asks for desktop sites with a Mac user agent; touch gives it away.
+  return /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+}
+
 function renderWalletBanner(){
   const can = walletPassOn && canAddToWallet();
+  const ios = isIOSDevice();
   document.getElementById('meMenuWallet').classList.toggle('hidden', !can);
+  document.getElementById('walletBannerClose').classList.toggle('hidden', ios);
   let dismissed = false;
-  try{ dismissed = localStorage.getItem('walletBannerDone') === '1'; }catch(e){}
+  try{ dismissed = !ios && localStorage.getItem('walletBannerDone') === '1'; }catch(e){}
   document.getElementById('walletBanner').classList.toggle('hidden', !can || walletPassAdded || dismissed);
 }
 
