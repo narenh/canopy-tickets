@@ -132,7 +132,7 @@ test('early access: an alerting field with the movie, on an empty pass the front
   const ea = { earlyAccess: { title: 'Godzilla x Kong: Supernova' } };
   const empty = buildPass({ passTypeIdentifier: 'p', teamIdentifier: 't', serialNumber: 's', authenticationToken: 'a'.repeat(32), webServiceURL: 'https://x/', siteUrl: 'https://x/', siteHost: 'x', person: { id: 'p' }, next: null, now, ...ea }).json;
   const f = fieldOf(empty, 'earlyAccess');
-  assert.strictEqual(f.value, 'Godzilla x Kong: Supernova Tickets Available\nTap to reserve a seat.');
+  assert.strictEqual(f.value, 'Godzilla x Kong: Supernova tickets available. Tap to reserve your seat.');
   assert.strictEqual(f.changeMessage, '%@');
   assert.strictEqual(fieldOf(empty, 'title').value, 'Godzilla x Kong: Supernova');
   // Without any: the field's still there (so the alert is a change of value), silent.

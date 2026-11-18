@@ -302,8 +302,8 @@ switch is irreversible. Profile photos tickets used to store are still in
 movie for that person right away (`person_unlocks.granted_at`), so they
 can reserve before you hand out the password. **Revoke** takes it away
 again (any unlock, password ones too), so Unlock can be tried again. Each one with the
-movie pass in Wallet gets a notification, "*Movie* Tickets Available /
-Tap to reserve a seat."; the list says who has no pass and won't be
+movie pass in Wallet gets a notification, "*Movie* tickets available. Tap
+to reserve your seat."; the list says who has no pass and won't be
 told. Their pass keeps saying so (on its front when they've nothing
 booked) while the movie has a showtime to come.
 
@@ -863,7 +863,7 @@ guest's), until 20 minutes after it starts; with none, "Nothing booked".
 changes, so a field carries one only in the version worth an alert:
 
 - early access from the host (see "Early access" under Movie passwords):
-  "*Movie* Tickets Available / Tap to reserve a seat.";
+  "*Movie* tickets available. Tap to reserve your seat.";
 - exactly 7 days and 24 hours before showtime;
 - 4 hours before, if anything's owed: "Reminder: Pay for *movie*. $x, tap
   to pay";
