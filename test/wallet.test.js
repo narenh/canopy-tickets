@@ -169,7 +169,7 @@ test('booked, weeks out: classic, Unpaid, seats as F8 and F9, no alert, Order wh
   assert.ok(!json.locations, 'lock screen by time, not place');
   assert.strictEqual(Date.parse(json.relevantDates[0].startDate), Date.parse(json.semantics.eventStartDate) - 1.5 * H);
   assert.strictEqual(fieldOf(json, 'reminder').changeMessage, undefined);
-  assert.deepStrictEqual(json.featuredActions.map((a) => a.type), ['order']);
+  assert.deepStrictEqual(json.featuredActions.map((a) => a.type), ['order', 'viewSchedule']);
 });
 
 test('reminders alert a week out and 24 hours out, and only then', () => {
