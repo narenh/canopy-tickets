@@ -674,6 +674,15 @@ app.post('/api/movies/:id/early-access', (req, res) => {
   res.json({ unlocks: store.movieUnlocks(movie.id) });
 });
 
+// Takes the movie away again (early access or a password unlock): for
+// testing the notification, or a mistake.
+app.delete('/api/movies/:id/early-access/:personId', (req, res) => {
+  const movie = store.getMovie(req.params.id);
+  if (!movie) return res.status(404).json({ error: 'not found' });
+  store.revokeUnlock(movie.id, req.params.personId);
+  res.json({ unlocks: store.movieUnlocks(movie.id) });
+});
+
 app.post('/api/movies', (req, res) => {
   const result = store.createMovie((req.body || {}).title);
   if (!result.ok) return sendResult(res, result);

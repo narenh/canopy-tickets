@@ -300,7 +300,8 @@ switch is irreversible. Profile photos tickets used to store are still in
 **Early access.** On a movie's page, **Early access** lists everyone
 (you too, to try it; not former members), each with **Unlock**: it unlocks the
 movie for that person right away (`person_unlocks.granted_at`), so they
-can reserve before you hand out the password. Each one with the
+can reserve before you hand out the password. **Revoke** takes it away
+again (any unlock, password ones too), so Unlock can be tried again. Each one with the
 movie pass in Wallet gets a notification, "*Movie* Tickets Available /
 Tap to reserve a seat."; the list says who has no pass and won't be
 told. Their pass keeps saying so (on its front when they've nothing

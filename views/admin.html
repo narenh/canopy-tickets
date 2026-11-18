@@ -198,6 +198,7 @@
   .early-row .early-note{color:var(--muted);font-size:12px;margin-top:2px;}
   .early-row .early-status{color:var(--muted);font-size:12.5px;text-align:right;}
   .early-unlock{height:32px;padding:0 14px;font-size:13.5px;border-radius:9px;flex-shrink:0;}
+  .early-revoke{color:#e2857a;}
   /* Wallet preview (movie editor). Positions are fractions of the card,
      measured off a real pass on an iPhone. */
   .wallet-preview{margin-top:16px;}
@@ -2450,6 +2451,12 @@ function renderEarlyAccess(){
         ? t('admin.movies.earlyGiven', { date: new Date(u.grantedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) })
         : t('admin.movies.earlyPassword');
       row.appendChild(status);
+      const revoke = document.createElement('button');
+      revoke.type = 'button';
+      revoke.className = 'early-unlock early-revoke';
+      revoke.textContent = t('admin.movies.earlyRevoke');
+      revoke.addEventListener('click', () => revokeEarlyAccess(p.id, revoke));
+      row.appendChild(revoke);
     } else {
       const btn = document.createElement('button');
       btn.type = 'button';
@@ -2460,6 +2467,23 @@ function renderEarlyAccess(){
     }
     list.appendChild(row);
   });
+}
+
+// Takes the movie away from one person again; Unlock after it notifies
+// them afresh.
+async function revokeEarlyAccess(personId, btn){
+  if (!currentMovie) return;
+  btn.disabled = true;
+  try{
+    const res = await fetch('/api/movies/' + encodeURIComponent(currentMovie.id) + '/early-access/' + encodeURIComponent(personId), { method: 'DELETE' });
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok) throw new Error('failed');
+    currentMovie.unlocks = (await res.json()).unlocks;
+    renderEarlyAccess();
+  }catch(e){
+    document.getElementById('earlyStatus').textContent = t('admin.movies.earlyFailed');
+    btn.disabled = false;
+  }
 }
 
 // Unlocks the movie for one person; their pass changes, which is the
