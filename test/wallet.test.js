@@ -63,6 +63,44 @@ test('nothing booked: a classic pass that says so, with View Schedule', () => {
   assert.ok(!json.barcodes && !json.preferredStyleSchemes);
 });
 
+// Wallet rejects (today: warns about) a pass with two fields on one key.
+function assertUniqueKeys(json) {
+  const t = json.eventTicket;
+  const keys = ['headerFields', 'primaryFields', 'secondaryFields', 'auxiliaryFields', 'backFields'].flatMap((k) => (t[k] || []).map((f) => f.key));
+  assert.deepStrictEqual(keys.filter((k, i) => keys.indexOf(k) !== i), [], 'duplicate field keys');
+}
+
+test('colours come from the poster, neutral without one', async () => {
+  const now = Date.UTC(2026, 10, 1, 20);
+  const show = showAt(now, 20 * DAY);
+  const neutral = pass(show, { now }).json;
+  assert.strictEqual(neutral.labelColor, 'rgb(220,220,220)');
+  const tinted = buildPass({ ...{ passTypeIdentifier: 'p', teamIdentifier: 't', serialNumber: 's', authenticationToken: 'a'.repeat(32), webServiceURL: 'https://x/', siteUrl: 'https://x/', siteHost: 'x' },
+    person: { id: 'p-ana' }, next: { showtime: show, seatIds: ['F8'], startsAt: show.startsAt }, passes: [], upcoming: [], hasPoster: true, now,
+    colors: { label: 'rgb(175,205,233)', background: 'rgb(15,26,36)' } }).json;
+  assert.strictEqual(tinted.labelColor, 'rgb(175,205,233)');
+  assert.strictEqual(tinted.backgroundColor, 'rgb(15,26,36)');
+  // A blue poster gives a light blue label; an orange one a light orange.
+  const sharp = require('sharp');
+  const { posterImages } = require('../lib/wallet/images');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'canopy-colors-'));
+  const blue = path.join(dir, 'blue.png');
+  await sharp({ create: { width: 40, height: 60, channels: 3, background: { r: 20, g: 60, b: 160 } } }).png().toFile(blue);
+  const c = (await posterImages({ getMetaByKey: () => ({ uploadedAt: 1 }), getFilePathByKey: (k) => k }, blue)).colors;
+  const [r, g, b] = c.label.match(/\d+/g).map(Number);
+  assert.ok(b > r && b > 200, c.label);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('field keys are unique in every state', () => {
+  const now = Date.UTC(2026, 10, 1, 20);
+  const paid = showAt(now, 2 * H);
+  paid.seats.F8.paid = true;
+  paid.seats.F9.paid = true;
+  [pass(null, { now }), pass(showAt(now, 20 * DAY), { now }), pass(showAt(now, 3 * H), { now, passes: [AMC] }), pass(paid, { now, passes: [AMC] })]
+    .forEach(({ json }) => assertUniqueKeys(json));
+});
+
 test('booked, weeks out: classic, Unpaid, seats as F8 and F9, no alert, Order while orders are open', () => {
   const now = Date.UTC(2026, 10, 1, 20);
   const { poster, json } = pass(showAt(now, 20 * DAY), { now, passes: [AMC] });
