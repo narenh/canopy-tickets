@@ -190,6 +190,7 @@
     cursor:pointer;
   }
   .link-btn input{position:absolute;inset:0;width:100%;opacity:0;cursor:pointer;}
+  button.link-btn{background:none;border:none;padding:0;font:inherit;}
   .movie-sub-status{color:var(--muted);font-size:12px;}
   .movie-password{
     margin-top:12px;
@@ -1280,6 +1281,15 @@
           <span id="moviePosterLabel">Add poster</span>
           <input type="file" id="moviePosterInput" accept="image/png,image/jpeg,image/webp,image/gif" onchange="uploadMoviePoster()">
         </label>
+        <span class="sep">&middot;</span>
+        <!-- The image behind the Wallet movie pass, when the poster crops
+             badly there; see uploadMovieImage. -->
+        <label class="link-btn" id="movieWalletArtPick">
+          <span id="movieWalletArtLabel"></span>
+          <input type="file" id="movieWalletArtInput" accept="image/png,image/jpeg,image/webp,image/gif" onchange="uploadMovieImage('wallet-art')">
+        </label>
+        <span class="sep hidden" id="movieWalletArtSep">&middot;</span>
+        <button type="button" class="link-btn hidden" id="movieWalletArtRemove" onclick="removeMovieWalletArt()"></button>
         <span class="movie-sub-status" id="moviePosterStatus"></span>
       </div>
       <div class="og-status" id="movieTitleStatus"></div>
@@ -2285,6 +2295,11 @@ function renderMovie(){
   document.getElementById('movieTitleStatus').textContent = '';
   document.getElementById('moviePosterStatus').textContent = '';
   document.getElementById('moviePosterLabel').textContent = m.posterUrl ? 'Change poster' : 'Add poster';
+  document.getElementById('movieWalletArtLabel').textContent = t(m.walletArtUrl ? 'admin.movies.walletArtChange' : 'admin.movies.walletArtAdd');
+  document.getElementById('movieWalletArtRemove').textContent = t('admin.movies.walletArtRemove');
+  document.getElementById('movieWalletArtPick').title = t('admin.movies.walletArtHint');
+  document.getElementById('movieWalletArtRemove').classList.toggle('hidden', !m.walletArtUrl);
+  document.getElementById('movieWalletArtSep').classList.toggle('hidden', !m.walletArtUrl);
   document.getElementById('moviePassword').value = m.password || '';
   document.getElementById('moviePassword').placeholder = t('admin.movies.passwordNone');
   document.getElementById('moviePasswordStatus').textContent = '';
@@ -2441,15 +2456,19 @@ function buildPersonRow(p){
 }
 
 // Uploads as soon as a file is picked -- there's nothing else to confirm.
-async function uploadMoviePoster(){
-  const input = document.getElementById('moviePosterInput');
+async function uploadMoviePoster(){ return uploadMovieImage('poster'); }
+
+// The poster, or the Wallet background ('wallet-art'): same upload, a
+// different slot on the movie.
+async function uploadMovieImage(kind){
+  const input = document.getElementById(kind === 'poster' ? 'moviePosterInput' : 'movieWalletArtInput');
   const statusEl = document.getElementById('moviePosterStatus');
   if (!currentMovie || !input.files || !input.files[0]) return;
   statusEl.textContent = t('admin.status.uploading');
   const formData = new FormData();
   formData.append('image', input.files[0]);
   try{
-    const res = await fetch('/api/movies/' + encodeURIComponent(currentMovie.id) + '/poster', { method: 'POST', body: formData });
+    const res = await fetch('/api/movies/' + encodeURIComponent(currentMovie.id) + '/' + kind, { method: 'POST', body: formData });
     if (await handleAuthFailure(res)) return;
     if (!res.ok){
       const data = await res.json().catch(() => ({}));
@@ -2458,11 +2477,26 @@ async function uploadMoviePoster(){
     }
     const movie = (await res.json()).movie;
     currentMovie.posterUrl = movie.posterUrl;
+    currentMovie.walletArtUrl = movie.walletArtUrl;
     (currentMovie.showtimes || []).forEach(s => { s.posterUrl = movie.posterUrl; });
     input.value = '';
     renderMovie();
     statusEl.textContent = t('admin.status.uploaded');
     setTimeout(() => { if (statusEl.textContent === t('admin.status.uploaded')) statusEl.textContent = ''; }, 1500);
+  }catch(e){
+    statusEl.textContent = t('admin.status.uploadFailed');
+  }
+}
+
+async function removeMovieWalletArt(){
+  if (!currentMovie) return;
+  const statusEl = document.getElementById('moviePosterStatus');
+  try{
+    const res = await fetch('/api/movies/' + encodeURIComponent(currentMovie.id) + '/wallet-art', { method: 'DELETE' });
+    if (await handleAuthFailure(res)) return;
+    if (!res.ok) throw new Error('failed');
+    currentMovie.walletArtUrl = (await res.json()).movie.walletArtUrl;
+    renderMovie();
   }catch(e){
     statusEl.textContent = t('admin.status.uploadFailed');
   }

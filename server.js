@@ -590,7 +590,7 @@ function withScreenFallback(item) {
 }
 
 function movieView(m) {
-  return { ...m, posterUrl: posterUrlForKey(m.posterKey) };
+  return { ...m, posterUrl: posterUrlForKey(m.posterKey), walletArtUrl: posterUrlForKey(m.walletArtKey) };
 }
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -722,6 +722,24 @@ app.post('/api/movies/:id/poster', siteImageUpload.single('image'), (req, res) =
   const key = posterStore.keyFor(`movie:${movie.id}`);
   posterStore.saveByKey(key, req.file.buffer, req.file.mimetype, movie.title);
   res.json({ movie: movieView(store.setMoviePosterKey(movie.id, key)) });
+});
+
+// The image behind the movie's Wallet pass (lib/wallet/): both pass styles'
+// backgrounds, uploaded when the poster crops badly there. The poster
+// stays the thumbnail. DELETE goes back to the poster.
+app.post('/api/movies/:id/wallet-art', siteImageUpload.single('image'), (req, res) => {
+  const movie = store.getMovie(req.params.id);
+  if (!movie) return res.status(404).json({ error: 'not found' });
+  if (!req.file) return res.status(400).json({ error: 'choose a PNG, JPEG, WebP, or GIF image' });
+  const key = posterStore.keyFor(`movie-wallet:${movie.id}`);
+  posterStore.saveByKey(key, req.file.buffer, req.file.mimetype, movie.title);
+  res.json({ movie: movieView(store.setMovieWalletArtKey(movie.id, key)) });
+});
+
+app.delete('/api/movies/:id/wallet-art', (req, res) => {
+  const movie = store.getMovie(req.params.id);
+  if (!movie) return res.status(404).json({ error: 'not found' });
+  res.json({ movie: movieView(store.setMovieWalletArtKey(movie.id, null)) });
 });
 
 app.post('/api/movies/:id/showtimes', (req, res) => {

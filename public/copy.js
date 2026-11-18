@@ -392,6 +392,12 @@ const COPY = {
     // A box under a showtime's info line; off for a new showtime.
     aListSwap: 'Eligible for A-List swap',
     movies: {
+      // The image behind the movie's Wallet pass, when the poster crops
+      // badly there. The poster stays the pass's thumbnail.
+      walletArtAdd: 'Add Wallet background',
+      walletArtChange: 'Change Wallet background',
+      walletArtRemove: 'Use poster in Wallet',
+      walletArtHint: 'Shown behind the Wallet pass, in both styles. Wallet fills the card with it, cropping the sides.',
       none: 'No movies yet. Tap "+ Add movie" to start.',
       noneUpcoming: 'Nothing coming up. Add a movie, or a showtime to one below.',
       loadFailed: 'Could not load movies. Try again.',

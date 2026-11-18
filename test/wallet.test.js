@@ -113,6 +113,20 @@ test('during a deploy only the newer server updates passes', async () => {
   assert.strictEqual(writes.length, 1);
 });
 
+test('the Wallet background fills both backgrounds; the poster stays the thumbnail', () => {
+  const { passImages } = require('../lib/wallet/images');
+  const r = (tag) => Object.fromEntries(['artwork@2x.png', 'artwork@3x.png', 'background@2x.png', 'thumbnail@2x.png', 'thumbnail@3x.png'].map((n) => [n, Buffer.from(tag + n)]));
+  const poster = r('poster:'), art = r('art:');
+  const both = passImages(poster, art, true);
+  assert.strictEqual(String(both['thumbnail@2x.png']), 'poster:thumbnail@2x.png');
+  assert.strictEqual(String(both['background@2x.png']), 'art:background@2x.png');
+  assert.strictEqual(String(both['artwork@3x.png']), 'art:artwork@3x.png');
+  assert.ok(both['primaryLogo@2x.png']);
+  // No Wallet background: the poster does both jobs. Classic: no artwork.
+  assert.strictEqual(String(passImages(poster, null, false)['background@2x.png']), 'poster:background@2x.png');
+  assert.ok(!passImages(poster, art, false)['artwork@2x.png']);
+});
+
 test('field keys are unique in every state', () => {
   const now = Date.UTC(2026, 10, 1, 20);
   const paid = showAt(now, 2 * H);

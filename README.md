@@ -832,6 +832,14 @@ guest's), until 20 minutes after it starts; with none, "Nothing booked".
 - **The right-hand field:** Unpaid / Paid ✓ before the day; food as
   `$24.97 ✓` while orders are open; **You owe** on the day; **Available
   Soon** when paid but the host hasn't uploaded the AMC pass.
+- **Images.** The movie's poster is the classic ticket's thumbnail. Its
+  **Wallet background** (a second image on the movie, in the movie
+  editor; optional) is the image behind both styles: the classic
+  ticket's blurred backdrop and the poster style's whole card. Wallet
+  fills the card and crops its sides, which a poster made for a 2:3
+  one-sheet doesn't always survive, so the background can be an image
+  made for that crop. It keeps its own shape (only scaled), and the pass's
+  colours come from it. Without one, the poster does both jobs.
 - **Seats** go in Wallet's semantics as `seatNumber` "F8" (row and seat
   separately read worse; `seatIdentifier` doesn't show).
 - **One button** under the card, with Wallet's own words (a pass can't
