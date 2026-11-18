@@ -178,7 +178,9 @@ test('reminders alert a week out and 24 hours out, and only then', () => {
   assert.match(week.value, /a week away/);
   assert.strictEqual(week.changeMessage, '%@');
   const day = fieldOf(pass(showAt(now, DAY - 60 * 1000), { now }).json, 'reminder');
-  assert.match(day.value, /is tomorrow at/);
+  assert.match(day.value, /is tomorrow at .*\. Tap "Order" to order concessions\.$/);
+  // Booked three days out: "coming up", not "a week away".
+  assert.match(fieldOf(pass(showAt(now, 3 * DAY), { now }).json, 'reminder').value, /is coming up: /);
   assert.strictEqual(day.changeMessage, '%@');
   const between = fieldOf(pass(showAt(now, 7 * DAY + H), { now }).json, 'reminder');
   assert.strictEqual(between.changeMessage, undefined);
@@ -190,7 +192,9 @@ test('4 hours out and still owing: the pay reminder, You owe, Pay for Ticket on 
   const { json } = pass(show, { now, passes: [AMC] });
   assert.ok(!json.barcodes, 'no QR while owing');
   const r = fieldOf(json, 'reminder');
-  assert.strictEqual(r.value, 'Reminder: Pay for The Rings of Power. $34.98, tap to pay');
+  assert.strictEqual(r.value, 'Reminder: Unpaid ticket. Tap "Order Delivery" to pay.');
+  // The button it names is there while something's owed, even with food orders open or closed.
+  assert.ok(json.featuredActions.some((a) => a.type === 'order'));
   assert.strictEqual(r.changeMessage, '%@');
   assert.strictEqual(fieldOf(json, 'owe').value, '$34.98');
   assert.match(fieldOf(json, 'pay').attributedValue, /<a href="https:\/\/venmo\.com\/hal\?txn=pay&amount=34\.98&note=[^"]+">Pay for Ticket<\/a>/);
@@ -231,9 +235,10 @@ test('food: $x ✓ while open; Concessions Ordered alert once the order is final
   show.ordersClosed = true;
   const { json } = pass(show, { now });
   const c = fieldOf(json, 'concessions');
-  assert.strictEqual(c.value, 'Concessions Ordered. $10.85, tap to pay');
+  assert.strictEqual(c.value, 'Concessions ordered. Tap "Order Delivery" to pay.');
   assert.strictEqual(c.changeMessage, '%@');
-  assert.deepStrictEqual(json.featuredActions.map((a) => a.type), ['viewSchedule']);
+  // Food owed: the order button stays, since the alert says to pay with it.
+  assert.deepStrictEqual(json.featuredActions.map((a) => a.type), ['order', 'viewSchedule']);
 });
 
 test('an A-List swap seat: A-List Swap, no QR for it', () => {

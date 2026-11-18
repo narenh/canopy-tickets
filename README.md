@@ -853,8 +853,9 @@ guest's), until 20 minutes after it starts; with none, "Nothing booked".
 - **Seats** go in Wallet's semantics as `seatNumber` "F8" (row and seat
   separately read worse; `seatIdentifier` doesn't show).
 - **Buttons** under the card, with Wallet's own words (a pass can't set
-  them): **Order Delivery or Pickup** (opens Tickets) while food orders
-  are open and they're not A-List, and **View Schedule** always (Tickets
+  them): **Order Delivery or Pickup** (opens My Showtimes) while food
+  orders are open and they're not A-List, or anything's owed, and **View
+  Schedule** always (Tickets
   opened on All Movies, `/?tab=movies`).
   Paying is a **Pay for Ticket** Venmo link on the back (`venmo://` links
   aren't allowed in a pass). Checked against Wallet's own parser and
@@ -865,13 +866,19 @@ changes, so a field carries one only in the version worth an alert:
 
 - early access from the host (see "Early access" under Movie passwords):
   "*Movie* tickets available. Tap “View Schedule” to reserve a seat.";
-- exactly 7 days and 24 hours before showtime;
-- 4 hours before, if anything's owed: "Reminder: Pay for *movie*. $x, tap
-  to pay";
+- exactly 7 days before: "*Movie* is a week away: Fri, Nov 21 at 7:30
+  PM." ("is coming up" for someone who books inside the week);
+- exactly 24 hours before: "*Movie* is tomorrow at 7:15 PM. Tap "Order"
+  to order concessions." (the second sentence only while they can order);
+- 4 hours before, if anything's owed: "Reminder: Unpaid ticket. Tap
+  "Order Delivery" to pay." ("Unpaid concessions" when it's only food);
 - when the host finalizes a food order they haven't paid for:
-  "Concessions Ordered. $x, tap to pay".
+  "Concessions ordered. Tap "Order Delivery" to pay."
 
-Tapping one opens the pass (Wallet can't open a link from it). Nothing
+All are titled Canopy Tickets. Tapping one opens the pass (Wallet can't
+open a link from it); "Order" / "Order Delivery" is the pass's Order
+Delivery or Pickup button, which opens My Showtimes (ordering and the pay
+button), and is there whenever they can order or owe anything. Nothing
 else notifies: booking, paying, seat moves and rolling on to the next
 showtime are silent.
 
