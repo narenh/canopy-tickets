@@ -671,6 +671,8 @@ app.post('/api/movies/:id/early-access', (req, res) => {
     return res.status(400).json({ error: 'personIds must list people' });
   }
   store.grantEarlyAccess(movie.id, Array.from(new Set(ids)));
+  const upcoming = movie.showtimes.filter((s) => (showtimeInstantMs(s.date, s.time) || 0) > Date.now()).length;
+  console.log(`[wallet] early access to ${movie.title} for ${ids.length} (${movie.showtimes.length} showtimes, ${upcoming} upcoming)`);
   res.json({ unlocks: store.movieUnlocks(movie.id) });
 });
 
