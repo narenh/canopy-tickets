@@ -132,8 +132,8 @@ test('early access: an alerting field with the movie, on an empty pass the front
   const ea = { earlyAccess: { title: 'Godzilla x Kong: Supernova' } };
   const empty = buildPass({ passTypeIdentifier: 'p', teamIdentifier: 't', serialNumber: 's', authenticationToken: 'a'.repeat(32), webServiceURL: 'https://x/', siteUrl: 'https://x/', siteHost: 'x', person: { id: 'p' }, next: null, now, ...ea }).json;
   const f = fieldOf(empty, 'earlyAccess');
-  assert.strictEqual(f.value, 'Godzilla x Kong: Supernova Tickets Available\nTap to reserve a seat.');
-  assert.strictEqual(f.changeMessage, '%@');
+  assert.strictEqual(f.value, 'Godzilla x Kong: Supernova');
+  assert.strictEqual(f.changeMessage, 'Tap to reserve a seat.');
   assert.strictEqual(fieldOf(empty, 'title').value, 'Godzilla x Kong: Supernova');
   // Without any: the field's still there (so the alert is a change of value), silent.
   const none = fieldOf(pass(null, { now }).json, 'earlyAccess');
@@ -142,7 +142,13 @@ test('early access: an alerting field with the movie, on an empty pass the front
   // Booked for something else: on the back.
   const show = showAt(now, 20 * DAY);
   const booked = buildPass({ passTypeIdentifier: 'p', teamIdentifier: 't', serialNumber: 's', authenticationToken: 'a'.repeat(32), webServiceURL: 'https://x/', siteUrl: 'https://x/', siteHost: 'x', person: { id: 'p-ana' }, next: { showtime: show, seatIds: ['F8'], startsAt: show.startsAt }, passes: [], upcoming: [], now, ...ea }).json;
-  assert.strictEqual(fieldOf(booked, 'earlyAccess').changeMessage, '%@');
+  assert.strictEqual(fieldOf(booked, 'earlyAccess').changeMessage, 'Tap to reserve a seat.');
+  // The notification's title: the new early access for two days, else the next movie, else Canopy.
+  assert.strictEqual(empty.organizationName, 'Canopy');
+  const recent = { earlyAccess: { title: 'Godzilla x Kong: Supernova', recent: true } };
+  assert.strictEqual(buildPass({ passTypeIdentifier: 'p', teamIdentifier: 't', serialNumber: 's', authenticationToken: 'a'.repeat(32), webServiceURL: 'https://x/', siteUrl: 'https://x/', siteHost: 'x', person: { id: 'p' }, next: null, now, ...recent }).json.organizationName,
+    'Godzilla x Kong: Supernova Tickets Available');
+  assert.strictEqual(booked.organizationName, 'The Rings of Power');
   assertUniqueKeys(booked);
 });
 
