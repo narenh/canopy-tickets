@@ -2401,13 +2401,16 @@ function renderMovie(){
 // changes, which is what makes Wallet put up the notification. Someone
 // without the pass on a device just finds the movie unlocked.
 let earlyPeople = null;   // /api/people, loaded with the first movie opened
+let earlyAdminId = null;
 
 async function loadEarlyPeople(){
   try{
     const res = await fetch('/api/people');
     if (res.ok){
       const data = await res.json();
-      earlyPeople = (data.people || []).filter(p => !p.former && p.id !== data.adminPersonId);
+      // You're in it too, so you can try the notification on yourself.
+      earlyPeople = (data.people || []).filter(p => !p.former);
+      earlyAdminId = data.adminPersonId;
     }
   }catch(e){}
   renderEarlyAccess();
@@ -2432,7 +2435,7 @@ function renderEarlyAccess(){
     row.className = 'early-row' + (u ? ' has-access' : '');
     const who = document.createElement('div');
     who.className = 'early-name';
-    who.textContent = name(p);
+    who.textContent = name(p) + (p.id === earlyAdminId ? ' ' + t('admin.movies.earlyYou') : '');
     if (!u && !p.walletPassAdded){
       const note = document.createElement('div');
       note.className = 'early-note';

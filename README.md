@@ -298,7 +298,7 @@ switch is irreversible. Profile photos tickets used to store are still in
   keeps whatever the visitor sent first, so it can't be trusted for this.
 
 **Early access.** On a movie's page, **Early access** lists everyone
-(not you, not former members), each with **Unlock**: it unlocks the
+(you too, to try it; not former members), each with **Unlock**: it unlocks the
 movie for that person right away (`person_unlocks.granted_at`), so they
 can reserve before you hand out the password. Each one with the
 movie pass in Wallet gets a notification, "*Movie* Tickets Available /

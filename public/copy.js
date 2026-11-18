@@ -403,6 +403,7 @@ const COPY = {
       earlyTitle: 'Early access',
       earlyBlurb: 'Unlock this movie for someone before you share its password, so they get first pick of the seats. Unlocking also sends them a notification through their movie pass in Wallet: “{title} Tickets Available. Tap to reserve a seat.”',
       earlyUnlock: 'Unlock',
+      earlyYou: '(you)',
       earlyGiven: 'Early access since {date}',
       earlyPassword: 'Unlocked with the password',
       earlyNoPass: 'No Wallet pass, won’t be notified',
