@@ -92,6 +92,27 @@ test('colours come from the poster, neutral without one', async () => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
+test('during a deploy only the newer server updates passes', async () => {
+  const { createWallet } = require('../lib/wallet/service');
+  let recorded = null;
+  const writerStore = { get: () => recorded, set: (v) => { recorded = v; } };
+  const writes = [];
+  const store = {
+    getPerson: () => ({ id: 'p-ana', amcAList: false }), seatsOf: () => [], passesFor: () => [],
+    setWalletContent: (serial, hash) => { writes.push(hash); return { serial, contentHash: hash, updatedAt: 1 }; }
+  };
+  const make = () => createWallet({ store, posterStore: {}, showtimeInstantMs: () => null, venmoHandle: () => null,
+    siteOrigin: 'https://tix.example', writerStore, env: {}, log: () => {} });
+  const old = make();
+  await new Promise((r) => setTimeout(r, 5));
+  const fresh = make();
+  const wp = { serial: 's', personId: 'p-ana', authToken: 'a'.repeat(32), contentHash: 'stale', updatedAt: 1 };
+  assert.strictEqual((await old.refresh(wp, Date.now())).changed, false);
+  assert.strictEqual(writes.length, 0);
+  assert.strictEqual((await fresh.refresh(wp, Date.now())).changed, true);
+  assert.strictEqual(writes.length, 1);
+});
+
 test('field keys are unique in every state', () => {
   const now = Date.UTC(2026, 10, 1, 20);
   const paid = showAt(now, 2 * H);

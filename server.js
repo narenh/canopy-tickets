@@ -91,7 +91,8 @@ const wallet = createWallet({
   posterStore,
   showtimeInstantMs: (date, time) => showtimeInstantMs(date, time),
   venmoHandle: () => venmoHandleStore.get(),
-  siteOrigin: process.env.WALLET_SITE_ORIGIN || 'https://tix.canopysf.com'
+  siteOrigin: process.env.WALLET_SITE_ORIGIN || 'https://tix.canopysf.com',
+  writerStore: createTextSettingStore('wallet-writer')
 });
 app.use(wallet.afterChanges);
 app.use(wallet.router);
