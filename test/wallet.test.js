@@ -179,6 +179,12 @@ test('reminders alert a week out and 24 hours out, and only then', () => {
   assert.strictEqual(week.changeMessage, '%@');
   const day = fieldOf(pass(showAt(now, DAY - 60 * 1000), { now }).json, 'reminder');
   assert.match(day.value, /is tomorrow at .*\. Tap "Order" to order concessions\.$/);
+  // A-List: food from AMC, and no alert when the cart closes.
+  const alist = { now, person: { id: 'p-ana', amcAList: true } };
+  assert.match(fieldOf(pass(showAt(now, DAY - 60 * 1000), alist).json, 'reminder').value, /is tomorrow at .*\. Order food in the AMC app\.$/);
+  const closed = showAt(now, 3 * DAY, { ordersClosed: true });
+  closed.seats.F8.concessions = [{ name: 'Popcorn', price: 9.99, qty: 1 }];
+  assert.strictEqual(fieldOf(pass(closed, alist).json, 'concessions').changeMessage, undefined);
   // Booked three days out: "coming up", not "a week away".
   assert.match(fieldOf(pass(showAt(now, 3 * DAY), { now }).json, 'reminder').value, /is coming up: /);
   assert.strictEqual(day.changeMessage, '%@');

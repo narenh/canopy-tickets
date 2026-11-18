@@ -869,11 +869,12 @@ changes, so a field carries one only in the version worth an alert:
 - exactly 7 days before: "*Movie* is a week away: Fri, Nov 21 at 7:30
   PM." ("is coming up" for someone who books inside the week);
 - exactly 24 hours before: "*Movie* is tomorrow at 7:15 PM. Tap "Order"
-  to order concessions." (the second sentence only while they can order);
+  to order concessions." (the second sentence only while they can order;
+  A-List members get "Order food in the AMC app." instead);
 - 4 hours before, if anything's owed: "Reminder: Unpaid ticket. Tap
   "Order Delivery" to pay." ("Unpaid concessions" when it's only food);
-- when the host finalizes a food order they haven't paid for:
-  "Concessions ordered. Tap "Order Delivery" to pay."
+- when the host finalizes a food order they haven't paid for (never for
+  A-List members): "Concessions ordered. Tap "Order Delivery" to pay."
 
 All are titled Canopy Tickets. Tapping one opens the pass (Wallet can't
 open a link from it); "Order" / "Order Delivery" is the pass's Order
