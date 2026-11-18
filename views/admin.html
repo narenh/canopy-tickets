@@ -1948,8 +1948,9 @@ async function loadMovies(){
       m.last = m.dates.length ? m.dates[m.dates.length - 1] : null;
       (m.next || !m.dates.length ? upcoming : past).push(m);
     });
-    // New movies (nothing scheduled) first, then by next showing.
-    upcoming.sort((a, b) => (a.next || '').localeCompare(b.next || ''));
+    // By next showing; movies with nothing scheduled yet go last, in the
+    // order they were added.
+    upcoming.sort((a, b) => (!a.next - !b.next) || (a.next || '').localeCompare(b.next || '') || ((a.createdAt || 0) - (b.createdAt || 0)));
     past.sort((a, b) => (b.last || '').localeCompare(a.last || ''));
 
     grid.innerHTML = '';
