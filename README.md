@@ -303,7 +303,7 @@ movie for that person right away (`person_unlocks.granted_at`), so they
 can reserve before you hand out the password. **Revoke** takes it away
 again (any unlock, password ones too), so Unlock can be tried again. Each one with the
 movie pass in Wallet gets a notification, "*Movie* tickets available. Tap
-to reserve your seat."; the list says who has no pass and won't be
+“View Schedule” to reserve a seat."; the list says who has no pass and won't be
 told. Their pass keeps saying so (on its front when they've nothing
 booked) while the movie has a showtime to come.
 
@@ -854,7 +854,8 @@ guest's), until 20 minutes after it starts; with none, "Nothing booked".
   separately read worse; `seatIdentifier` doesn't show).
 - **Buttons** under the card, with Wallet's own words (a pass can't set
   them): **Order Delivery or Pickup** (opens Tickets) while food orders
-  are open and they're not A-List, and **View Schedule** always.
+  are open and they're not A-List, and **View Schedule** always (Tickets
+  opened on All Movies, `/?tab=movies`).
   Paying is a **Pay for Ticket** Venmo link on the back (`venmo://` links
   aren't allowed in a pass). Checked against Wallet's own parser and
   strings on macOS 27.
@@ -863,7 +864,7 @@ guest's), until 20 minutes after it starts; with none, "Nothing booked".
 changes, so a field carries one only in the version worth an alert:
 
 - early access from the host (see "Early access" under Movie passwords):
-  "*Movie* tickets available. Tap to reserve your seat.";
+  "*Movie* tickets available. Tap “View Schedule” to reserve a seat.";
 - exactly 7 days and 24 hours before showtime;
 - 4 hours before, if anything's owed: "Reminder: Pay for *movie*. $x, tap
   to pay";

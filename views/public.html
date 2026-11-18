@@ -2480,8 +2480,9 @@ async function loadList(){
     allShowtimes = ((await showtimesRes.json()).showtimes || []).filter(obj => !isPastShowtime(obj));
     mineItems = ((await mineRes.json()).items || []).filter(item => !isPastShowtime(item.showtime));
     updateClaimBanner();
-    // Always opens on My Showtimes, empty or not.
-    if (!currentTab) setTab('mine');
+    // Opens on My Showtimes, empty or not -- unless the link asked for All
+    // Movies (?tab=movies: the movie pass's View Schedule).
+    if (!currentTab) setTab(new URLSearchParams(location.search).get('tab') === 'movies' ? 'all' : 'mine');
     renderCards();
     // The film that was open has nothing upcoming left (its last showing
     // was yesterday, or the host deleted it) -- nothing to show there.
