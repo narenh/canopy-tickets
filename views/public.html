@@ -1739,7 +1739,7 @@
         <div class="cal-banner-body">
           <div class="cal-banner-title" data-copy="friend.walletBanner.title"></div>
           <div class="cal-banner-text" data-copy="friend.walletBanner.text"></div>
-          <a class="wallet-banner-badge" href="/api/public/wallet-pass.pkpass" onclick="markWalletBannerDone()"><img src="__WALLET_BADGE_SRC__" alt="Add to Apple Wallet"></a>
+          <a class="wallet-banner-badge" href="/api/public/wallet-pass.pkpass"><img src="__WALLET_BADGE_SRC__" alt="Add to Apple Wallet"></a>
         </div>
         <button type="button" class="cal-banner-close" onclick="markWalletBannerDone()" aria-label="Dismiss">&#215;</button>
       </div>
@@ -4151,6 +4151,17 @@ function renderWalletBanner(){
   try{ dismissed = localStorage.getItem('walletBannerDone') === '1'; }catch(e){}
   document.getElementById('walletBanner').classList.toggle('hidden', !can || walletPassAdded || dismissed);
 }
+
+// The banner stays when the badge is tapped -- the person may cancel
+// Wallet's sheet -- and goes once the pass is actually on a device (the
+// device registers with the server). Back from Wallet's sheet, check.
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && walletPassOn && !walletPassAdded) setTimeout(loadConfig, 1500);
+});
+window.addEventListener('focus', () => {
+  if (walletPassOn && !walletPassAdded) setTimeout(loadConfig, 1500);
+});
 
 function markWalletBannerDone(){
   try{ localStorage.setItem('walletBannerDone', '1'); }catch(e){}

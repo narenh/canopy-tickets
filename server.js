@@ -93,8 +93,12 @@ const wallet = createWallet({
   showtimeInstantMs: (date, time) => showtimeInstantMs(date, time),
   venmoHandle: () => venmoHandleStore.get(),
   siteOrigin: process.env.WALLET_SITE_ORIGIN || 'https://tix.canopysf.com',
-  writerStore: createTextSettingStore('wallet-writer')
+  writerStore: createTextSettingStore('wallet-writer'),
+  dataDir: process.env.DATA_DIR || path.join(__dirname, 'data')
 });
+// The first sweep (which also makes everyone's passes) right away, not a
+// minute after a deploy.
+if (wallet.enabled) setTimeout(() => wallet.sweep(), 5000).unref();
 app.use(wallet.afterChanges);
 app.use(wallet.router);
 

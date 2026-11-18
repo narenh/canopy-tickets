@@ -314,6 +314,8 @@ test('add the pass, register a device, change something, the device is pushed an
   assert.strictEqual(json.eventTicket.primaryFields[0].value, 'Nothing booked');
   const { serialNumber: serial, authenticationToken: auth, passTypeIdentifier: type } = json;
   const lastModified = res.headers.get('last-modified');
+  // Kept on disk, ready for the next request.
+  assert.ok(fs.readdirSync(path.join(dataDir, 'wallet-passes')).some((f) => f.startsWith(serial + '.') && f.endsWith('.pkpass')));
 
   const reg = (token, deviceToken = 'abcdef0123456789abcd') => fetch(`${base}/v1/devices/dev-1/registrations/${type}/${serial}`, {
     method: 'POST', headers: { Authorization: `ApplePass ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ pushToken: deviceToken })
