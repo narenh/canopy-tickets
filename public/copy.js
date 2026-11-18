@@ -398,6 +398,8 @@ const COPY = {
       walletArtChange: 'Change Wallet background',
       walletArtRemove: 'Use poster in Wallet',
       walletArtHint: 'Shown behind the Wallet pass, in both styles. Wallet fills the card with it, cropping the sides.',
+      walletPreview: 'Wallet preview',
+      walletPreviewNote: 'The pass once the ticket’s ready: the image as Wallet crops it, blurred and shaded the way the pass gets it, with the logo, date, QR code and title band drawn where Wallet puts them. Wallet picks the band’s colour itself, so that part is approximate.',
       none: 'No movies yet. Tap "+ Add movie" to start.',
       noneUpcoming: 'Nothing coming up. Add a movie, or a showtime to one below.',
       loadFailed: 'Could not load movies. Try again.',

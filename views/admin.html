@@ -191,6 +191,26 @@
   }
   .link-btn input{position:absolute;inset:0;width:100%;opacity:0;cursor:pointer;}
   button.link-btn{background:none;border:none;padding:0;font:inherit;}
+  /* Wallet preview (movie editor). Positions are fractions of the card,
+     measured off a real pass on an iPhone. */
+  .wallet-preview{margin-top:16px;}
+  .wp-label{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:8px;}
+  .wp-row{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;}
+  .wp-note{flex:1;min-width:180px;max-width:340px;color:var(--muted);font-size:12.5px;line-height:1.45;}
+  .wp-card{position:relative;width:220px;max-width:100%;aspect-ratio:370/503;border-radius:12px;overflow:hidden;background:#111;container-type:inline-size;color:#fff;font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;}
+  .wp-card img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;}
+  .wp-notch{position:absolute;left:40.3%;width:19.4%;top:-3.2%;height:6.4%;border-radius:50%;background:var(--bg,#0b0b0d);}
+  .wp-logo{position:absolute;left:3.5%;top:2.6%;font-weight:700;font-size:8.2cqw;letter-spacing:-.01em;}
+  .wp-date{position:absolute;right:3.7%;top:2.4%;text-align:right;line-height:1.05;}
+  .wp-date b{display:block;font-size:5.4cqw;}
+  .wp-date span{display:block;font-size:5.2cqw;font-family:ui-monospace,Menlo,monospace;opacity:.9;}
+  .wp-qr{position:absolute;left:29.7%;width:40.6%;top:47.6%;aspect-ratio:1;border-radius:2.5cqw;z-index:2;
+    background:#fff radial-gradient(circle,#111 32%,transparent 33%) 0 0/13% 13%;box-shadow:inset 0 0 0 4cqw #fff;}
+  .wp-band{position:absolute;left:0;right:0;top:75.4%;bottom:0;background:rgba(40,24,12,.82);backdrop-filter:blur(8px);}
+  .wp-title{position:absolute;left:3.5%;top:16%;right:30%;font-weight:700;font-size:6cqw;line-height:1.15;}
+  .wp-seat{position:absolute;right:4%;top:14%;text-align:right;font-size:10cqw;line-height:1;}
+  .wp-seat small{display:block;font-size:4cqw;opacity:.85;margin-bottom:1cqw;}
+  .wp-venue{position:absolute;left:3.5%;bottom:10%;font-size:3.6cqw;font-family:ui-monospace,Menlo,monospace;opacity:.9;}
   .movie-sub-status{color:var(--muted);font-size:12px;}
   .movie-password{
     margin-top:12px;
@@ -1301,6 +1321,28 @@
         <span class="movie-sub-status" id="moviePasswordStatus"></span>
       </div>
       <div class="movie-password-note" data-copy="admin.movies.passwordNote"></div>
+      <!-- The poster-style pass on this movie's Wallet background (or its
+           poster): the server's own rendition, with Wallet's chrome drawn
+           at the positions measured off a real iPhone (card 370 x 503 pt,
+           image aspect-filled and centred). -->
+      <div class="wallet-preview hidden" id="walletPreview">
+        <div class="wp-label" data-copy="admin.movies.walletPreview"></div>
+        <div class="wp-row">
+          <div class="wp-card">
+            <img id="walletPreviewImg" alt="">
+            <div class="wp-notch"></div>
+            <div class="wp-logo">canopy</div>
+            <div class="wp-date"><b>NOV 17</b><span>7:00 PM</span></div>
+            <div class="wp-qr"></div>
+            <div class="wp-band">
+              <div class="wp-title" id="walletPreviewTitle"></div>
+              <div class="wp-seat"><small>Seat</small>D6</div>
+              <div class="wp-venue">AMC Metreon 16 · Aud 6</div>
+            </div>
+          </div>
+          <div class="wp-note" data-copy="admin.movies.walletPreviewNote"></div>
+        </div>
+      </div>
     </div>
     <div class="new-btn-wrap">
       <button class="new-btn" onclick="addShowtime()">+ Add showtime</button>
@@ -2298,6 +2340,9 @@ function renderMovie(){
   document.getElementById('movieWalletArtLabel').textContent = t(m.walletArtUrl ? 'admin.movies.walletArtChange' : 'admin.movies.walletArtAdd');
   document.getElementById('movieWalletArtRemove').textContent = t('admin.movies.walletArtRemove');
   document.getElementById('movieWalletArtPick').title = t('admin.movies.walletArtHint');
+  document.getElementById('walletPreview').classList.toggle('hidden', !m.walletPreviewUrl);
+  if (m.walletPreviewUrl) document.getElementById('walletPreviewImg').src = m.walletPreviewUrl;
+  document.getElementById('walletPreviewTitle').textContent = m.title;
   document.getElementById('movieWalletArtRemove').classList.toggle('hidden', !m.walletArtUrl);
   document.getElementById('movieWalletArtSep').classList.toggle('hidden', !m.walletArtUrl);
   document.getElementById('moviePassword').value = m.password || '';
@@ -2478,6 +2523,7 @@ async function uploadMovieImage(kind){
     const movie = (await res.json()).movie;
     currentMovie.posterUrl = movie.posterUrl;
     currentMovie.walletArtUrl = movie.walletArtUrl;
+    currentMovie.walletPreviewUrl = movie.walletPreviewUrl;
     (currentMovie.showtimes || []).forEach(s => { s.posterUrl = movie.posterUrl; });
     input.value = '';
     renderMovie();
@@ -2495,7 +2541,9 @@ async function removeMovieWalletArt(){
     const res = await fetch('/api/movies/' + encodeURIComponent(currentMovie.id) + '/wallet-art', { method: 'DELETE' });
     if (await handleAuthFailure(res)) return;
     if (!res.ok) throw new Error('failed');
-    currentMovie.walletArtUrl = (await res.json()).movie.walletArtUrl;
+    const movie = (await res.json()).movie;
+    currentMovie.walletArtUrl = movie.walletArtUrl;
+    currentMovie.walletPreviewUrl = movie.walletPreviewUrl;
     renderMovie();
   }catch(e){
     statusEl.textContent = t('admin.status.uploadFailed');

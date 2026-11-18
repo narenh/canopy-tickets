@@ -7,6 +7,7 @@ const store = require('./lib/store');
 const { createImageStore } = require('./lib/uploadedImage');
 const posterStore = require('./lib/posterStore');
 const { createWallet } = require('./lib/wallet/service');
+const walletImages = require('./lib/wallet/images');
 const concessionMenuStore = require('./lib/concessionMenu');
 const { createTextSettingStore } = require('./lib/textSetting');
 const createCanopyAccount = require('./lib/canopyAccount');
@@ -590,7 +591,19 @@ function withScreenFallback(item) {
 }
 
 function movieView(m) {
-  return { ...m, posterUrl: posterUrlForKey(m.posterKey), walletArtUrl: posterUrlForKey(m.walletArtKey) };
+  return { ...m, posterUrl: posterUrlForKey(m.posterKey), walletArtUrl: posterUrlForKey(m.walletArtKey), walletPreviewUrl: walletPreviewUrl(m) };
+}
+
+// The image the movie pass's poster style is drawn on (the Wallet
+// background, else the poster), as the pass gets it -- blurred and shaded
+// at the top, shaded at the bottom -- for the movie editor's preview.
+function walletArtKeyOf(m) {
+  return [m.walletArtKey, m.posterKey].find((k) => k && posterStore.getMetaByKey(k)) || null;
+}
+function walletPreviewUrl(m) {
+  const key = walletArtKeyOf(m);
+  if (!key) return null;
+  return `/api/movies/${encodeURIComponent(m.id)}/wallet-preview.png?v=${posterStore.getMetaByKey(key).uploadedAt}-${walletImages.IMAGES_VERSION}`;
 }
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -734,6 +747,20 @@ app.post('/api/movies/:id/wallet-art', siteImageUpload.single('image'), (req, re
   const key = posterStore.keyFor(`movie-wallet:${movie.id}`);
   posterStore.saveByKey(key, req.file.buffer, req.file.mimetype, movie.title);
   res.json({ movie: movieView(store.setMovieWalletArtKey(movie.id, key)) });
+});
+
+app.get('/api/movies/:id/wallet-preview.png', async (req, res) => {
+  const movie = store.getMovie(req.params.id);
+  const key = movie && walletArtKeyOf(movie);
+  if (!key) return res.status(404).end();
+  try {
+    const images = await walletImages.posterImages(posterStore, key);
+    res.set('Content-Type', 'image/png');
+    res.set('Cache-Control', 'private, max-age=86400');
+    res.send(images['artwork@2x.png']);
+  } catch (e) {
+    res.status(500).end();
+  }
 });
 
 app.delete('/api/movies/:id/wallet-art', (req, res) => {
