@@ -14,6 +14,9 @@ RUN npm ci --omit=dev
 # builds an image that can't start. Opening a database here makes a
 # broken install fail the build instead of the deploy.
 RUN node -e "new (require('better-sqlite3'))(':memory:').prepare('select 1').get()"
+# Same for sharp (the movie pass's poster images), whose binary comes per
+# platform: this has to be Alpine's.
+RUN node -e "require('sharp')().metadata().catch(() => {})"
 
 # ---- runtime ----
 FROM node:22-alpine

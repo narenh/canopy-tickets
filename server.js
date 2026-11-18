@@ -6,6 +6,7 @@ const multer = require('multer');
 const store = require('./lib/store');
 const { createImageStore } = require('./lib/uploadedImage');
 const posterStore = require('./lib/posterStore');
+const { createWallet } = require('./lib/wallet/service');
 const concessionMenuStore = require('./lib/concessionMenu');
 const { createTextSettingStore } = require('./lib/textSetting');
 const createCanopyAccount = require('./lib/canopyAccount');
@@ -81,6 +82,19 @@ if (!CANOPY_ACCOUNT_KEY) {
 }
 
 app.disable('x-powered-by');
+
+// The movie pass (lib/wallet/). Its /v1/... routes are Apple Wallet's,
+// called by iPhones with the pass's own token and no Origin, so they go
+// ahead of the Origin check below; they never look at the account cookie.
+const wallet = createWallet({
+  store,
+  posterStore,
+  showtimeInstantMs: (date, time) => showtimeInstantMs(date, time),
+  venmoHandle: () => venmoHandleStore.get(),
+  siteOrigin: process.env.WALLET_SITE_ORIGIN || 'https://tix.canopysf.com'
+});
+app.use(wallet.afterChanges);
+app.use(wallet.router);
 
 // Anything that changes something (not GET, HEAD or OPTIONS) has to come
 // from one of this site's own pages. The account cookie goes to every
@@ -997,7 +1011,11 @@ app.get('/api/public/config', (req, res) => {
     accountUrl: CANOPY_ACCOUNT_URL,
     // Who A-List members text to set up a swap, and the number to text.
     adminFirstName: adminFirstName(),
-    adminPhone: adminPhoneStore.get() || ''
+    adminPhone: adminPhoneStore.get() || '',
+    // Whether My Showtimes offers the movie pass (lib/wallet/), and whether
+    // this person already has it on a device.
+    walletPass: wallet.enabled,
+    walletPassAdded: wallet.enabled && wallet.isAdded(req.person.id)
   });
 });
 
@@ -1965,6 +1983,9 @@ app.get('/api/public/day-of', (req, res) => {
     }
   });
 });
+
+// The movie pass (lib/wallet/): this person's own, made the first time.
+app.get('/api/public/wallet-pass.pkpass', wallet.download);
 
 // The .pkpass itself, for Add to Apple Wallet: the same file AMC made,
 // untouched (it's signed). Same rules as the screen: someone with a seat

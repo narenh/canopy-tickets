@@ -134,6 +134,13 @@ const COPY = {
     },
 
     // The banner at the top of My Showtimes, until dismissed or tapped.
+    // Top of My Showtimes on Apple devices until the pass is added or the
+    // banner's dismissed. The badge itself is Apple's artwork.
+    walletBanner: {
+      title: 'Your movies in Apple Wallet',
+      text: 'One pass that always shows your next showtime, reminds you a week and a day before, and becomes your ticket once you’ve paid.'
+    },
+
     calBanner: {
       title: 'Subscribe to your showtimes',
       text: 'Add the subscription link to your calendar app and all your showtimes will appear automatically.',
@@ -188,6 +195,8 @@ const COPY = {
       account: 'Canopy Account',
       manageAccount: 'Manage',
       calendar: 'My Calendar Feed',
+      // The movie pass (lib/wallet/), on Apple devices.
+      walletPass: 'Movie Pass in Wallet',
       settings: 'Settings',
       claimExisting: 'Claim Existing Seats',
       // The admin's, in Claim Existing Seats' place.

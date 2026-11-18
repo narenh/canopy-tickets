@@ -807,6 +807,73 @@ Closing the screen with × keeps it closed for that showtime until the
 ticket's hour, when it opens once more. The banner on My Showtimes
 reopens it any time.
 
+## The movie pass
+
+Each person can add one Apple Wallet pass from My Showtimes (a banner on
+Apple devices until it's added or dismissed, and **Movie Pass in Wallet**
+in the menu). It always shows their next showtime, reminds them before it,
+and becomes their ticket on the day once they've paid. No app needed:
+Wallet updates the pass itself when this server tells it something
+changed. The code is `lib/wallet/`.
+
+**What it shows.** The next showtime they hold a seat in (theirs or a
+guest's), until 20 minutes after it starts; with none, "Nothing booked".
+
+- **Two looks.** Wallet's classic event ticket (poster as the thumbnail,
+  blurred behind) until the ticket's ready; Apple's poster event ticket
+  (the movie poster as the card, Canopy logo top left) from then. Wallet
+  only draws the poster style when the pass has a barcode, and has no way
+  to show one greyed out, so the switch is the "ticket ready" moment. A
+  movie with no poster stays classic.
+- **The ticket** is the AMC order's QR (no digits shown), on the day of
+  the show, once nothing's owed, from the AMC pass holding their own seat
+  (else the one holding most of theirs; a second order is mentioned on the
+  back). An A-List swap seat has no QR: it says **A-List Swap**.
+- **The right-hand field:** Unpaid / Paid ✓ before the day; food as
+  `$24.97 ✓` while orders are open; **You owe** on the day; **Available
+  Soon** when paid but the host hasn't uploaded the AMC pass.
+- **Seats** go in Wallet's semantics as `seatNumber` "F8" (row and seat
+  separately read worse; `seatIdentifier` doesn't show).
+- **One button** under the card, with Wallet's own words (a pass can't
+  set them): **Order Delivery or Pickup** (opens Tickets) while food
+  orders are open and they're not A-List; otherwise **View Schedule**.
+  Paying is a **Pay for Ticket** Venmo link on the back (`venmo://` links
+  aren't allowed in a pass). Checked against Wallet's own parser and
+  strings on macOS 27.
+
+**Notifications.** Wallet alerts when a field that has a `changeMessage`
+changes, so a field carries one only in the version worth an alert:
+
+- exactly 7 days and 24 hours before showtime;
+- 4 hours before, if anything's owed: "Reminder: Pay for *movie*. $x, tap
+  to pay";
+- when the host finalizes a food order they haven't paid for:
+  "Concessions Ordered. $x, tap to pay".
+
+Tapping one opens the pass (Wallet can't open a link from it). Nothing
+else notifies: booking, paying, seat moves and rolling on to the next
+showtime are silent.
+
+**How updates reach the phone.** Wallet's web service (`/v1/...`,
+authenticated by each pass's own token, ahead of the Origin check since
+Wallet sends none): a device registers with a push token; a sweep rebuilds
+every pass once a minute and 3 seconds after any change made through the
+site, hashes it, and for each one that changed bumps `updated_at` and sends
+an empty push over APNs (HTTP/2, the pass certificate as client
+certificate, production only). Wallet then asks what changed and downloads
+it. Tables: `wallet_passes` (one per person), `wallet_devices`,
+`wallet_registrations`.
+
+**Set up.** Pass Type ID `pass.com.canopysf.tickets` (team UC3Y84QJ83),
+made with the App Store Connect API; its certificate expires
+**2027-12-17**. The signing files are on the Mac that made them, in
+`~/.canopy-passes/tickets/` (`pass-key.pem` is the private key). In
+Coolify set `WALLET_CERT_PEM` (`pass-cert.pem`), `WALLET_KEY_PEM`
+(`pass-key.pem`) and `WALLET_WWDR_PEM` (`wwdr.pem`, Apple's WWDR G4); a
+PEM pasted with `\n` for its newlines works too. Without all three the
+feature is off and nothing offers it. Cloudflare must let Wallet's
+requests to `/v1/` through (no bot challenge), or updates silently stop.
+
 ## Link-preview image & logo
 
 The admin's Settings tab has two image uploads:
@@ -950,6 +1017,8 @@ as static files instead of actually running the Node server.
    - `CANOPY_CALENDAR_SECRET` — optional: the calendar secret the account
      admin's Sites tab shows once tickets has a **Calendar URL** (see
      "Calendar feed"). **New calendar secret** there replaces it.
+   - `WALLET_CERT_PEM`, `WALLET_KEY_PEM`, `WALLET_WWDR_PEM` — optional:
+     the movie pass's signing files (see "The movie pass").
    - (There's no env var for movie passwords or for Venmo/Cash App — set
      those from the editor after deploying.)
    - `ADMIN_PASSWORD`, `ADMIN_RECOVERY` and `SESSION_SECRET` are from

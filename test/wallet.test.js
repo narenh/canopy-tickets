@@ -1,0 +1,281 @@
+// The movie pass (lib/wallet/): what it says in each state, and Apple's
+// web service end to end -- a device registers, something changes, a push
+// goes out, the device gets the new pass.
+//
+// Run with `npm test`.
+
+const { test, before, after } = require('node:test');
+const assert = require('node:assert');
+const { spawn, execFileSync } = require('child_process');
+const fs = require('fs');
+const http = require('http');
+const http2 = require('http2');
+const net = require('net');
+const os = require('os');
+const path = require('path');
+const zlib = require('zlib');
+
+const { buildPass } = require('../lib/wallet/passContent');
+
+const H = 60 * 60 * 1000;
+const DAY = 24 * H;
+
+// ---------------- What the pass says ----------------
+
+// A showtime `inMs` from `now`, its date and time read in San Francisco.
+function showAt(now, inMs, extra = {}) {
+  const at = now + inMs;
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+  }).formatToParts(new Date(at)).map((x) => [x.type, x.value]));
+  return {
+    id: 'show-1', title: 'The Rings of Power', date: `${p.year}-${p.month}-${p.day}`, time: `${p.hour}:${p.minute}`,
+    screen: 'amc-metreon-13', price: 17.49, ordersClosed: false, aListSwap: false,
+    seats: {
+      F8: { status: 'assigned', name: 'Ana Alvarez', personId: 'p-ana', paid: false, concessions: [] },
+      F9: { status: 'assigned', name: 'Sam', personId: 'p-ana', guest: true, paid: false, concessions: [] }
+    },
+    ...extra,
+    startsAt: at
+  };
+}
+
+const AMC = { seats: ['F8', 'F9'], ticketCount: 2, barcode: { format: 'PKBarcodeFormatQR', message: '1122707601-1' } };
+
+function pass(showtime, { now, passes = [], person = { id: 'p-ana', amcAList: false }, hasPoster = true } = {}) {
+  return buildPass({
+    passTypeIdentifier: 'pass.com.canopysf.tickets', teamIdentifier: 'TEAM', serialNumber: 's', authenticationToken: 't'.repeat(32),
+    webServiceURL: 'https://tix.example/', siteUrl: 'https://tix.example/', siteHost: 'tix.example', venmoHandle: 'hal',
+    person, next: showtime ? { showtime, seatIds: Object.keys(showtime.seats), startsAt: showtime.startsAt } : null,
+    passes, upcoming: [], hasPoster, now
+  });
+}
+const fieldOf = (json, key) => {
+  const t = json.eventTicket;
+  return [...(t.headerFields || []), ...(t.primaryFields || []), ...(t.secondaryFields || []), ...(t.auxiliaryFields || []), ...(t.backFields || [])].find((f) => f.key === key);
+};
+
+test('nothing booked: a classic pass that says so, with View Schedule', () => {
+  const { poster, json } = pass(null, { now: Date.now() });
+  assert.strictEqual(poster, false);
+  assert.strictEqual(fieldOf(json, 'title').value, 'Nothing booked');
+  assert.deepStrictEqual(json.featuredActions.map((a) => a.type), ['viewSchedule']);
+  assert.ok(!json.barcodes && !json.preferredStyleSchemes);
+});
+
+test('booked, weeks out: classic, Unpaid, seats as F8 and F9, no alert, Order while orders are open', () => {
+  const now = Date.UTC(2026, 10, 1, 20);
+  const { poster, json } = pass(showAt(now, 20 * DAY), { now, passes: [AMC] });
+  assert.strictEqual(poster, false);
+  assert.ok(!json.barcodes, 'no QR before the day');
+  assert.strictEqual(fieldOf(json, 'ticket').value, 'Unpaid');
+  assert.deepStrictEqual(json.semantics.seats, [{ seatNumber: 'F8' }, { seatNumber: 'F9' }]);
+  assert.strictEqual(json.semantics.eventType, 'PKEventTypeMovie');
+  assert.strictEqual(fieldOf(json, 'reminder').changeMessage, undefined);
+  assert.deepStrictEqual(json.featuredActions.map((a) => a.type), ['order']);
+});
+
+test('reminders alert a week out and 24 hours out, and only then', () => {
+  const now = Date.UTC(2026, 10, 1, 20);
+  const week = fieldOf(pass(showAt(now, 7 * DAY - 60 * 1000), { now }).json, 'reminder');
+  assert.match(week.value, /a week away/);
+  assert.strictEqual(week.changeMessage, '%@');
+  const day = fieldOf(pass(showAt(now, DAY - 60 * 1000), { now }).json, 'reminder');
+  assert.match(day.value, /is tomorrow at/);
+  assert.strictEqual(day.changeMessage, '%@');
+  const between = fieldOf(pass(showAt(now, 7 * DAY + H), { now }).json, 'reminder');
+  assert.strictEqual(between.changeMessage, undefined);
+});
+
+test('4 hours out and still owing: the pay reminder, You owe, Pay for Ticket on the back', () => {
+  const show = showAt(Date.UTC(2026, 10, 1, 20), 3 * H);
+  const now = Date.UTC(2026, 10, 1, 20);
+  const { json } = pass(show, { now, passes: [AMC] });
+  assert.ok(!json.barcodes, 'no QR while owing');
+  const r = fieldOf(json, 'reminder');
+  assert.strictEqual(r.value, 'Reminder: Pay for The Rings of Power. $34.98, tap to pay');
+  assert.strictEqual(r.changeMessage, '%@');
+  assert.strictEqual(fieldOf(json, 'owe').value, '$34.98');
+  assert.match(fieldOf(json, 'pay').attributedValue, /<a href="https:\/\/venmo\.com\/hal\?txn=pay&amount=34\.98&note=[^"]+">Pay for Ticket<\/a>/);
+});
+
+test('day of, paid, AMC pass in: the poster style with the QR (no digits)', () => {
+  const now = Date.UTC(2026, 10, 1, 20);
+  const show = showAt(now, 2 * H);
+  show.seats.F8.paid = true;
+  show.seats.F9.paid = true;
+  const { poster, json } = pass(show, { now, passes: [AMC] });
+  assert.strictEqual(poster, true);
+  assert.deepStrictEqual(json.preferredStyleSchemes, ['posterEventTicket', 'eventTicket']);
+  assert.deepStrictEqual(json.barcodes, [{ format: 'PKBarcodeFormatQR', message: '1122707601-1', messageEncoding: 'iso-8859-1' }]);
+  assert.strictEqual(fieldOf(json, 'paid').value, 'Paid ✓');
+  // No poster uploaded: still the QR, on the classic pass.
+  const plain = pass(show, { now, passes: [AMC], hasPoster: false });
+  assert.strictEqual(plain.poster, false);
+  assert.ok(plain.json.barcodes && !plain.json.preferredStyleSchemes);
+});
+
+test('day of, paid, no AMC pass yet: Available Soon', () => {
+  const now = Date.UTC(2026, 10, 1, 20);
+  const show = showAt(now, 2 * H);
+  show.seats.F8.paid = true;
+  show.seats.F9.paid = true;
+  const { poster, json } = pass(show, { now });
+  assert.strictEqual(poster, false);
+  assert.strictEqual(fieldOf(json, 'ticket').value, 'Available Soon');
+});
+
+test('food: $x ✓ while open; Concessions Ordered alert once the order is final', () => {
+  const now = Date.UTC(2026, 10, 1, 20);
+  const show = showAt(now, 3 * DAY);
+  show.seats.F8.concessions = [{ name: 'Popcorn', price: 9.99, qty: 1 }];
+  assert.strictEqual(fieldOf(pass(show, { now }).json, 'food').value, '$10.85 ✓');
+  show.ordersClosed = true;
+  const { json } = pass(show, { now });
+  const c = fieldOf(json, 'concessions');
+  assert.strictEqual(c.value, 'Concessions Ordered. $10.85, tap to pay');
+  assert.strictEqual(c.changeMessage, '%@');
+  assert.deepStrictEqual(json.featuredActions.map((a) => a.type), ['viewSchedule']);
+});
+
+test('an A-List swap seat: A-List Swap, no QR for it', () => {
+  const now = Date.UTC(2026, 10, 1, 20);
+  const show = showAt(now, 2 * H, { aListSwap: true });
+  delete show.seats.F9;
+  const { json } = pass(show, { now, passes: [AMC], person: { id: 'p-ana', amcAList: true } });
+  assert.strictEqual(fieldOf(json, 'ticket').value, 'A-List Swap');
+  assert.ok(!json.barcodes);
+});
+
+// ---------------- The web service, end to end ----------------
+
+let haveOpenssl = true;
+try { execFileSync('openssl', ['version'], { stdio: 'ignore' }); } catch (e) { haveOpenssl = false; }
+
+let account, apns, tickets, base, dataDir, output = '';
+const pushes = [];
+const TOKEN = 'w'.repeat(43);
+
+function freePort() {
+  return new Promise((resolve, reject) => {
+    const srv = net.createServer();
+    srv.listen(0, '127.0.0.1', () => { const { port } = srv.address(); srv.close(() => resolve(port)); });
+    srv.on('error', reject);
+  });
+}
+
+before(async () => {
+  if (!haveOpenssl) return;
+  dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'canopy-wallet-test-'));
+  // A throwaway certificate: the web service doesn't care who signed.
+  execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-subj', '/CN=test', '-days', '1',
+    '-keyout', path.join(dataDir, 'k.pem'), '-out', path.join(dataDir, 'c.pem')], { stdio: 'ignore' });
+
+  const wendy = { id: 'p-wendy', email: 'w@example.com', emailVerified: true, firstName: 'Wendy', lastName: 'W', shortName: 'Wendy W.', photoUrl: null, findable: true, venmo: null, phone: null, instagram: null, cashapp: null };
+  account = http.createServer((req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    if (req.url.startsWith('/api/session')) return res.end(JSON.stringify(req.headers['x-canopy-session'] === TOKEN ? { person: wendy } : { person: null }));
+    res.statusCode = 404;
+    res.end('{}');
+  });
+  await new Promise((r) => account.listen(0, '127.0.0.1', r));
+  apns = http2.createServer((req, res) => { pushes.push({ path: req.url, topic: req.headers['apns-topic'] }); res.writeHead(200); res.end(); });
+  await new Promise((r) => apns.listen(0, '127.0.0.1', r));
+
+  const port = await freePort();
+  base = `http://127.0.0.1:${port}`;
+  const cert = fs.readFileSync(path.join(dataDir, 'c.pem'), 'utf8');
+  tickets = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], {
+    env: {
+      ...process.env, PORT: String(port), DATA_DIR: dataDir,
+      CANOPY_ACCOUNT_URL: `http://127.0.0.1:${account.address().port}`, CANOPY_ACCOUNT_KEY: 'cnp_test',
+      WALLET_CERT_PEM: cert, WALLET_KEY_PEM: fs.readFileSync(path.join(dataDir, 'k.pem'), 'utf8'), WALLET_WWDR_PEM: cert,
+      WALLET_APNS_ORIGIN: `http://127.0.0.1:${apns.address().port}`
+    },
+    stdio: ['ignore', 'pipe', 'pipe']
+  });
+  tickets.stdout.on('data', (d) => { output += d; });
+  tickets.stderr.on('data', (d) => { output += d; });
+  const deadline = Date.now() + 15000;
+  for (;;) {
+    try { await fetch(`${base}/api/calendar/x`); break; } catch (e) {
+      if (Date.now() > deadline) throw new Error('tickets did not start:\n' + output);
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  }
+});
+
+after(() => {
+  if (tickets) tickets.kill();
+  if (account) account.close();
+  if (apns) apns.close();
+  if (dataDir) fs.rmSync(dataDir, { recursive: true, force: true });
+});
+
+// pass.json out of a .pkpass (a zip, entries deflated or stored).
+function passJsonOf(buf) {
+  for (let i = 0; i + 30 < buf.length; ) {
+    if (buf.readUInt32LE(i) !== 0x04034b50) break;
+    const method = buf.readUInt16LE(i + 8), size = buf.readUInt32LE(i + 18), nameLen = buf.readUInt16LE(i + 26), extra = buf.readUInt16LE(i + 28);
+    const name = buf.slice(i + 30, i + 30 + nameLen).toString();
+    const data = buf.slice(i + 30 + nameLen + extra, i + 30 + nameLen + extra + size);
+    if (name === 'pass.json') return JSON.parse((method === 8 ? zlib.inflateRawSync(data) : data).toString());
+    i += 30 + nameLen + extra + size;
+  }
+  throw new Error('no pass.json');
+}
+
+test('add the pass, register a device, change something, the device is pushed and gets the new pass', { skip: !haveOpenssl && 'needs openssl' }, async () => {
+  const cookie = { Cookie: `canopy_session=${TOKEN}` };
+  const cfg = await (await fetch(`${base}/api/public/config`, { headers: cookie })).json();
+  assert.strictEqual(cfg.walletPass, true);
+  assert.strictEqual(cfg.walletPassAdded, false);
+
+  const res = await fetch(`${base}/api/public/wallet-pass.pkpass`, { headers: cookie });
+  assert.strictEqual(res.status, 200);
+  assert.strictEqual(res.headers.get('content-type'), 'application/vnd.apple.pkpass');
+  const json = passJsonOf(Buffer.from(await res.arrayBuffer()));
+  assert.strictEqual(json.eventTicket.primaryFields[0].value, 'Nothing booked');
+  const { serialNumber: serial, authenticationToken: auth, passTypeIdentifier: type } = json;
+  const lastModified = res.headers.get('last-modified');
+
+  const reg = (token, deviceToken = 'abcdef0123456789abcd') => fetch(`${base}/v1/devices/dev-1/registrations/${type}/${serial}`, {
+    method: 'POST', headers: { Authorization: `ApplePass ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ pushToken: deviceToken })
+  });
+  assert.strictEqual((await reg('wrong')).status, 401);
+  assert.strictEqual((await reg(auth)).status, 201);
+  assert.strictEqual((await reg(auth)).status, 200);
+  assert.strictEqual((await (await fetch(`${base}/api/public/config`, { headers: cookie })).json()).walletPassAdded, true);
+
+  const unchanged = await fetch(`${base}/v1/passes/${type}/${serial}`, { headers: { Authorization: `ApplePass ${auth}`, 'If-Modified-Since': lastModified } });
+  assert.strictEqual(unchanged.status, 304);
+  const list = await fetch(`${base}/v1/devices/dev-1/registrations/${type}?passesUpdatedSince=${Math.floor(Date.parse(lastModified) / 1000)}`);
+  assert.strictEqual(list.status, 204);
+
+  // Wendy is the first person, so the admin: she makes a showtime and takes
+  // a seat in it. A few seconds later her device is pushed.
+  const api = (p, method, body) => fetch(base + p, { method, headers: { ...cookie, Origin: base, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const movie = (await (await api('/api/movies', 'POST', { title: 'Wallet Test' })).json()).movie;
+  const d = new Date(Date.now() + 10 * DAY);
+  const date = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+  const show = (await (await api(`/api/movies/${movie.id}/showtimes`, 'POST', { date, time: '19:30', price: 17.49 })).json()).showtime;
+  assert.strictEqual((await api(`/api/showtimes/${show.id}/seats/F8`, 'PUT', { name: 'Wendy W', personId: 'p-wendy' })).status, 200);
+
+  const deadline = Date.now() + 10000;
+  while (!pushes.length && Date.now() < deadline) await new Promise((r) => setTimeout(r, 200));
+  assert.deepStrictEqual(pushes[0], { path: '/3/device/abcdef0123456789abcd', topic: 'pass.com.canopysf.tickets' });
+
+  const changed = await fetch(`${base}/v1/devices/dev-1/registrations/${type}?passesUpdatedSince=${Math.floor(Date.parse(lastModified) / 1000)}`);
+  assert.strictEqual(changed.status, 200);
+  assert.deepStrictEqual((await changed.json()).serialNumbers, [serial]);
+  const fresh = await fetch(`${base}/v1/passes/${type}/${serial}`, { headers: { Authorization: `ApplePass ${auth}`, 'If-Modified-Since': lastModified } });
+  assert.strictEqual(fresh.status, 200);
+  const updated = passJsonOf(Buffer.from(await fresh.arrayBuffer()));
+  assert.strictEqual(updated.eventTicket.primaryFields[0].value, 'Wallet Test');
+  assert.deepStrictEqual(updated.semantics.seats, [{ seatNumber: 'F8' }]);
+
+  // Taken out of Wallet: the device goes.
+  const del = await fetch(`${base}/v1/devices/dev-1/registrations/${type}/${serial}`, { method: 'DELETE', headers: { Authorization: `ApplePass ${auth}` } });
+  assert.strictEqual(del.status, 200);
+  assert.strictEqual((await (await fetch(`${base}/api/public/config`, { headers: cookie })).json()).walletPassAdded, false);
+});
