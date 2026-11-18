@@ -130,6 +130,8 @@ test('booked, weeks out: classic, Unpaid, seats as F8 and F9, no alert, Order wh
   assert.strictEqual(fieldOf(json, 'ticket').value, 'Unpaid');
   assert.deepStrictEqual(json.semantics.seats, [{ seatNumber: 'F8' }, { seatNumber: 'F9' }]);
   assert.strictEqual(json.semantics.eventType, 'PKEventTypeMovie');
+  assert.ok(!json.locations, 'lock screen by time, not place');
+  assert.strictEqual(Date.parse(json.relevantDates[0].startDate), Date.parse(json.semantics.eventStartDate) - 1.5 * H);
   assert.strictEqual(fieldOf(json, 'reminder').changeMessage, undefined);
   assert.deepStrictEqual(json.featuredActions.map((a) => a.type), ['order']);
 });
@@ -166,6 +168,7 @@ test('day of, paid, AMC pass in: the poster style with the QR (no digits)', () =
   const { poster, json } = pass(show, { now, passes: [AMC] });
   assert.strictEqual(poster, true);
   assert.deepStrictEqual(json.preferredStyleSchemes, ['posterEventTicket', 'eventTicket']);
+  assert.strictEqual(json.semantics.venueName, 'AMC Metreon 16 \u00b7 Aud 13', 'the poster face shows the auditorium');
   assert.deepStrictEqual(json.barcodes, [{ format: 'PKBarcodeFormatQR', message: '1122707601-1', messageEncoding: 'iso-8859-1' }]);
   assert.strictEqual(fieldOf(json, 'paid').value, 'Paid ✓');
   // No poster uploaded: still the QR, on the classic pass.
