@@ -305,7 +305,7 @@ again (any unlock, password ones too), so Unlock can be tried again. Each one wi
 movie pass in Wallet gets a notification, "*Movie* tickets available. Tap
 “View Schedule” to reserve a seat."; the list says who has no pass and won't be
 told. Their pass keeps saying so (on its front when they've nothing
-booked) while the movie has a showtime to come.
+booked) while the movie has a showtime to come, or none scheduled yet.
 
 A movie without a password can't be unlocked by anyone else; the admin's
 movie grid flags those. Changing a movie's password doesn't re-lock
