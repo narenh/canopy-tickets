@@ -400,8 +400,7 @@ const COPY = {
       walletArtHint: 'Shown behind the Wallet pass, in both styles. Wallet fills the card with it, cropping the sides.',
       walletPreview: 'Wallet preview',
       // Early access: unlocking the movie for people the host picks.
-      earlyTitle: 'Early access',
-      earlyBlurb: 'Unlock this movie for someone before you share its password, so they get first pick of the seats. Unlocking also sends them a notification through their movie pass in Wallet: “{title} tickets available. Tap \"View Schedule\" to reserve a seat.”',
+      earlyTitle: 'Invite',
       earlyUnlock: 'Unlock',
       earlyRevoke: 'Revoke',
       earlyYou: '(you)',
@@ -410,7 +409,6 @@ const COPY = {
       earlyNoPass: 'No Wallet pass, won’t be notified',
       earlyFailed: 'Could not give early access. Try again.',
       earlyNone: 'Nobody to pick yet: people show up here once they’ve visited Canopy Tickets.',
-      walletPreviewNote: 'The pass once the ticket’s ready: the image as Wallet crops it, blurred and shaded the way the pass gets it, with the logo, date, QR code and title band drawn where Wallet puts them. Wallet picks the band’s colour itself, so that part is approximate.',
       none: 'No movies yet. Tap "+ Add movie" to start.',
       noneUpcoming: 'Nothing coming up. Add a movie, or a showtime to one below.',
       loadFailed: 'Could not load movies. Try again.',

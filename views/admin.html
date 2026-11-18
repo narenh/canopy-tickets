@@ -204,7 +204,6 @@
   .wallet-preview{margin-top:16px;}
   .wp-label{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:8px;}
   .wp-row{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;}
-  .wp-note{flex:1;min-width:180px;max-width:340px;color:var(--muted);font-size:12.5px;line-height:1.45;}
   .wp-card{position:relative;width:220px;max-width:100%;aspect-ratio:370/503;border-radius:12px;overflow:hidden;background:#111;container-type:inline-size;color:#fff;font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;}
   .wp-card img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;}
   .wp-notch{position:absolute;left:40.3%;width:19.4%;top:-3.2%;height:6.4%;border-radius:50%;background:var(--bg,#0b0b0d);}
@@ -1348,7 +1347,6 @@
               <div class="wp-venue">AMC Metreon 16 · Aud 6</div>
             </div>
           </div>
-          <div class="wp-note" data-copy="admin.movies.walletPreviewNote"></div>
         </div>
       </div>
     </div>
@@ -1364,7 +1362,6 @@
          get a notification through their movie pass. See giveEarlyAccess. -->
     <div class="og-section">
       <h3 data-copy="admin.movies.earlyTitle"></h3>
-      <p id="earlyBlurb"></p>
       <div class="early-list" id="earlyList"></div>
       <div class="og-status" id="earlyStatus"></div>
     </div>
@@ -2423,7 +2420,6 @@ async function loadEarlyPeople(){
 function renderEarlyAccess(){
   const m = currentMovie;
   if (!m) return;
-  document.getElementById('earlyBlurb').textContent = t('admin.movies.earlyBlurb', { title: m.title });
   const list = document.getElementById('earlyList');
   if (!earlyPeople){ list.innerHTML = '<div class="loading-state">Loading...</div>'; loadEarlyPeople(); return; }
   if (!earlyPeople.length){ list.innerHTML = '<div class="empty-state">' + escapeHtml(t('admin.movies.earlyNone')) + '</div>'; return; }
