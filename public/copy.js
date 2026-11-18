@@ -401,9 +401,8 @@ const COPY = {
       walletPreview: 'Wallet preview',
       // Early access: unlocking the movie for people the host picks.
       earlyTitle: 'Early access',
-      earlyBlurb: 'Unlock this movie for the people you pick, before you share its password, so they get first pick of the seats. Anyone with the movie pass in Wallet gets a notification: “{title} Tickets Available. Tap to reserve a seat.”',
-      earlyGive: 'Give early access',
-      earlyGiveCount: 'Give early access to {count}',
+      earlyBlurb: 'Unlock this movie for someone before you share its password, so they get first pick of the seats. Unlocking also sends them a notification through their movie pass in Wallet: “{title} Tickets Available. Tap to reserve a seat.”',
+      earlyUnlock: 'Unlock',
       earlyGiven: 'Early access since {date}',
       earlyPassword: 'Unlocked with the password',
       earlyNoPass: 'No Wallet pass, won’t be notified',

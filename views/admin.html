@@ -192,13 +192,12 @@
   .link-btn input{position:absolute;inset:0;width:100%;opacity:0;cursor:pointer;}
   button.link-btn{background:none;border:none;padding:0;font:inherit;}
   .early-list{display:flex;flex-direction:column;margin:6px 0 4px;}
-  .early-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid #222;font-size:14px;cursor:pointer;}
+  .early-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid #222;font-size:14px;}
   .early-row:first-child{border-top:none;}
-  .early-row input{width:18px;height:18px;flex-shrink:0;accent-color:var(--gold);}
   .early-row .early-name{flex:1;min-width:0;overflow-wrap:anywhere;}
-  .early-row .early-note{color:var(--muted);font-size:12px;text-align:right;}
-  .early-row.has-access{cursor:default;}
-  .early-row.has-access .early-name{color:var(--muted);}
+  .early-row .early-note{color:var(--muted);font-size:12px;margin-top:2px;}
+  .early-row .early-status{color:var(--muted);font-size:12.5px;text-align:right;}
+  .early-unlock{height:32px;padding:0 14px;font-size:13.5px;border-radius:9px;flex-shrink:0;}
   /* Wallet preview (movie editor). Positions are fractions of the card,
      measured off a real pass on an iPhone. */
   .wallet-preview{margin-top:16px;}
@@ -1366,10 +1365,7 @@
       <h3 data-copy="admin.movies.earlyTitle"></h3>
       <p id="earlyBlurb"></p>
       <div class="early-list" id="earlyList"></div>
-      <div class="og-controls">
-        <button type="button" id="earlyGiveBtn" onclick="giveEarlyAccess()" disabled></button>
-        <span class="og-status" id="earlyStatus"></span>
-      </div>
+      <div class="og-status" id="earlyStatus"></div>
     </div>
     <div class="danger-zone hidden" id="deleteMovieWrap">
       <button type="button" class="delete-btn" onclick="deleteMovie()">Delete movie</button>
@@ -2405,7 +2401,6 @@ function renderMovie(){
 // changes, which is what makes Wallet put up the notification. Someone
 // without the pass on a device just finds the movie unlocked.
 let earlyPeople = null;   // /api/people, loaded with the first movie opened
-const earlyPicked = new Set();
 
 async function loadEarlyPeople(){
   try{
@@ -2418,54 +2413,56 @@ async function loadEarlyPeople(){
   renderEarlyAccess();
 }
 
+// One row per person: their name, and Unlock -- or, once they have the
+// movie, since when and how.
 function renderEarlyAccess(){
   const m = currentMovie;
   if (!m) return;
   document.getElementById('earlyBlurb').textContent = t('admin.movies.earlyBlurb', { title: m.title });
   const list = document.getElementById('earlyList');
   if (!earlyPeople){ list.innerHTML = '<div class="loading-state">Loading...</div>'; loadEarlyPeople(); return; }
-  if (!earlyPeople.length){ list.innerHTML = '<div class="empty-state">' + escapeHtml(t('admin.movies.earlyNone')) + '</div>'; }
+  if (!earlyPeople.length){ list.innerHTML = '<div class="empty-state">' + escapeHtml(t('admin.movies.earlyNone')) + '</div>'; return; }
   const unlocks = new Map((m.unlocks || []).map(u => [u.personId, u]));
   const name = (p) => ((p.firstName || '') + ' ' + (p.lastName || '')).trim() || p.shortName || p.email;
   const people = earlyPeople.slice().sort((a, b) => (unlocks.has(a.id) - unlocks.has(b.id)) || name(a).localeCompare(name(b)));
-  if (earlyPeople.length) list.innerHTML = '';
+  list.innerHTML = '';
   people.forEach(p => {
     const u = unlocks.get(p.id);
-    const row = document.createElement('label');
+    const row = document.createElement('div');
     row.className = 'early-row' + (u ? ' has-access' : '');
-    const box = document.createElement('input');
-    box.type = 'checkbox';
-    box.checked = !!u || earlyPicked.has(p.id);
-    box.disabled = !!u;
-    box.addEventListener('change', () => {
-      if (box.checked) earlyPicked.add(p.id); else earlyPicked.delete(p.id);
-      renderEarlyButton();
-    });
-    const who = document.createElement('span');
+    const who = document.createElement('div');
     who.className = 'early-name';
     who.textContent = name(p);
-    const note = document.createElement('span');
-    note.className = 'early-note';
-    note.textContent = u
-      ? (u.grantedAt ? t('admin.movies.earlyGiven', { date: new Date(u.grantedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) }) : t('admin.movies.earlyPassword'))
-      : (p.walletPassAdded ? '' : t('admin.movies.earlyNoPass'));
-    row.append(box, who, note);
+    if (!u && !p.walletPassAdded){
+      const note = document.createElement('div');
+      note.className = 'early-note';
+      note.textContent = t('admin.movies.earlyNoPass');
+      who.appendChild(note);
+    }
+    row.appendChild(who);
+    if (u){
+      const status = document.createElement('span');
+      status.className = 'early-status';
+      status.textContent = u.grantedAt
+        ? t('admin.movies.earlyGiven', { date: new Date(u.grantedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) })
+        : t('admin.movies.earlyPassword');
+      row.appendChild(status);
+    } else {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'early-unlock';
+      btn.textContent = t('admin.movies.earlyUnlock');
+      btn.addEventListener('click', () => giveEarlyAccess(p.id, btn));
+      row.appendChild(btn);
+    }
     list.appendChild(row);
   });
-  // Picks for people who now have access are spent.
-  Array.from(earlyPicked).forEach(id => { if (unlocks.has(id)) earlyPicked.delete(id); });
-  renderEarlyButton();
 }
 
-function renderEarlyButton(){
-  const btn = document.getElementById('earlyGiveBtn');
-  btn.disabled = !earlyPicked.size;
-  btn.textContent = earlyPicked.size ? t('admin.movies.earlyGiveCount', { count: earlyPicked.size }) : t('admin.movies.earlyGive');
-}
-
-async function giveEarlyAccess(){
-  if (!currentMovie || !earlyPicked.size) return;
-  const btn = document.getElementById('earlyGiveBtn');
+// Unlocks the movie for one person; their pass changes, which is the
+// notification.
+async function giveEarlyAccess(personId, btn){
+  if (!currentMovie) return;
   const status = document.getElementById('earlyStatus');
   btn.disabled = true;
   status.textContent = '';
@@ -2473,16 +2470,15 @@ async function giveEarlyAccess(){
     const res = await fetch('/api/movies/' + encodeURIComponent(currentMovie.id) + '/early-access', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ personIds: Array.from(earlyPicked) })
+      body: JSON.stringify({ personIds: [personId] })
     });
     if (await handleAuthFailure(res)) return;
     if (!res.ok) throw new Error('failed');
     currentMovie.unlocks = (await res.json()).unlocks;
-    earlyPicked.clear();
     renderEarlyAccess();
   }catch(e){
     status.textContent = t('admin.movies.earlyFailed');
-    renderEarlyButton();
+    btn.disabled = false;
   }
 }
 
