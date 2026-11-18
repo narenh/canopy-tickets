@@ -2425,7 +2425,9 @@ function renderEarlyAccess(){
   if (!earlyPeople.length){ list.innerHTML = '<div class="empty-state">' + escapeHtml(t('admin.movies.earlyNone')) + '</div>'; return; }
   const unlocks = new Map((m.unlocks || []).map(u => [u.personId, u]));
   const name = (p) => ((p.firstName || '') + ' ' + (p.lastName || '')).trim() || p.shortName || p.email;
-  const people = earlyPeople.slice().sort((a, b) => (unlocks.has(a.id) - unlocks.has(b.id)) || name(a).localeCompare(name(b)));
+  // You first, then everyone A-Z -- a fixed order, so unlocking someone
+  // doesn't move their row.
+  const people = earlyPeople.slice().sort((a, b) => ((b.id === earlyAdminId) - (a.id === earlyAdminId)) || name(a).localeCompare(name(b)));
   list.innerHTML = '';
   people.forEach(p => {
     const u = unlocks.get(p.id);

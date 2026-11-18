@@ -404,7 +404,7 @@ const COPY = {
       earlyUnlock: 'Unlock',
       earlyRevoke: 'Revoke',
       earlyYou: '(you)',
-      earlyGiven: 'Early access since {date}',
+      earlyGiven: 'Invited {date}',
       earlyPassword: 'Unlocked with the password',
       earlyNoPass: 'No Wallet pass, won’t be notified',
       earlyFailed: 'Could not give early access. Try again.',
