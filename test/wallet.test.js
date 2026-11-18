@@ -166,7 +166,7 @@ test('booked, weeks out: classic, Unpaid, seats as F8 and F9, no alert, Order wh
   assert.strictEqual(fieldOf(json, 'ticket').value, 'Unpaid');
   assert.strictEqual(fieldOf(json, 'auditorium').value, '13');
   const imax = pass(showAt(now, 20 * DAY, { screen: 'amc-metreon-16', format: 'IMAX with Laser' }), { now }).json;
-  assert.strictEqual(fieldOf(imax, 'auditorium').value, '16 (IMAX w/ Laser)');
+  assert.strictEqual(fieldOf(imax, 'auditorium').value, '16 (IMAX Laser)');
   assert.deepStrictEqual(json.semantics.seats, [{ seatNumber: 'F8' }, { seatNumber: 'F9' }]);
   assert.strictEqual(json.semantics.eventType, 'PKEventTypeMovie');
   assert.ok(!json.locations, 'lock screen by time, not place');

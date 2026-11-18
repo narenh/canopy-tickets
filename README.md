@@ -851,7 +851,7 @@ guest's), until 20 minutes after it starts; with none, "Nothing booked".
   made for that crop. It keeps its own shape (only scaled), and the pass's
   colours come from it. Without one, the poster does both jobs.
 - **The bottom row** is Auditorium, Seat(s), Ticket. A special format
-  rides along with the auditorium: 16 (IMAX 70mm), 16 (IMAX w/ Laser),
+  rides along with the auditorium: 16 (IMAX 70mm), 16 (IMAX Laser),
   13 (Dolby), 11 (ScreenX), and (3D) for RealD 3D; Single Laser shows
   just the number.
 - **Seats** go in Wallet's semantics as `seatNumber` "F8" (row and seat
