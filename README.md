@@ -297,7 +297,16 @@ switch is irreversible. Profile photos tickets used to store are still in
   is Cloudflare's `CF-Connecting-IP` when present — `X-Forwarded-For`
   keeps whatever the visitor sent first, so it can't be trusted for this.
 
-A movie without a password can't be unlocked by anyone; the admin's
+**Early access.** On a movie's page, **Early access** lists everyone
+(not you, not former members): tick people and **Give early access**
+unlocks the movie for them right away (`person_unlocks.granted_at`), so
+they can reserve before you hand out the password. Each one with the
+movie pass in Wallet gets a notification, "*Movie* Tickets Available /
+Tap to reserve a seat."; the list says who has no pass and won't be
+told. Their pass keeps saying so (on its front when they've nothing
+booked) while the movie has a showtime to come.
+
+A movie without a password can't be unlocked by anyone else; the admin's
 movie grid flags those. Changing a movie's password doesn't re-lock
 people who already unlocked it.
 
@@ -852,6 +861,8 @@ guest's), until 20 minutes after it starts; with none, "Nothing booked".
 **Notifications.** Wallet alerts when a field that has a `changeMessage`
 changes, so a field carries one only in the version worth an alert:
 
+- early access from the host (see "Early access" under Movie passwords):
+  "*Movie* Tickets Available / Tap to reserve a seat.";
 - exactly 7 days and 24 hours before showtime;
 - 4 hours before, if anything's owed: "Reminder: Pay for *movie*. $x, tap
   to pay";

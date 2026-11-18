@@ -127,6 +127,25 @@ test('the Wallet background fills both backgrounds; the poster stays the thumbna
   assert.ok(!passImages(poster, art, false)['artwork@2x.png']);
 });
 
+test('early access: an alerting field with the movie, on an empty pass the front too', () => {
+  const now = Date.UTC(2026, 10, 1, 20);
+  const ea = { earlyAccess: { title: 'Godzilla x Kong: Supernova' } };
+  const empty = buildPass({ passTypeIdentifier: 'p', teamIdentifier: 't', serialNumber: 's', authenticationToken: 'a'.repeat(32), webServiceURL: 'https://x/', siteUrl: 'https://x/', siteHost: 'x', person: { id: 'p' }, next: null, now, ...ea }).json;
+  const f = fieldOf(empty, 'earlyAccess');
+  assert.strictEqual(f.value, 'Godzilla x Kong: Supernova Tickets Available\nTap to reserve a seat.');
+  assert.strictEqual(f.changeMessage, '%@');
+  assert.strictEqual(fieldOf(empty, 'title').value, 'Godzilla x Kong: Supernova');
+  // Without any: the field's still there (so the alert is a change of value), silent.
+  const none = fieldOf(pass(null, { now }).json, 'earlyAccess');
+  assert.strictEqual(none.value, 'None right now');
+  assert.strictEqual(none.changeMessage, undefined);
+  // Booked for something else: on the back.
+  const show = showAt(now, 20 * DAY);
+  const booked = buildPass({ passTypeIdentifier: 'p', teamIdentifier: 't', serialNumber: 's', authenticationToken: 'a'.repeat(32), webServiceURL: 'https://x/', siteUrl: 'https://x/', siteHost: 'x', person: { id: 'p-ana' }, next: { showtime: show, seatIds: ['F8'], startsAt: show.startsAt }, passes: [], upcoming: [], now, ...ea }).json;
+  assert.strictEqual(fieldOf(booked, 'earlyAccess').changeMessage, '%@');
+  assertUniqueKeys(booked);
+});
+
 test('field keys are unique in every state', () => {
   const now = Date.UTC(2026, 10, 1, 20);
   const paid = showAt(now, 2 * H);

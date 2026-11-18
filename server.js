@@ -656,7 +656,22 @@ app.get('/api/movies', (req, res) => {
 app.get('/api/movies/:id', (req, res) => {
   const movie = store.getMovie(req.params.id);
   if (!movie) return res.status(404).json({ error: 'not found' });
-  res.json({ movie: { ...movieView(movie), showtimes: movie.showtimes.map(withScreenFallback) } });
+  res.json({ movie: { ...movieView(movie), showtimes: movie.showtimes.map(withScreenFallback), unlocks: store.movieUnlocks(movie.id) } });
+});
+
+// Early access: the host unlocks a movie for the people they pick, before
+// handing out its password, so they get first pick of the seats. Each gets
+// a notification through their movie pass (lib/wallet/passContent.js),
+// if they've added it. { personIds: [...] }; answers who has it unlocked.
+app.post('/api/movies/:id/early-access', (req, res) => {
+  const movie = store.getMovie(req.params.id);
+  if (!movie) return res.status(404).json({ error: 'not found' });
+  const ids = Array.isArray((req.body || {}).personIds) ? req.body.personIds : null;
+  if (!ids || !ids.length || ids.length > 500 || !ids.every((id) => typeof id === 'string' && store.getPerson(id))) {
+    return res.status(400).json({ error: 'personIds must list people' });
+  }
+  store.grantEarlyAccess(movie.id, Array.from(new Set(ids)));
+  res.json({ unlocks: store.movieUnlocks(movie.id) });
 });
 
 app.post('/api/movies', (req, res) => {
@@ -720,7 +735,7 @@ app.get('/api/people', async (req, res) => {
     people: people.map((p) => {
       const former = !!current && !current.has(p.id);
       // A former member's photo went with their account.
-      return { ...p, former, photoUrl: former ? null : photoUrlFor(p) };
+      return { ...p, former, photoUrl: former ? null : photoUrlFor(p), walletPassAdded: wallet.enabled && wallet.isAdded(p.id) };
     }),
     adminPersonId: store.getAdminPersonId()
   });
