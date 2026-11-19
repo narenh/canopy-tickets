@@ -454,3 +454,22 @@ test('the host moves someone to another open seat, paid and ordered as they were
   const mine = items.find((i) => i.showtime.id === show.id);
   assert.deepStrictEqual(mine.seatIds.slice().sort(), ['E8', 'E9']);
 });
+
+// A movie with no password is open: everyone signed in has it unlocked
+// and can reserve. Giving it a password locks it again for anyone who
+// hadn't unlocked it some other way.
+test('a movie without a password is open to everyone signed in', async () => {
+  const { movie } = await json(await api('/api/movies', ADA, { method: 'POST', body: JSON.stringify({ title: 'Open Movie' }) }));
+  const { date, time } = sfWall(Date.now() + 5 * 24 * 3600 * 1000);
+  const { showtime } = await json(await api(`/api/movies/${movie.id}/showtimes`, ADA, {
+    method: 'POST', body: JSON.stringify({ date, time, screen: 'amc-metreon-13', price: 18 })
+  }), 201);
+  await json(await api(`/api/showtimes/${showtime.id}/seats/F1`, ADA, { method: 'PUT', body: JSON.stringify({ name: '' }) }), 200);
+  const listed = (await json(await api('/api/public/movies', FRED), 200)).movies.find((m) => m.id === movie.id);
+  assert.strictEqual(listed.unlocked, true);
+  assert.ok((await json(await api('/api/public/showtimes', FRED), 200)).showtimes.some((s) => s.id === showtime.id));
+  await json(await api(`/api/public/showtimes/${showtime.id}/claim`, FRED, { method: 'POST', body: JSON.stringify({ seatId: 'F1' }) }), 200);
+  await json(await api(`/api/movies/${movie.id}`, ADA, { method: 'PATCH', body: JSON.stringify({ password: 'pw2' }) }), 200);
+  const after = (await json(await api('/api/public/movies', FRED), 200)).movies.find((m) => m.id === movie.id);
+  assert.strictEqual(after.unlocked, true, 'Fred keeps it through his seat');
+});

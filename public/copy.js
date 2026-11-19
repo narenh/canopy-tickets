@@ -422,8 +422,8 @@ const COPY = {
       next: 'Next: {when}',
       last: 'Last: {when}',
       deleteConfirm: 'Delete "{title}"? It has no showtimes.',
-      noPassword: 'No password yet',
-      passwordNone: "None yet -- friends can't unlock this",
+      noPassword: 'No password: open to everyone',
+      passwordNone: 'None -- open to everyone signed in',
       passwordNote: "Friends type it once per phone. Changing it doesn't lock out phones that already unlocked."
     },
 

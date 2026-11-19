@@ -2281,7 +2281,7 @@ function buildMovieTile(m, isPast){
     sub.textContent = count + ' · ' + when;
   }
   tile.appendChild(sub);
-  // Nobody can unlock a movie without one.
+  // Without one, everyone signed in has it unlocked.
   if (!m.password && !isPast){
     const warn = document.createElement('div');
     warn.className = 'tile-warn';

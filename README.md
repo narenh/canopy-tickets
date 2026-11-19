@@ -307,8 +307,8 @@ movie pass in Wallet gets a notification, "*Movie* tickets available. Tap
 told. Their pass keeps saying so (on its front when they've nothing
 booked) while the movie has a showtime to come, or none scheduled yet.
 
-A movie without a password can't be unlocked by anyone else; the admin's
-movie grid flags those. Changing a movie's password doesn't re-lock
+A movie without a password is open: everyone signed in has it unlocked
+and can reserve seats. The admin's movie grid flags those. Changing a movie's password doesn't re-lock
 people who already unlocked it.
 
 Unlocks belong to the person, not the browser: a friend types each
