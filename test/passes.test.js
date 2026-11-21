@@ -473,3 +473,18 @@ test('a movie without a password is open to everyone signed in', async () => {
   const after = (await json(await api('/api/public/movies', FRED), 200)).movies.find((m) => m.id === movie.id);
   assert.strictEqual(after.unlocked, true, 'Fred keeps it through his seat');
 });
+
+// A $0 ticket is never unpaid; give the showtime a price and it's owed.
+test('a free ticket shows as paid; a priced one as unpaid', async () => {
+  const { movie } = await json(await api('/api/movies', ADA, { method: 'POST', body: JSON.stringify({ title: 'Free Movie' }) }));
+  const { date, time } = sfWall(Date.now() + 6 * 24 * 3600 * 1000);
+  const { showtime } = await json(await api(`/api/movies/${movie.id}/showtimes`, ADA, {
+    method: 'POST', body: JSON.stringify({ date, time, screen: 'amc-metreon-13', price: 0 })
+  }), 201);
+  await json(await api(`/api/showtimes/${showtime.id}/seats/G1`, ADA, { method: 'PUT', body: JSON.stringify({ name: '' }) }), 200);
+  await json(await api(`/api/public/showtimes/${showtime.id}/claim`, FRED, { method: 'POST', body: JSON.stringify({ seatId: 'G1' }) }), 200);
+  const seat = async () => (await json(await api('/api/public/showtimes', FRED), 200)).showtimes.find((s) => s.id === showtime.id).seats.G1;
+  assert.strictEqual((await seat()).paid, true);
+  await json(await api(`/api/showtimes/${showtime.id}`, ADA, { method: 'PATCH', body: JSON.stringify({ price: 12 }) }), 200);
+  assert.strictEqual((await seat()).paid, false);
+});

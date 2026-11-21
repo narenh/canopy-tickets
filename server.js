@@ -408,7 +408,10 @@ function publicShowtimeView(s, viewer, onlySeatIds, lookup) {
       // would just be the same data in N round-trips.
       blockSeats[id] = {
         name: seats[id].name,
-        paid: seats[id].paid,
+        // A free ticket ($0 or no price) counts as paid, so nothing can
+        // show it as unpaid. Derived, not stored: set a price later and
+        // it's owed again.
+        paid: seats[id].paid || !(typeof s.price === 'number' && s.price > 0),
         // Dollars of concessions already settled, so the page can work
         // out what's still owed on a cart that grew after being paid for.
         concessionsPaid: seats[id].concessionsPaid,

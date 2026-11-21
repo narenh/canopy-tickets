@@ -3110,8 +3110,10 @@ function renderSeat(id){
   }
   if (s.name){
     el.classList.add('claimed');
-    if (s.paid) el.classList.add('paid');
-    el.dataset.tooltip = t('admin.seatGrid.tipClaimed', { seat: id, name: s.name, state: s.paid ? 'paid' : 'unpaid' });
+    // A free ticket ($0 or no price) is never unpaid.
+    const settled = s.paid || !(currentShowtimePrice() > 0);
+    if (settled) el.classList.add('paid');
+    el.dataset.tooltip = t('admin.seatGrid.tipClaimed', { seat: id, name: s.name, state: settled ? 'paid' : 'unpaid' });
   } else {
     el.classList.add('in-block');
     el.dataset.tooltip = t('admin.seatGrid.tipAvailable', { seat: id });
@@ -3862,7 +3864,7 @@ async function deleteShowtime(){
     queuePatch({ screen: e.target.value, format: byId('format').value }, true);
     buildSeatGrid();
   });
-  byId('price').addEventListener('input', (e) => { queuePatch({ price: e.target.value }); updateSummary(); });
+  byId('price').addEventListener('input', (e) => { queuePatch({ price: e.target.value }); Object.keys(seatEls).forEach(renderSeat); updateSummary(); });
   byId('price').addEventListener('blur', flushPendingPatch);
   byId('showInfo').addEventListener('input', (e) => queuePatch({ info: e.target.value }));
   // Picking a suggestion fires change; send it then rather than waiting.
