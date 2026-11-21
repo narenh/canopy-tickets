@@ -178,7 +178,8 @@ tickets asks the account service, server to server, who it belongs to
 (`lib/canopyAccount.js`).
 
 - **Signed out**, `/` and `/admin` show tickets' own sign-in page
-  (`views/signin.html`), with its logo, backdrop and Open Graph tags (a
+  (`views/signin.html`), with its logo, a dark red mesh-gradient
+  backdrop (CSS, not the link-preview image) and Open Graph tags (a
   link-preview crawler gets this page too; see "Link-preview image &
   logo").
 - **Sign in with passkey** works right on that page. The page calls the

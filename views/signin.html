@@ -10,7 +10,7 @@
 <style>
   :root{
     --gold:#c9a24b;
-    --bg:#0b0b0d;
+    --bg:#060304;
     --muted:#9a9a9a;
   }
   *{box-sizing:border-box;}
@@ -116,17 +116,15 @@
     text-align:center;
   }
 
-  /* The link-preview image fills the screen behind a frosted-glass card.
-     cover on a fixed layer fills the height of a portrait phone and crops
-     the 16:9 image's sides; the dim keeps the card readable over a busy
-     frame. 100lvh rather than bottom:0: the large viewport is the height
-     with Safari's toolbars collapsed, so the image still reaches the
-     bottom edge behind a translucent toolbar. The page colour moves from
-     body to html, so the script can set it without body painting a solid
-     box over the backdrop (which sits at z-index -1). */
-  html.has-backdrop{background:var(--bg);}
-  html.has-backdrop body{background:transparent;}
-  body.has-backdrop::before{
+  /* Behind the frosted-glass card: a mesh of dark reds on black, drawn
+     with overlapping radial gradients (no image to load). Fixed and
+     100lvh, the large viewport (Safari's toolbars collapsed), so it
+     still reaches the bottom edge behind a translucent toolbar. Its edges
+     fade to the page colour, which is what iOS Safari paints behind the
+     status bar and toolbar. */
+  html{background:var(--bg);}
+  body{background:transparent;}
+  body::before{
     content:"";
     position:fixed;
     top:0;
@@ -134,51 +132,22 @@
     right:0;
     height:100lvh;
     z-index:-1;
-    background:var(--backdrop) center / cover no-repeat, var(--bg);
+    background:
+      radial-gradient(55% 40% at 18% 28%, rgba(128,14,26,.62), transparent 72%),
+      radial-gradient(50% 38% at 84% 52%, rgba(96,8,18,.66), transparent 72%),
+      radial-gradient(48% 32% at 40% 82%, rgba(150,22,30,.38), transparent 72%),
+      radial-gradient(38% 28% at 72% 14%, rgba(74,6,14,.55), transparent 72%),
+      radial-gradient(30% 22% at 52% 50%, rgba(60,4,10,.5), transparent 75%),
+      var(--bg);
   }
-  body.has-backdrop::after{
-    content:"";
-    position:fixed;
-    top:0;
-    left:0;
-    right:0;
-    height:100lvh;
-    z-index:-1;
-    background:rgba(0,0,0,0.25);
-  }
-  /* iOS Safari 26 paints the strips behind its status bar and toolbar a
-     single solid colour it picks from the page -- a fixed bar touching
-     that edge if there is one, the page background if not -- and won't
-     show the image there. These two bars give it a colour to pick: each
-     is the average colour of the image's edge (set by the script below)
-     and fades into the image. */
-  .edge-tint{
-    position:fixed;
-    left:0;
-    right:0;
-    height:40px;
-    z-index:0;
-    pointer-events:none;
-    background-color:transparent;
-  }
-  .edge-tint.top{
-    top:0;
-    -webkit-mask-image:linear-gradient(to bottom, #000, transparent);
-    mask-image:linear-gradient(to bottom, #000, transparent);
-  }
-  .edge-tint.bottom{
-    bottom:0;
-    -webkit-mask-image:linear-gradient(to top, #000, transparent);
-    mask-image:linear-gradient(to top, #000, transparent);
-  }
-  body.has-backdrop .card{
+  .card{
     background:rgba(21,21,23,0.45);
     border-color:rgba(255,255,255,0.14);
     -webkit-backdrop-filter:blur(20px) saturate(140%);
     backdrop-filter:blur(20px) saturate(140%);
     box-shadow:0 10px 40px rgba(0,0,0,0.35);
   }
-  body.has-backdrop p{color:#d0d0d0;}
+  p{color:#d0d0d0;}
 </style>
 </head>
 <!-- Signed out. Sign-in is Canopy accounts', but the passkey half runs
@@ -191,9 +160,7 @@
      Or signed in, but with a quick Canopy account whose email isn't
      confirmed, which tickets doesn't let in (data-verify is set): then it
      says so instead, with Verify my email and Sign out. -->
-<body data-backdrop="__OG_IMAGE_URL__" data-account="__ACCOUNT_URL__" data-email-signin="__EMAIL_SIGNIN_URL__" data-verify="__VERIFY_URL__">
-  <div class="edge-tint top" id="edgeTop" aria-hidden="true"></div>
-  <div class="edge-tint bottom" id="edgeBottom" aria-hidden="true"></div>
+<body data-account="__ACCOUNT_URL__" data-email-signin="__EMAIL_SIGNIN_URL__" data-verify="__VERIFY_URL__">
 
   <div class="card">
     <!-- LOGO_IMG -->
@@ -229,52 +196,6 @@ const EMAIL_SIGNIN = document.body.getAttribute('data-email-signin');
 if (document.body.getAttribute('data-verify')){
   document.getElementById('signInView').classList.add('hidden');
   document.getElementById('verifyView').classList.remove('hidden');
-}
-
-// ---------------- Backdrop ----------------
-// The link-preview image behind the card, when one has been uploaded.
-const BACKDROP = document.body.getAttribute('data-backdrop');
-if (BACKDROP && BACKDROP.charAt(0) === '/'){
-  document.body.style.setProperty('--backdrop', 'url("' + BACKDROP + '")');
-  document.body.classList.add('has-backdrop');
-  document.documentElement.classList.add('has-backdrop');
-  tintEdgesFrom(BACKDROP);
-}
-
-// Works out the colour along the top and bottom edges of the backdrop as
-// it's actually cropped on this screen (cover, centered), and hands each
-// to its .edge-tint bar -- and the bottom one to the page background too,
-// for a Safari that ignores the bars and only reads that. Scaled down to
-// a few dozen pixels first: an average doesn't need the full 4K image.
-function tintEdgesFrom(url){
-  const img = new Image();
-  img.onload = () => {
-    try{
-      const vw = window.innerWidth, vh = window.innerHeight;
-      const cw = 48, ch = Math.max(2, Math.round(cw * vh / vw));
-      const scale = Math.max(cw / img.naturalWidth, ch / img.naturalHeight);
-      const dw = img.naturalWidth * scale, dh = img.naturalHeight * scale;
-      const canvas = document.createElement('canvas');
-      canvas.width = cw;
-      canvas.height = ch;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, (cw - dw) / 2, (ch - dh) / 2, dw, dh);
-      // 0.75: the backdrop sits under a 25% black dim (body::after).
-      const edge = (y) => {
-        const d = ctx.getImageData(0, y, cw, 1).data;
-        const sum = [0, 0, 0];
-        for (let i = 0; i < d.length; i += 4){ sum[0] += d[i]; sum[1] += d[i + 1]; sum[2] += d[i + 2]; }
-        return 'rgb(' + sum.map(v => Math.round(v / cw * 0.75)).join(',') + ')';
-      };
-      const top = edge(0), bottom = edge(ch - 1);
-      document.getElementById('edgeTop').style.backgroundColor = top;
-      document.getElementById('edgeBottom').style.backgroundColor = bottom;
-      document.documentElement.style.backgroundColor = bottom;
-    }catch(e){
-      // Leave the default dark strips.
-    }
-  };
-  img.src = url;
 }
 
 // ---------------- Passkey ----------------

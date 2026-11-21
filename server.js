@@ -238,12 +238,6 @@ function buildOgTags(req) {
 // which case the page just shows without one -- no broken-image icon).
 // Same cache-busting reasoning as the OG image: the URL changes on every
 // upload so browsers can't keep showing a stale cached logo.
-// Same-origin, cache-busted URL of the link-preview image, or '' if none
-// has been uploaded. The sign-in page uses it as its backdrop.
-function ogImageUrl() {
-  const meta = ogImageStore.getMeta();
-  return meta ? `/og-image?v=${meta.uploadedAt}` : '';
-}
 
 function buildLogoImgTag() {
   const meta = logoImageStore.getMeta();
@@ -2207,7 +2201,6 @@ function escapeAttr(value) {
 function sendSignedOutPage(req, res) {
   const unverified = !!req.canopyUnverified;
   renderHtmlPage(res, req, path.join(__dirname, 'views', 'signin.html'), {
-    OG_IMAGE_URL: ogImageUrl(),
     ACCOUNT_URL: CANOPY_ACCOUNT_KEY ? CANOPY_ACCOUNT_URL : '',
     // ?email: the account page shows only the email step, since choosing
     // email here already says "new, or no passkey on this phone".
